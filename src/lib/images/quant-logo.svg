@@ -1,0 +1,10 @@
+<svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+<rect width="40" height="40" rx="8" fill="#00529B"/>
+<line y1="-0.5" x2="10.7886" y2="-0.5" transform="matrix(0.715007 -0.699118 0.715007 0.699118 8.40909 25.6569)" stroke="white"/>
+<line y1="-0.5" x2="8.09142" y2="-0.5" transform="matrix(-0.715007 -0.699118 -0.715007 0.699118 21.6939 22.9902)" stroke="white"/>
+<line y1="-0.5" x2="10.7886" y2="-0.5" transform="matrix(0.715007 -0.699118 0.715007 0.699118 24.7727 22.9902)" stroke="white"/>
+<ellipse cx="16.5909" cy="16.6667" rx="2.04545" ry="2" fill="white"/>
+<ellipse cx="7.04545" cy="26" rx="2.04545" ry="2" fill="white"/>
+<ellipse cx="23.4091" cy="23.3333" rx="2.04545" ry="2" fill="white"/>
+<ellipse cx="32.9545" cy="14" rx="2.04545" ry="2" fill="white"/>
+</svg>
