@@ -15,11 +15,11 @@ export type SidebarItem = {
 export const sidebarConfigs = {
     dashboard: [
         { name: "통합 현황", img: graph_support, link: "/dashboard/overview" },
-        { name: "수익 분석", img: ver_graph, link: "/dashboard/profit" },
-        { name: "성장 추이", img: graph, link: "/dashboard/growth" },
-        { name: "오늘의 미션", img: quest, link: "/dashboard/missions" },
-        { name: "뉴스 피드", img: document, link: "/dashboard/news" },
-        { name: "알림 센터", img: bell, link: "/dashboard/notifications" }
+        { name: "은행", img: ver_graph, link: "/dashboard/bank" },
+        { name: "주식", img: graph, link: "/dashboard/stock" },
+        { name: "채권", img: quest, link: "/dashboard/bond" },
+        { name: "코인", img: document, link: "/dashboard/coin" },
+        { name: "ETF", img: bell, link: "/dashboard/etf" }
     ],
     asset: [
         { name: "전체 자산 개요", img: bell, link: "/asset/overview" },
