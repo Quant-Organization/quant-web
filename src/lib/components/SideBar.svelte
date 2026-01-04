@@ -59,7 +59,7 @@
 <style>
     .side-bar {
         width: 100%;
-        max-width: 20rem;
+        max-width: 16rem;
         padding: 2rem 1.5rem;
         height: 100%;
         border-right: 0.0625rem solid var(--color-border);

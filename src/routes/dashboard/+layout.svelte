@@ -36,9 +36,7 @@
 
     .content {
         flex: 1;
-        padding-left: 2rem;
-        padding-right: 2rem;
-        padding-top: 1.4rem;
+        padding: 1.4rem 2rem;
         overflow-y: auto;
         background-color: var(--color-bg-0);
     }

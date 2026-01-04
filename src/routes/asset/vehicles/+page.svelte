@@ -171,12 +171,12 @@
     }
 
     .header-text h1 {
-        font-size: 2.2rem;
+        font-size: 1.8rem;
         font-weight: 700;
         margin: 0 0 0.5rem 0;
     }
     .header-text p {
-        font-size: 1.2rem;
+        font-size: 1rem;
         color: var(--color-text-gray);
         margin: 0;
     }
@@ -218,7 +218,7 @@
     /* 섹션 타이틀 (카드 바깥) */
     .section-title {
         margin: 0 0 1rem 0;
-        font-size: 1.5rem;
+        font-size: 1.3rem;
         font-weight: 700;
     }
 
@@ -263,8 +263,8 @@
         flex-direction: column;
     }
 
-    .list-item .name { font-weight: 700; font-size: 1.1rem; }
-    .list-item .price { color: #666; font-size: 1rem; margin-top: 4px; }
+    .list-item .name { font-weight: 700; font-size: 1rem; }
+    .list-item .price { color: #666; font-size: 0.8rem; margin-top: 4px; }
 
 
     /* 2. 중앙 패널 (상세 보기) */
@@ -275,7 +275,7 @@
     }
 
     .center-top-panel {
-        padding: 1.5rem;
+        padding: 1rem;
     }
 
     .preview-image {
@@ -293,11 +293,11 @@
         text-align: left;
     }
 
-    .car-header-info h2 { margin: 0 0 0.5rem 0; font-size: 2rem; }
+    .car-header-info h2 { margin: 0 0 0.5rem 0; font-size: 1.8rem; }
     .current-price { color: var(--color-text-gray); font-weight: 600; font-size: 1.2rem; }
 
     .center-bottom-panel {
-        padding: 1.5rem;
+        padding: 1.3rem;
     }
 
     .stats-row {
@@ -429,12 +429,12 @@
         margin-bottom: 0.25rem;
     }
 
-    .shop-name { font-weight: 700; font-size: 1.2rem; }
-    .shop-price { font-weight: 700; font-size: 1.2rem; }
+    .shop-name { font-weight: 700; font-size: 0.8rem; }
+    .shop-price { font-weight: 700; font-size: 0.8rem; }
     .shop-price.accent { color: #0e4c92; }
 
     .shop-row.sub {
-        font-size: 0.9rem;
+        font-size: 0.8rem;
         color: var(--color-text-gray);
     }
 
