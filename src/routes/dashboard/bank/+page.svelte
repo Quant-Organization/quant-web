@@ -1,6 +1,7 @@
 <script lang="ts">
     import { fly, fade } from 'svelte/transition';
     import { quintOut } from 'svelte/easing';
+    import { goto } from '$app/navigation';
     import sinhan from '$lib/images/sinhan.svg';
     import sinhyup from '$lib/images/sinhyup.svg';
     import ok from '$lib/images/ok.svg';
@@ -54,37 +55,14 @@
         }
     ];
 
-    // --- 대출 신청 페이지용 State ---
-    let selectedLoanBank: { name: string, icon: string, rate: number, tier: number } | null = $state(null);
-    let applyAmount = $state(50000000);
-    let applyTerm = $state(36);
-    let repaymentMethod = $state('equal_principal_interest');
-
-    // 월 예상 상환금 계산 (변수 p 제거)
-    let estimatedMonthlyPayment = $derived.by(() => {
-        if (!selectedLoanBank) return 0;
-        const rate = selectedLoanBank.rate / 100 / 12;
-        const n = applyTerm;
-        const payment = (applyAmount * rate * Math.pow(1 + rate, n)) / (Math.pow(1 + rate, n) - 1);
-        return Math.floor(payment);
-    });
-
-    let sliderStyle = $derived(`background: linear-gradient(to right, #00509d 0%, #00509d ${(applyAmount / 150000000) * 100}%, #e5e7eb ${(applyAmount / 150000000) * 100}%, #e5e7eb 100%);`);
-
     // --- Functions ---
     function goToLoanPage(bank: any) {
-        selectedLoanBank = bank;
-        applyAmount = 50000000;
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-
-    function goBackToList() {
-        selectedLoanBank = null;
+        const bankData = encodeURIComponent(JSON.stringify(bank));
+        goto(`/dashboard/loan?bank=${bankData}`);
     }
 
     function handleFinalLoan() {
-        if(!selectedLoanBank) return;
-        alert(`${selectedLoanBank.name}에서 ${applyAmount.toLocaleString()}원 대출 신청이 완료되었습니다.`);
+        alert('대출 신청이 완료되었습니다.');
     }
 
     function toggleDropdown(slot: 'bank1' | 'bank2' | 'bank3', event: MouseEvent) {
@@ -142,30 +120,17 @@
             </div>
         </div>
 
-        {#if !selectedLoanBank}
-            <div class="hero-content" transition:fade>
-                <div class="hero-bank-title">
-                    <img src={bankIcon} alt="은행" class="bank-icon"/>
-                    <span class="bank-text">은행 대출</span>
-                </div>
+        <div class="hero-content">
+            <div class="hero-bank-title">
+                <img src={bankIcon} alt="은행" class="bank-icon"/>
+                <span class="bank-text">은행 대출</span>
             </div>
-        {:else}
-            <div class="hero-content compact" transition:fade>
-                <div class="hero-bank-title compact-title">
-                    <button class="back-button" onclick={goBackToList}>
-                        <img src={arrow} alt="뒤로가기" class="back-arrow"/>
-                    </button>
-                    <img src={bankIcon} alt="은행" class="bank-icon-sm"/>
-                    <span class="bank-text">은행 대출</span>
-                </div>
-            </div>
-        {/if}
+        </div>
     </div>
 
     <div class="main-content">
-        {#if selectedLoanBank === null}
-            <div class="list-view" transition:fade={{duration: 200}}>
-                <div class="banks-grid">
+        <div class="list-view">
+            <div class="banks-grid">
                     <div class="bank-card-wrapper">
                         <div class="tier-header">
                             <div class="tier-title">제1금융권</div>
@@ -321,139 +286,41 @@
                                 <div class="progress-fill" style="width: 33%"></div>
                             </div>
                         </div>
+
+                        <button class="repay-btn">
+                            대출 상환하기
+                        </button>
                     </div>
                     <div class="payment-card">
                         <h3 class="section-title">상환 일정</h3>
-                        <div class="payment-info">
-                            <div class="payment-row">
-                                <div class="payment-label">다음 상환일</div>
-                                <div class="payment-date">2025년 12월 12일 (금)</div>
+
+                        <div class="payment-detail-group">
+                            <div class="payment-item">
+                                <div class="payment-label-sm">다음 상환일</div>
+                                <div class="payment-date-blue">2025년 12월 12일 (금)</div>
                             </div>
-                            <div class="payment-row">
-                                <div class="payment-label">예상 상환액</div>
-                                <div class="payment-amount">1,650,000원</div>
+
+                            <div class="payment-item">
+                                <div class="payment-label-sm">예상 상환액</div>
+                                <div class="payment-amount-lg">{(loanAmount + repaymentAmount).toLocaleString()}원</div>
+                            </div>
+                        </div>
+
+                        <div class="dashed-divider"></div>
+
+                        <div class="payment-breakdown">
+                            <div class="breakdown-row">
+                                <span class="breakdown-label">원금</span>
+                                <span class="breakdown-value">{loanAmount.toLocaleString()}원</span>
+                            </div>
+                            <div class="breakdown-row">
+                                <span class="breakdown-label">이자</span>
+                                <span class="breakdown-value">{repaymentAmount.toLocaleString()}원</span>
                             </div>
                         </div>
                     </div>
                 </div>
-            </div>
-
-        {:else}
-            <div class="loan-view" transition:fly={{ y: 20, duration: 400 }}>
-                <div class="loan-header">
-                    <h2>대출 신청</h2>
-                    <div class="loan-bank-badge">
-                        <img src={selectedLoanBank.icon} alt="bank" />
-                        <span>{selectedLoanBank.name}</span>
-                    </div>
-                </div>
-
-                <div class="loan-content-grid">
-                    <div class="loan-form-card">
-                        <div class="form-row two-col">
-                            <div class="input-group">
-                                <label for="loan-type">대출 신청</label>
-                                <select id="loan-type" class="custom-select">
-                                    <option>신용 대출</option>
-                                    <option>담보 대출</option>
-                                </select>
-                            </div>
-                            <div class="input-group">
-                                <label for="loan-term">대출 기간</label>
-                                <select id="loan-term" class="custom-select" bind:value={applyTerm}>
-                                    <option value={12}>12개월</option>
-                                    <option value={24}>24개월</option>
-                                    <option value={36}>36개월</option>
-                                    <option value={48}>48개월</option>
-                                    <option value={60}>60개월</option>
-                                </select>
-                            </div>
-                        </div>
-
-                        <div class="form-row">
-                            <div class="input-group">
-                                <label for="amount">대출액</label>
-                                <div class="amount-display-box">
-                                    <div class="amount-label">대출액</div>
-                                    <div class="amount-value-tag">{applyAmount.toLocaleString()}원</div>
-                                </div>
-                                <input
-                                        id="amount"
-                                        type="range"
-                                        min="1000000"
-                                        max="150000000"
-                                        step="1000000"
-                                        bind:value={applyAmount}
-                                        class="range-slider"
-                                        style={sliderStyle}
-                                />
-                            </div>
-                        </div>
-
-                        <div class="form-row">
-                            <div class="radio-group-label">상환 방식</div>
-                            <div class="radio-group">
-                                <label class="radio-item" class:selected={repaymentMethod === 'equal_principal_interest'}>
-                                    <input type="radio" name="method" value="equal_principal_interest" bind:group={repaymentMethod}>
-                                    <span class="radio-circle"></span>
-                                    <span>원리금균등상환</span>
-                                </label>
-                                <label class="radio-item" class:selected={repaymentMethod === 'bullet'}>
-                                    <input type="radio" name="method" value="bullet" bind:group={repaymentMethod}>
-                                    <span class="radio-circle"></span>
-                                    <span>만기일시상환</span>
-                                </label>
-                                <label class="radio-item" class:selected={repaymentMethod === 'equal_principal'}>
-                                    <input type="radio" name="method" value="equal_principal" bind:group={repaymentMethod}>
-                                    <span class="radio-circle"></span>
-                                    <span>원금균등상환</span>
-                                </label>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="loan-summary-sidebar">
-                        <div class="estimated-card">
-                            <div class="estimated-bg"></div>
-                            <div class="estimated-content">
-                                <div class="est-label">예상 월 상환금</div>
-                                <div class="est-amount">₩{estimatedMonthlyPayment.toLocaleString()}</div>
-                            </div>
-                        </div>
-
-                        <div class="summary-details-card">
-                            <h3>신청 요약</h3>
-                            <div class="detail-list">
-                                <div class="detail-item">
-                                    <span class="label">대출 은행</span>
-                                    <span class="value">{selectedLoanBank.name}</span>
-                                </div>
-                                <div class="detail-item">
-                                    <span class="label">대출 상품</span>
-                                    <span class="value">신용 대출</span>
-                                </div>
-                                <div class="detail-item">
-                                    <span class="label">대출 원금</span>
-                                    <span class="value">{applyAmount.toLocaleString()}원</span>
-                                </div>
-                                <div class="detail-item">
-                                    <span class="label">대출 기간</span>
-                                    <span class="value">{applyTerm}개월</span>
-                                </div>
-                                <div class="detail-item highlight">
-                                    <span class="label">예상 금리</span>
-                                    <span class="value">연 {selectedLoanBank.rate}%</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <button class="final-apply-btn" onclick={handleFinalLoan}>
-                            대출 받기
-                        </button>
-                    </div>
-                </div>
-            </div>
-        {/if}
+        </div>
     </div>
 </div>
 
@@ -493,28 +360,53 @@
 {/if}
 
 <style>
+    /* 대출 상환하기 버튼 스타일 */
+    .repay-btn {
+        width: 100%; /* 부모(summary-section) 너비에 맞춤 */
+        margin-top: 1rem; /* 위쪽 카드와의 간격 */
+        background-color: #0b51a0; /* 이미지와 유사한 진한 파란색 */
+        color: white;
+        border: none;
+        border-radius: 12px; /* 카드와 동일한 둥글기 */
+        padding: 1.2rem;
+        font-size: 1.1rem;
+        font-weight: 700;
+        cursor: pointer;
+        box-shadow: 0 4px 6px rgba(11, 81, 160, 0.2);
+        transition: background-color 0.2s, transform 0.1s;
+    }
+
+    .repay-btn:hover {
+        background-color: #094080;
+        transform: translateY(-2px);
+    }
+
+    .repay-btn:active {
+        transform: translateY(0);
+    }
     /* CSS 축약형 적용 및 표준 속성 추가 */
     .bank-container { width: 100%; padding: 1.4rem 0 2rem 0; margin-top: -1.4rem; }
-    .hero-section { background: linear-gradient(135deg, #1e5a8e 0%, #124a7a 100%); margin: -1.4rem -2rem 2rem -2rem; color: white; position: relative; overflow: hidden; min-height: 250px; display: flex; flex-direction: column;}
-    .top-bar { display: flex; justify-content: space-between; align-items: center; padding: 0 6rem; background: rgba(0,0,0,0.1); }
+    .hero-section { background: linear-gradient(135deg, var(--color-theme-1) 0%, #124a7a 100%); margin: -1.4rem -2rem 2rem -2rem; color: white; position: relative; overflow: hidden; display: flex; flex-direction: column;}
+    .top-bar { display: flex; justify-content: space-between; align-items: center; padding: 0.6rem 6rem; background: var(--color-theme-1-dark); }
+    .top-bar-left { display: flex; align-items: center; gap: 0.5rem; }
     .page-title { font-size: 1.2rem; font-weight: 700; margin: 0; color: white; }
-    .hero-content { display: flex; align-items: center; flex: 1; padding: 0 4rem 2rem calc(192px + 2rem); }
-    .hero-content.compact { padding-bottom: 1rem; align-items: flex-end; }
+    .hero-content { display: flex; align-items: center; flex: 1; padding: 0 4rem 0 calc(192px + 2rem); position: relative; }
+    .hero-content.compact { padding-bottom: 0; align-items: flex-end; }
     .hero-bank-title { display: flex; align-items: center; gap: 2rem; }
     .compact-title { gap: 1rem; }
     .bank-icon { height: 10rem; }
     .bank-icon-sm { height: 4rem; }
     .bank-text { font-size: 2.5rem; font-weight: 700; color: white; }
 
-    .main-content { padding: 0 4rem; min-height: 600px; }
+    .main-content { padding: 0 4rem; min-height: 600px; position: relative; }
     .banks-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2rem; align-items: start; margin-bottom: 2rem;}
     .bank-card-wrapper { display: flex; flex-direction: column; gap: 1rem; }
-    .tier-header { background: #1e5a8e; border-radius: 10px; padding: 1rem; text-align: center; color: white; }
+    .tier-header { background: var(--color-theme-1); border-radius: 10px; padding: 1rem; text-align: center; color: white; }
     .tier-title { font-size: 1.5rem; font-weight: 700; }
     .tier-subtitle { font-size: 0.9rem; opacity: 0.8; }
 
     .bank-card.simple { background: white; border: 2px solid #e5e7eb; border-radius: 12px; padding: 1.5rem; box-shadow: 0 4px 6px rgba(0,0,0,0.05); transition: all 0.2s; cursor: pointer; position: relative; }
-    .bank-card.simple.hoverable:hover { border-color: #1e5a8e; transform: translateY(-4px); box-shadow: 0 10px 15px rgba(30,90,142,0.1); }
+    .bank-card.simple.hoverable:hover { border-color: var(--color-theme-1); transform: translateY(-4px); box-shadow: 0 10px 15px rgba(30,90,142,0.1); }
 
     .bank-details { display: flex; flex-direction: column; gap: 0.75rem; padding-top: 1rem; }
     .detail-row { display: flex; align-items: center; gap: 0.5rem; font-size: 0.95rem; }
@@ -522,153 +414,106 @@
     .detail-label { color: #6b7280; flex: 1; font-weight: 500; }
     .detail-value { font-weight: 600; color: #1a1a1a; }
 
-    .click-guide { position: absolute; bottom: 0.5rem; left: 0; right: 0; text-align: center; font-size: 0.8rem; color: #1e5a8e; opacity: 0; transition: opacity 0.2s; font-weight: 600;}
+    .click-guide { position: absolute; bottom: 0.5rem; left: 0; right: 0; text-align: center; font-size: 0.8rem; color: var(--color-theme-1); opacity: 0; transition: opacity 0.2s; font-weight: 600;}
     .bank-card.simple.hoverable:hover .click-guide { opacity: 1; }
 
     .bank-header-simple { display: flex; align-items: center; justify-content: center; gap: 1rem; margin-bottom: 1rem; }
     .bank-logo { height: 2rem; width: auto; }
-    .bank-name-simple { font-size: 1.5rem; font-weight: 600; color: #1e5a8e; }
-    .bank-rate-bar { background: #1e5a8e; padding: 0.75rem 0.5rem; display: flex; align-items: center; justify-content: start; gap: 0.5rem; border-radius: 8px; color: white; font-weight: 600; }
+    .bank-name-simple { font-size: 1.5rem; font-weight: 600; color: var(--color-theme-1); }
+    .bank-rate-bar { background: var(--color-theme-1); padding: 0.75rem 0.5rem; display: flex; align-items: center; justify-content: start; gap: 0.5rem; border-radius: 8px; color: white; font-weight: 600; }
 
     .toggle-button { background: none; border: none; padding: 0.25rem; border-radius: 50%; cursor: pointer; }
     .arrow-icon { width: 1.5rem; transition: transform 0.3s; }
     .arrow-icon.rotated { transform: rotate(180deg); }
 
     .bottom-section { display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem; margin-top: 2rem; }
-    .summary-card, .payment-card { background: white; border: 1px solid #e5e7eb; border-radius: 12px; padding: 2rem; }
-    .section-title { font-size: 1.25rem; font-weight: bold; margin-bottom: 1.5rem; color: #1a1a1a; }
+    .summary-card { background: white; border: 1px solid #e5e7eb; border-radius: 12px; padding: 2rem; flex: 1; }
+    .payment-card {
+        background: white;
+        border: 1px solid #e5e7eb;
+        border-radius: 12px;
+        padding: 2rem;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+    }
+
+    .summary-section {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+    }
+
+    /* 상단 그룹 (날짜, 총액) */
+    .payment-detail-group {
+        display: flex;
+        flex-direction: column;
+        gap: 1.2rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .payment-label-sm {
+        font-size: 0.95rem;
+        color: #9ca3af; /* 회색 텍스트 */
+        margin-bottom: 0.4rem;
+        font-weight: 500;
+    }
+
+    .payment-date-blue {
+        font-size: 1.2rem;
+        font-weight: 700;
+        color: #0b51a0; /* 이미지의 파란색 톤 */
+    }
+
+    .payment-amount-lg {
+        font-size: 1.8rem;
+        font-weight: 800;
+        color: #0b51a0; /* 이미지의 파란색 톤 */
+        letter-spacing: -0.5px;
+    }
+
+    /* 점선 구분선 */
+    .dashed-divider {
+        border-top: 1px dashed #cbd5e1;
+        width: 100%;
+        margin-bottom: 1.5rem;
+    }
+
+    /* 하단 원금/이자 내역 */
+    .payment-breakdown {
+        display: flex;
+        flex-direction: column;
+        gap: 0.8rem;
+    }
+
+    .breakdown-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 1.05rem;
+    }
+
+    .breakdown-label {
+        color: #9ca3af; /* 회색 */
+        font-weight: 500;
+    }
+
+    .breakdown-value {
+        color: #1f2937; /* 진한 회색/검정 */
+        font-weight: 600;
+    }
+    .section-title { font-size: 1.5rem; font-weight: bold; margin-bottom: 1rem; color: #1a1a1a; }
     .summary-row { display: flex; justify-content: space-between; margin-bottom: 1rem; align-items: center; }
-    .summary-label span:first-child { font-weight: 600; display: block; }
+    .summary-label span:first-child { font-weight: 600; display: block; font-size: 1.2rem; }
     .sublabel { font-size: 0.8rem; color: #666; }
     .summary-value { font-size: 1.25rem; font-weight: 700; }
     .progress-bar { height: 10px; background: #eee; border-radius: 5px; overflow: hidden; margin-top: 1rem; }
-    .progress-fill { height: 100%; background: #1e5a8e; }
+    .progress-fill { height: 100%; background: var(--color-theme-1); }
 
     .payment-row { display: flex; justify-content: space-between; margin-bottom: 0.8rem; border-bottom: 1px dashed #eee; padding-bottom: 0.5rem; }
     .payment-amount { font-weight: 700; font-size: 1.2rem; color: #1a1a1a; }
-    .payment-date { font-weight: 600; color: #1e5a8e; }
-
-    .loan-view { display: flex; flex-direction: column; gap: 2rem; }
-    .loan-header { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1rem; }
-    .loan-header h2 { font-size: 2rem; font-weight: 700; margin: 0; color: #1a1a1a; }
-    .loan-bank-badge { display: flex; align-items: center; gap: 0.5rem; font-size: 1.2rem; font-weight: 600; color: #1e5a8e; }
-    .loan-bank-badge img { height: 1.5rem; }
-
-    .loan-content-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 2rem; }
-
-    .loan-form-card { background: white;  border-radius: 16px; display: flex; flex-direction: column; gap: 2rem; }
-    .form-row { display: flex; flex-direction: column; gap: 0.8rem; }
-    .form-row.two-col { flex-direction: row; gap: 1.5rem; }
-    .input-group { flex: 1; display: flex; flex-direction: column; gap: 0.5rem; }
-    .input-group label { font-size: 0.95rem; color: #6b7280; font-weight: 500; }
-
-    .custom-select {
-        appearance: none;
-        -webkit-appearance: none;
-        padding: 1rem;
-        border: 1px solid #e5e7eb;
-        border-radius: 12px;
-        font-size: 1rem;
-        font-weight: 600;
-        background: white url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%236b7280'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E") no-repeat right 1rem center;
-        background-size: 1.2rem;
-        cursor: pointer;
-    }
-    .custom-select:focus { outline: 2px solid #1e5a8e; border-color: transparent; }
-
-    .amount-display-box {
-        display: flex; justify-content: space-between; align-items: center;
-        background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 12px 12px 0 0;
-        padding: 1.5rem;
-        border-bottom: none;
-    }
-    .amount-value-tag { background: #e5e7eb; padding: 0.2rem 0.6rem; border-radius: 20px; font-size: 0.8rem; font-weight: 600; color: #4b5563; }
-
-    .range-slider {
-        appearance: none;
-        -webkit-appearance: none;
-        width: 100%;
-        height: 8px;
-        border-radius: 0 0 12px 12px;
-        outline: none;
-        margin: 0;
-        cursor: pointer;
-    }
-    .range-slider::-webkit-slider-thumb {
-        appearance: none;
-        -webkit-appearance: none;
-        width: 24px;
-        height: 24px;
-        border-radius: 50%;
-        background: #1e5a8e;
-        cursor: pointer;
-        border: 4px solid white;
-        box-shadow: 0 0 0 1px #1e5a8e;
-    }
-
-    .radio-group-label { font-size: 0.95rem; color: #6b7280; font-weight: 500; }
-    .radio-group { display: flex; gap: 1rem; margin-top: 0.5rem; }
-    .radio-item {
-        flex: 1;
-        display: flex; align-items: center; justify-content: center; gap: 0.5rem;
-        padding: 1rem;
-        border: 1px solid #e5e7eb;
-        border-radius: 12px;
-        cursor: pointer;
-        font-weight: 600;
-        font-size: 0.95rem;
-        transition: all 0.2s;
-    }
-    .radio-item input { display: none; }
-    .radio-circle { width: 18px; height: 18px; border: 2px solid #d1d5db; border-radius: 50%; display: block; position: relative; }
-    .radio-item.selected { border-color: #1e5a8e; background: #f0f7ff; color: #1e5a8e; }
-    .radio-item.selected .radio-circle { border-color: #1e5a8e; }
-    .radio-item.selected .radio-circle::after {
-        content: ''; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-        width: 10px; height: 10px; background: #1e5a8e; border-radius: 50%;
-    }
-
-    .loan-summary-sidebar { display: flex; flex-direction: column; gap: 1.5rem; }
-
-    .estimated-card {
-        background: white; border-radius: 16px; padding: 2rem;
-        border: 1px solid #e5e7eb;
-        text-align: center;
-        position: relative; overflow: hidden;
-        min-height: 140px; display: flex; align-items: center; justify-content: center;
-    }
-    .estimated-bg {
-        position: absolute; top: -50%; left: 50%; transform: translateX(-50%);
-        width: 300px; height: 300px; background: #f0f7ff; border-radius: 50%; z-index: 0;
-    }
-    .estimated-content { position: relative; z-index: 1; }
-    .est-label { color: #6b7280; font-size: 1rem; margin-bottom: 0.5rem; }
-    .est-amount { color: #1e5a8e; font-size: 2rem; font-weight: 800; }
-
-    .summary-details-card { background: white; border: 1px solid #e5e7eb; border-radius: 16px; padding: 2rem; }
-    .summary-details-card h3 { margin: 0 0 1.5rem 0; font-size: 1.1rem; }
-    .detail-list { display: flex; flex-direction: column; gap: 1rem; }
-    .detail-item { display: flex; justify-content: space-between; font-size: 0.95rem; color: #4b5563; }
-    .detail-item .value { font-weight: 600; color: #1a1a1a; }
-    .detail-item.highlight .value { color: #1e5a8e; font-size: 1.1rem; }
-
-    .final-apply-btn {
-        width: 100%;
-        background: #00509d;
-        color: white;
-        padding: 1.2rem;
-        border: none;
-        border-radius: 12px;
-        font-size: 1.1rem;
-        font-weight: 700;
-        cursor: pointer;
-        transition: background 0.2s;
-        box-shadow: 0 4px 6px rgba(0,80,157, 0.2);
-    }
-    .final-apply-btn:hover { background: #003f7f; }
-
-    .back-button { background: none; border: none; cursor: pointer; color: white; padding: 0; margin-right: 0.5rem;}
-    .back-arrow { width: 1.5rem; height: 1.5rem; filter: brightness(0) invert(1); transform: rotate(90deg); }
+    .payment-date { font-weight: 600; color: var(--color-theme-1); }
 
     .dropdown-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.2); z-index: 998; }
     .dropdown-menu-floating { position: absolute; background: white; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); z-index: 999; overflow: hidden; border: 1px solid #eee; }
@@ -680,7 +525,7 @@
     .dropdown-item-info { flex: 1; display: flex; flex-direction: column; }
     .dropdown-item-name { font-weight: 600; font-size: 0.95rem; }
     .dropdown-item-rate { font-size: 0.8rem; color: #6b7280; }
-    .checkmark { color: #1e5a8e; }
+    .checkmark { color: var(--color-theme-1); }
 
     @media (max-width: 1024px) {
         .banks-grid, .loan-content-grid, .bottom-section { grid-template-columns: 1fr; }

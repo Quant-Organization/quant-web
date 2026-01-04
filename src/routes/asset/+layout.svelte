@@ -26,7 +26,7 @@
 
     .content {
         flex: 1;
-        padding: 2rem;
+        padding: 1.4rem 2rem;
         overflow-y: auto;
         background-color: var(--color-bg-0);
     }

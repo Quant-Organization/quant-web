@@ -23,6 +23,7 @@
 		"vite": "^7.1.10"
 	},
 	"dependencies": {
-		"@fontsource/inter": "^5.2.8"
+		"@fontsource/inter": "^5.2.8",
+		"chart.js": "^4.5.1"
 	}
 }
