@@ -50,7 +50,7 @@
         display: flex;
         align-items: center;
         justify-content: space-between;
-        box-shadow: 0 0.25rem 0.875rem rgba(18, 43, 77, 0.06);
+        box-shadow: 0 6px 4px rgba(0,0,0,0.05);
         border: 1px solid #e5e7eb;
     }
 

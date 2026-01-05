@@ -54,7 +54,7 @@
         background: #fff;
         padding: 0.875rem;
         border-radius: 0.75rem;
-        box-shadow: 0 0.375rem 1.125rem rgba(18,43,77,.04);
+        box-shadow: 0 6px 4px rgba(0,0,0,0.05);
         border: 1px solid #e5e7eb;
     }
 

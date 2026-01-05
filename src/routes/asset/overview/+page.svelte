@@ -106,7 +106,7 @@
     }
 
     .page-title {
-        font-size: 1.8rem;
+        font-size: 2rem;
         font-weight: 700;
         margin-bottom: 1.5rem;
     }

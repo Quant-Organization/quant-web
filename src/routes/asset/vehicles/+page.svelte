@@ -36,6 +36,25 @@
             img: 'https://images.unsplash.com/photo-1583121274602-3e2820c698d9?auto=format&fit=crop&w=400&q=80'
         }
     ];
+
+    // 드롭다운 데이터
+    const dealershipOptions = ['럭셔리 딜러샵', '프리미엄 딜러샵', '클래식 딜러샵'];
+    const brandOptions = ['모든 브랜드', '페라리', '람보르기니', '포르쉐', '벤틀리'];
+
+    let selectedDealership = dealershipOptions[0];
+    let selectedBrand = brandOptions[0];
+    let isDealershipOpen = false;
+    let isBrandOpen = false;
+
+    function selectDealership(option) {
+        selectedDealership = option;
+        isDealershipOpen = false;
+    }
+
+    function selectBrand(option) {
+        selectedBrand = option;
+        isBrandOpen = false;
+    }
 </script>
 
 <div class="car-collection-container">
@@ -127,8 +146,43 @@
         <section class="right-section">
             <h3 class="section-title">럭셔리 딜러샵</h3>
             <div class="filters">
-                <select><option>럭셔리 딜러샵</option></select>
-                <select><option>모든 브랜드</option></select>
+                <div class="custom-select">
+                    <button class="select-button" on:click={() => isDealershipOpen = !isDealershipOpen}>
+                        <span>{selectedDealership}</span>
+                        <span class="arrow">{isDealershipOpen ? '▲' : '▼'}</span>
+                    </button>
+                    {#if isDealershipOpen}
+                        <div class="select-dropdown">
+                            {#each dealershipOptions as option}
+                                <div 
+                                    class="select-option {option === selectedDealership ? 'selected' : ''}"
+                                    on:click={() => selectDealership(option)}
+                                >
+                                    {option}
+                                </div>
+                            {/each}
+                        </div>
+                    {/if}
+                </div>
+
+                <div class="custom-select">
+                    <button class="select-button" on:click={() => isBrandOpen = !isBrandOpen}>
+                        <span>{selectedBrand}</span>
+                        <span class="arrow">{isBrandOpen ? '▲' : '▼'}</span>
+                    </button>
+                    {#if isBrandOpen}
+                        <div class="select-dropdown">
+                            {#each brandOptions as option}
+                                <div 
+                                    class="select-option {option === selectedBrand ? 'selected' : ''}"
+                                    on:click={() => selectBrand(option)}
+                                >
+                                    {option}
+                                </div>
+                            {/each}
+                        </div>
+                    {/if}
+                </div>
             </div>
 
             <div class="panel right-panel">
@@ -154,6 +208,13 @@
     </main>
 </div>
 
+<svelte:window on:click={(e) => {
+    if (!e.target.closest('.custom-select')) {
+        isDealershipOpen = false;
+        isBrandOpen = false;
+    }
+}} />
+
 <style>
     /* 컨테이너 및 폰트 설정 */
     .car-collection-container {
@@ -166,12 +227,11 @@
     .page-header {
         display: flex;
         justify-content: space-between;
-        align-items: flex-end;
         margin-bottom: 2rem;
     }
 
     .header-text h1 {
-        font-size: 1.8rem;
+        font-size: 2rem;
         font-weight: 700;
         margin: 0 0 0.5rem 0;
     }
@@ -234,6 +294,7 @@
     .left-section {
         display: flex;
         flex-direction: column;
+        height: 100%;
     }
 
     .left-panel {
@@ -388,17 +449,69 @@
 
     .filters {
         display: flex;
-        gap: 1.4rem;
+        gap: 0.5rem;
         margin-bottom: 1rem;
     }
 
-    .filters select {
+    .custom-select {
         flex: 1;
-        padding: 1rem 0.5rem;
+        position: relative;
+    }
+
+    .select-button {
+        width: 100%;
+        padding: 0.5rem;
         border: 1px solid #ddd;
         border-radius: 6px;
         font-size: 0.85rem;
         color: #555;
+        background: white;
+        cursor: pointer;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        transition: border-color 0.2s;
+    }
+
+    .select-button:hover {
+        border-color: #0e4c92;
+    }
+
+    .arrow {
+        font-size: 0.7rem;
+        color: #888;
+    }
+
+    .select-dropdown {
+        position: absolute;
+        top: calc(100% + 4px);
+        left: 0;
+        right: 0;
+        background: white;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        z-index: 100;
+        max-height: 200px;
+        overflow-y: auto;
+    }
+
+    .select-option {
+        padding: 0.5rem;
+        font-size: 0.85rem;
+        color: #555;
+        cursor: pointer;
+        transition: background-color 0.2s;
+    }
+
+    .select-option:hover {
+        background-color: #f3f4f6;
+    }
+
+    .select-option.selected {
+        background-color: #e5e7eb;
+        font-weight: 600;
+        color: #0e4c92;
     }
 
     .right-panel {

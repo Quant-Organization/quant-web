@@ -343,6 +343,7 @@
         border: 1px solid #e5e7eb;
         border-radius: 16px;
         padding: 1rem;
+        box-shadow: 0 6px 4px rgba(0,0,0,0.05);
     }
 
     .amount-card-header {
@@ -474,6 +475,7 @@
         border: 1px solid #e5e7eb;
         border-radius: 12px;
         padding: 1.5rem;
+        box-shadow: 0 6px 4px rgba(0,0,0,0.05);
     }
 
     .radio-group-label {
@@ -549,6 +551,7 @@
         display: flex;
         align-items: center;
         justify-content: center;
+        box-shadow: 0 6px 4px rgba(0,0,0,0.05);
     }
 
 
@@ -609,6 +612,7 @@
         border: 1px solid #e5e7eb;
         border-radius: 16px;
         padding: 2rem;
+        box-shadow: 0 6px 4px rgba(0,0,0,0.05);
     }
 
     .summary-details-card h3 {

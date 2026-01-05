@@ -87,6 +87,7 @@
         border-radius: 0.875rem;
         overflow: hidden;
         border: 1px solid #e5e7eb;
+        box-shadow: 0 6px 4px rgba(0,0,0,0.05);
     }
 
     /* TOOLBAR */

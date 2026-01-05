@@ -102,9 +102,9 @@
         width: 100%;
         max-width: 20rem;
         background: #ffffff;
-        padding: 0.875rem;
+        padding: 0;
         border-radius: 0.75rem;
-        box-shadow: 0 0.375rem 1.125rem rgba(18,43,77,.04);
+        box-shadow: 0 6px 4px rgba(0,0,0,0.05);
         border: 1px solid #e5e7eb;
         font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
         color: #102a43;
@@ -113,35 +113,29 @@
 
     .tabs {
         display: flex;
-        gap: 0.375rem;
-        margin-bottom: 0.75rem;
+        gap: 0;
+        margin-bottom: 2rem;
+        border-radius: 0.75rem 0.75rem 0 0;
+        overflow: hidden;
     }
 
     .tab-btn {
         flex: 1;
         background: transparent;
         border: none;
-        padding: 0.625rem 0.375rem;
-        border-radius: 0.5rem;
+        padding: 0.75rem 0.375rem;
         font-weight: 700;
         color: #64748b;
         cursor: pointer;
         position: relative;
+        transition: all 0.2s ease;
+        border-bottom: 2px solid transparent;
     }
 
     .tab-btn.active {
-        color: #0b61b0;
-    }
-
-    .tab-btn.active::after {
-        content: '';
-        position: absolute;
-        left: 0.75rem;
-        right: 0.75rem;
-        bottom: 0.375rem;
-        height: 3px;
-        background: #2563eb;
-        border-radius: 3px;
+        color: #2563eb;
+        background: #ECF2FE;
+        border-bottom: 2px solid #2563eb;
     }
 
     .label {
@@ -149,6 +143,7 @@
         font-size: 1rem;
         color: #64748b;
         margin-bottom: 0.5rem;
+        padding: 0 0.875rem;
     }
 
     .price-box {
@@ -158,9 +153,32 @@
         background: rgba(236, 236, 236, 0.2);
         padding: 0.625rem 0.75rem;
         border-radius: 0.75rem;
-        margin-bottom: 2rem;
+        margin: 0 0.875rem 2rem 0.875rem;
         border: 0.5px solid rgba(157, 157, 157, 0.5);
         box-sizing: border-box;
+        backdrop-filter: blur(4px) brightness(1.8);
+        -webkit-backdrop-filter: blur(4px) brightness(1.8);
+        position: relative;
+        overflow: hidden;
+    }
+
+    .price-box::before {
+        content: '';
+        position: absolute;
+        top: -50%;
+        left: -50%;
+        width: 200%;
+        height: 200%;
+        background: linear-gradient(
+                -45deg,
+                rgba(255, 255, 255, 0.8) 0%,
+                rgba(255, 255, 255, 0.2) 25%,
+                transparent 50%,
+                rgba(255, 255, 255, 0.2) 75%,
+                rgba(255, 255, 255, 0.8) 100%
+        );
+        pointer-events: none;
+        opacity: 0.5;
     }
 
     .price-box .step {
@@ -173,6 +191,8 @@
         font-weight: 700;
         cursor: pointer;
         color: #64748b;
+        position: relative;
+        z-index: 1;
     }
 
     .price-input {
@@ -184,6 +204,8 @@
         font-weight: 800;
         text-align: center;
         min-width: 0;
+        position: relative;
+        z-index: 1;
     }
 
     .qty-box {
@@ -195,8 +217,31 @@
         border-radius: 0.75rem;
         padding: 1rem 0.875rem;
         height: 3.75rem;
-        margin-bottom: 0.75rem;
+        margin: 0 0.875rem 0.75rem 0.875rem;
         box-sizing: border-box;
+        backdrop-filter: blur(4px) brightness(1.8);
+        -webkit-backdrop-filter: blur(4px) brightness(1.8);
+        position: relative;
+        overflow: hidden;
+    }
+
+    .qty-box::before {
+        content: '';
+        position: absolute;
+        top: -50%;
+        left: -50%;
+        width: 200%;
+        height: 200%;
+        background: linear-gradient(
+                -45deg,
+                rgba(255, 255, 255, 0.8) 0%,
+                rgba(255, 255, 255, 0.2) 25%,
+                transparent 50%,
+                rgba(255, 255, 255, 0.2) 75%,
+                rgba(255, 255, 255, 0.8) 100%
+        );
+        pointer-events: none;
+        opacity: 0.5;
     }
 
     .qty-input {
@@ -208,17 +253,21 @@
         text-align: right;
         background: transparent;
         min-width: 0;
+        position: relative;
+        z-index: 1;
     }
 
     .unit {
         color: #64748b;
         font-weight: 700;
+        position: relative;
+        z-index: 1;
     }
 
     .percent {
         display: flex;
         gap: 0.5rem;
-        margin: 0 0 2rem;
+        margin: 0 0.875rem 2rem 0.875rem;
     }
 
     .percent button {
@@ -237,8 +286,31 @@
         border-radius: 0.625rem;
         border: 0.5px solid rgba(157, 157, 157, 0.5);
         padding: 0.75rem 0.875rem;
-        margin-bottom: 0.875rem;
+        margin: 0 0.875rem 2rem 0.875rem;
         box-sizing: border-box;
+        backdrop-filter: blur(4px) brightness(1.8);
+        -webkit-backdrop-filter: blur(4px) brightness(1.8);
+        position: relative;
+        overflow: hidden;
+    }
+
+    .summary::before {
+        content: '';
+        position: absolute;
+        top: -50%;
+        left: -50%;
+        width: 200%;
+        height: 200%;
+        background: linear-gradient(
+                -45deg,
+                rgba(255, 255, 255, 0.8) 0%,
+                rgba(255, 255, 255, 0.2) 25%,
+                transparent 50%,
+                rgba(255, 255, 255, 0.2) 75%,
+                rgba(255, 255, 255, 0.8) 100%
+        );
+        pointer-events: none;
+        opacity: 0.5;
     }
 
     .summary-row {
@@ -246,6 +318,8 @@
         justify-content: space-between;
         align-items: center;
         margin-bottom: 0.375rem;
+        position: relative;
+        z-index: 1;
     }
 
     .summary-row.dimmed .label-small {
@@ -273,9 +347,9 @@
         border: none;
         cursor: pointer;
         font-size: 1.5rem;
+        width: calc(100% - 1.75rem);
+        margin: 0 0.875rem 1rem;
     }
-
-
 
     input[type="number"]::-webkit-outer-spin-button,
     input[type="number"]::-webkit-inner-spin-button {

@@ -398,7 +398,7 @@
     .bank-icon-sm { height: 4rem; }
     .bank-text { font-size: 2.5rem; font-weight: 700; color: white; }
 
-    .main-content { padding: 0 0rem; min-height: 600px; position: relative; }
+    .main-content { padding: 0 0; min-height: 600px; position: relative; }
     .banks-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2rem; align-items: start; margin-bottom: 2rem;}
     .bank-card-wrapper { display: flex; flex-direction: column; gap: 1rem; }
     .tier-header { background: var(--color-theme-1); border-radius: 10px; padding: 1rem; text-align: center; color: white; }
