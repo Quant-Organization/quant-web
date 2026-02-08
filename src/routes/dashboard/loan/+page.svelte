@@ -228,11 +228,6 @@
 {/if}
 
 <style>
-    :root {
-        --color-theme-1: #1e5a8e;
-        --color-theme-1-dark: #124a7a;
-    }
-
     .bank-container {
         width: 100%;
         padding: 1.4rem 0 2rem 0;
@@ -240,7 +235,7 @@
     }
 
     .hero-section {
-        background: linear-gradient(135deg, var(--color-theme-1) 0%, #124a7a 100%);
+        background: var(--color-theme-1);
         margin: -1.4rem -2rem 2rem -2rem;
         color: white;
         position: relative;

@@ -1,4 +1,10 @@
 <script>
+    import luxury_car from '$lib/images/luxury_car.png';
+    import luxury_jet from '$lib/images/luxury_jet.png';
+    import luxury_house from '$lib/images/luxury_house.png';
+    import luxury_yacht from '$lib/images/luxury_yacht.png';
+    import sea from '$lib/images/sea.png';
+
     // 이미지의 텍스트와 수치 데이터를 변수로 관리합니다.
     const metrics = [
         { title: '실시간 수익 현황', value: '$257,800,000', change: '+1.2%', isMoney: true },
@@ -11,25 +17,29 @@
             type: '고급 차량',
             count: '5대',
             totalValue: '$12,500,000',
-            image: 'https://images.unsplash.com/photo-1605559424843-9e4c2287f38d?q=80&w=800&auto=format&fit=crop'
+            image: luxury_car,
+            link: '/asset/vehicles'
         },
         {
             type: '전용기',
             count: '2대',
             totalValue: '$120,000,000',
-            image: 'https://images.unsplash.com/photo-1540962351504-03099e0a754b?q=80&w=800&auto=format&fit=crop'
+            image: luxury_jet,
+            link: '/asset/jet'
         },
         {
             type: '개인 부동산',
             count: '3채',
             totalValue: '$85,000,000',
-            image: 'https://images.unsplash.com/photo-1600596542815-e3289cab6f97?q=80&w=800&auto=format&fit=crop'
+            image: luxury_house,
+            link: '/asset/realestate'
         },
         {
             type: '요트',
             count: '1대',
             totalValue: '$40,000,000',
-            image: 'https://images.unsplash.com/photo-1567899378494-47b22a2ae96a?q=80&w=800&auto=format&fit=crop'
+            image: luxury_yacht,
+            link: '/asset/yacht'
         }
     ];
 </script>
@@ -62,12 +72,12 @@
         <h2 class="section-title">보유 자산 요약</h2>
         <div class="assets-grid">
             {#each assets as asset}
-                <div class="asset-card" style="background-image: url('{asset.image}')">
+                <a href={asset.link} class="asset-card" style="background-image: url('{asset.image}')">
                     <div class="asset-overlay">
                         <h3>{asset.type}</h3>
                         <p>{asset.count} / 총 가치 : {asset.totalValue}</p>
                     </div>
-                </div>
+                </a>
             {/each}
         </div>
     </section>
@@ -86,7 +96,7 @@
 
         <div class="card wide-card auction">
             <div class="img-wrapper">
-                <img src="https://images.unsplash.com/photo-1523170335258-f5ed11844a49?q=80&w=400&auto=format&fit=crop" alt="Watch">
+                <img src={sea} alt="Watch">
             </div>
             <div class="content-wrapper">
                 <h3>진행 중인 경매</h3>
@@ -187,6 +197,8 @@
         overflow: hidden;
         cursor: pointer;
         transition: transform 0.2s;
+        text-decoration: none;
+        display: block;
     }
 
     .asset-card::before {

@@ -386,7 +386,7 @@
     }
     /* CSS 축약형 적용 및 표준 속성 추가 */
     .bank-container { width: 100%; padding: 1.4rem 0 2rem 0; margin-top: -1.4rem; }
-    .hero-section { background: linear-gradient(135deg, var(--color-theme-1) 0%, #124a7a 100%); margin: -1.4rem -2rem 2rem -2rem; color: white; position: relative; overflow: hidden; display: flex; flex-direction: column;}
+    .hero-section { background: var(--color-theme-1); margin: -1.4rem -2rem 2rem -2rem; color: white; position: relative; overflow: hidden; display: flex; flex-direction: column;}
     .top-bar { display: flex; justify-content: space-between; align-items: center; padding: 0.6rem 6rem; background: var(--color-theme-1-dark); }
     .top-bar-left { display: flex; align-items: center; gap: 0.5rem; }
     .page-title { font-size: 1.2rem; font-weight: 700; margin: 0; color: white; }
@@ -406,7 +406,7 @@
     .tier-subtitle { font-size: 0.9rem; opacity: 0.8; }
 
     .bank-card.simple { background: white; border: 2px solid #e5e7eb; border-radius: 12px; padding: 1.5rem; box-shadow: 0 4px 6px rgba(0,0,0,0.05); transition: all 0.2s; cursor: pointer; position: relative; }
-    .bank-card.simple.hoverable:hover { border-color: var(--color-theme-1); transform: translateY(-4px); box-shadow: 0 10px 15px rgba(30,90,142,0.1); }
+    .bank-card.simple.hoverable:hover { border-color: var(--color-theme-1); box-shadow: 0 10px 15px rgba(30,90,142,0.1); }
 
     .bank-details { display: flex; flex-direction: column; gap: 0.75rem; padding-top: 1rem; }
     .detail-row { display: flex; align-items: center; gap: 0.5rem; font-size: 0.95rem; }

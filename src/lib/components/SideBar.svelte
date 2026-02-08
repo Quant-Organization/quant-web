@@ -1,6 +1,6 @@
 <script lang="ts">
     import { goto } from '$app/navigation';
-    import { sidebarItems, selectedIndex as storeSelectedIndex, transitionDirection, sectionOrder } from '$lib/stores/sidebar';
+    import { sidebarItems, selectedIndex as storeSelectedIndex, transitionDirection } from '$lib/stores/sidebar';
     import { fly } from 'svelte/transition';
     import { quintOut } from 'svelte/easing';
     import setting from '$lib/images/setting.svg'

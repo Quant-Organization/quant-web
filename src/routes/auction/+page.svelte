@@ -44,25 +44,25 @@
 			title: 'Portrait of Abraham Belters',
 			endDate: '경매 시작: 2025.11.18 18:00',
 			startPrice: '$70,000,000',
-			image: '🖼️'
+			image: '/src/lib/images/picture.png'
 		},
 		{
-			title: 'Ferrari 330 GTO',
+			title: 'Ferrari 250 GTO',
 			endDate: '경매 시작: 2025.11.18 18:00',
 			startPrice: '$25,000,000',
-			image: '🏎️'
+			image: '/src/lib/images/250gto.png'
 		},
 		{
 			title: 'Moissanite',
 			endDate: '경매 시작: 2025.11.20 18:00',
 			startPrice: '$10,000,000',
-			image: '💎'
+			image: '/src/lib/images/diamond.png'
 		},
 		{
 			title: 'Patek Philippe Grand Complica...',
 			endDate: '경매 시작: 2025.11.25 12:00',
 			startPrice: '$15,000,000',
-			image: '⌚'
+			image: '/src/lib/images/clock.png'
 		}
 	];
 
@@ -81,11 +81,12 @@
 			highestBid: '-',
 			status: '입찰 중',
 			date: '2025-11-15',
-			image: '🏎️'
+			image: '/src/lib/images/250gto.png'
 		}
 	];
 
 	let activeTab = '진행 중';
+	let selectedAuction = ongoingAuctions[1];
 
 	function addToBid(amount) {
 		const current = parseInt(bidAmount.replace(/[^0-9]/g, '')) || 0;
@@ -94,6 +95,11 @@
 
 	function formatTime(num) {
 		return String(num).padStart(2, '0');
+	}
+
+	function selectAuction(auction) {
+		selectedAuction = auction;
+		bidAmount = '';
 	}
 </script>
 
@@ -104,14 +110,16 @@
 		<!-- Live Auction Section -->
 		<div class="grid-2">
 			<!-- Car Image -->
-			<div class="car-frame">
-				<div class="car-image">🏎️</div>
+			<div class="car-frame-outer">
+				<div class="car-frame">
+					<img src={selectedAuction.image} alt={selectedAuction.title} class="car-image" />
+				</div>
 			</div>
 
 			<!-- Auction Details -->
-			<div>
+			<div class="auction-details">
 				<div class="auction-title">
-					<h2>Ferrari 250 GTO</h2>
+					<h2>{selectedAuction.title}</h2>
 				</div>
 
 				<!-- Countdown Timer -->
@@ -171,9 +179,11 @@
 								<div class="bid-item">
 									<div class="bid-user">
 										{#if index === 0}
-											<span>👑</span>
+											<div class="crown-wrapper">
+												<img src="/src/lib/images/crown.svg" alt="crown" class="crown-icon" />
+											</div>
 										{/if}
-										<span>👤</span>
+										<img src="/src/lib/images/auction_profile.svg" alt="profile" class="profile-icon" />
 										<span>{bid.user}</span>
 									</div>
 									<span class="bid-amount">${bid.amount.toLocaleString()}</span>
@@ -190,8 +200,14 @@
 			<h2 class="section-title">현재 진행 중인 경매</h2>
 			<div class="auctions-grid">
 				{#each ongoingAuctions as auction}
-					<div class="auction-card">
-						<div class="auction-image">{auction.image}</div>
+					<div class="auction-card" on:click={() => selectAuction(auction)} role="button" tabindex="0">
+						<div class="auction-image">
+							{#if auction.image.startsWith('/')}
+								<img src={auction.image} alt={auction.title} />
+							{:else}
+								{auction.image}
+							{/if}
+						</div>
 						<div class="auction-info">
 							<h3>{auction.title}</h3>
 							<p class="auction-date">{auction.endDate}</p>
@@ -232,7 +248,13 @@
 			{#each myAuctions as auction}
 				<div class="table-row">
 					<div class="item-cell">
-						<div class="item-icon">{auction.image}</div>
+						<div class="item-icon">
+							{#if auction.image.startsWith('/')}
+								<img src={auction.image} alt={auction.title} />
+							{:else}
+								{auction.image}
+							{/if}
+						</div>
 						<span>{auction.title}</span>
 					</div>
 					<div>{auction.myBid}</div>
@@ -250,9 +272,9 @@
 </div>
 
 <style>
-	:global(body) {
-		color: #fff;
-		font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+	.container, .content, .auction-title, .timer, .info-box, .bid-card, .bids-list, .auction-card, .main-title, .section-title, .countdown-label, .timer-number, .timer-label, .info-label, .info-value, .bids-title, .auction-info h3 {
+		font-family: '국립박물관문화재단클래식', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+		font-weight: 300;
 	}
 
 	.container {
@@ -260,11 +282,16 @@
 		max-width: 80%;
 		color: #fff;
 		margin: 0 auto;
+		display: flex;
+		align-items: center;
+	}
+
+	.content {
+		width: 100%;
 	}
 
 	.main-title {
 		font-size: 2.5rem;
-		font-weight: bold;
 		margin-bottom: 2rem;
 	}
 
@@ -273,6 +300,7 @@
 		grid-template-columns: 1fr;
 		gap: 2rem;
 		margin-bottom: 4rem;
+		align-items: start;
 	}
 
 	@media (min-width: 1024px) {
@@ -281,19 +309,34 @@
 		}
 	}
 
-	.car-frame {
-		border: 1px solid #ca8a04;
+	.auction-details {
+		display: flex;
+		flex-direction: column;
+		height: 100%;
+	}
+
+	.car-frame-outer {
+		border: 1px solid #454544;
 		border-radius: 0.5rem;
-		padding: 1rem;
-		background: linear-gradient(to bottom, #1f2937, #000);
+		padding: 1.2rem;
+		background: #1D1D1D;
+		height: fit-content;
+	}
+
+	.car-frame {
+		border: 1px solid #987625;
+		border-radius: 0.5rem;
+		padding: 1.2rem 0;
+		display: flex;
+		align-items: center;
+		background: #1D1D1D;
+		height: fit-content;
 	}
 
 	.car-image {
-		aspect-ratio: 1;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		font-size: 9rem;
+		width: 100%;
+		height: auto;
+		display: block;
 	}
 
 	.auction-title {
@@ -328,7 +371,6 @@
 
 	.timer-number {
 		font-size: 3rem;
-		font-weight: bold;
 	}
 
 	.timer-label {
@@ -348,6 +390,8 @@
 		grid-template-columns: 1fr 1fr;
 		gap: 1rem;
 		margin-bottom: 1.5rem;
+		flex: 1;
+		align-items: stretch;
 	}
 
 	.info-box {
@@ -375,7 +419,6 @@
 
 	.info-value {
 		font-size: 1.5rem;
-		font-weight: bold;
 		margin-bottom: 1.5rem;
 	}
 
@@ -430,33 +473,57 @@
 		border: 1px solid rgba(220, 168, 45, 0.1);
 		border-radius: 0.375rem;
 		padding: 1rem;
+		display: flex;
+		flex-direction: column;
+		height: 100%;
 	}
 
 	.bids-title {
-		font-weight: bold;
-		margin-bottom: 1rem;
+		margin-bottom: 1.2rem;
 	}
 
 	.bid-item {
 		display: flex;
 		justify-content: space-between;
 		align-items: center;
-		padding: 0.8rem 0;
+		padding: 0.6rem 0;
 	}
 
 	.bid-user {
 		display: flex;
-		align-items: center;
+		align-items: flex-end;
 		gap: 0.5rem;
+		position: relative;
+	}
+
+	.crown-wrapper {
+		position: absolute;
+		left: 0;
+		bottom: 100%;
+		margin-bottom: -0.3rem;
+	}
+
+	.crown-icon {
+		width: 1.5rem;
+		height: 1.5rem;
+	}
+
+	.profile-icon {
+		width: 1.5rem;
+		height: 1.5rem;
+	}
+
+	.bid-user span {
+		font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 	}
 
 	.bid-amount {
 		font-size: 1rem;
+		font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 	}
 
 	.section-title {
 		font-size: 1.875rem;
-		font-weight: bold;
 		margin-bottom: 1.5rem;
 	}
 
@@ -488,12 +555,17 @@
 		font-size: 4rem;
 	}
 
+	.auction-image img {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+	}
+
 	.auction-info {
 		padding: 1rem;
 	}
 
 	.auction-info h3 {
-		font-weight: bold;
 		margin-bottom: 0.5rem;
 	}
 
@@ -501,11 +573,12 @@
 		font-size: 0.875rem;
 		color: #9ca3af;
 		margin-bottom: 0.5rem;
+		font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 	}
 
 	.auction-price {
 		color: #eab308;
-		font-weight: bold;
+		font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 	}
 
 	.tabs {
@@ -528,7 +601,6 @@
 	.tab.active {
 		border-bottom-color: #eab308;
 		color: #fff;
-		font-weight: bold;
 	}
 
 	.tab:hover {
@@ -543,6 +615,7 @@
 		color: #9ca3af;
 		font-size: 0.875rem;
 		border-bottom: 1px solid #1f2937;
+		font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 	}
 
 	.table-row {
@@ -552,6 +625,7 @@
 		padding: 1rem;
 		align-items: center;
 		border-bottom: 1px solid #1f2937;
+		font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 	}
 
 	.table-row:hover {
@@ -573,6 +647,13 @@
 		align-items: center;
 		justify-content: center;
 		font-size: 1.5rem;
+	}
+
+	.item-icon img {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+		border-radius: 0.375rem;
 	}
 
 	.status-badge {

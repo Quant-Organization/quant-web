@@ -1,12 +1,9 @@
 <script lang="ts">
     import { goto } from '$app/navigation';
+    import { page } from '$app/stores';
     import { onMount } from 'svelte';
 
     onMount(() => {
-        goto('/leaderboard/profile');
+        goto(`/business/company/${$page.params.id}/overview`);
     });
 </script>
-
-<svelte:head>
-    <title>리더보드</title>
-</svelte:head>

@@ -1,12 +1,12 @@
 <script lang="ts">
     import {page} from '$app/state';
-    import { goto } from '$app/navigation';
+    import {goto} from '$app/navigation';
     import logo from '$lib/images/quant-logo.svg';
     import dot from '$lib/images/dot.svg';
     import star from '$lib/images/star.svg'
     import alam from '$lib/images/alam.svg'
     import profile from '$lib/images/profile.svg'
-    import { updateSection, type SectionType, sectionOrder } from '$lib/stores/sidebar';
+    import {updateSection, type SectionType, sectionOrder} from '$lib/stores/sidebar';
 
     export let playerName = "PlayerName";
     export let playerLevel = 42
@@ -67,16 +67,24 @@
                     </div>
                 </div>
             </div>
-            <img src="{profile}" alt="profile"/>
-            <img src="{alam}" alt="alam"/>
+            <div class="user-icon-info-div">
+                <img src="{alam}" alt="alam" class="bell"/>
+                <img src="{profile}" alt="profile" class="profile"/>
+            </div>
         </div>
     </div>
 </header>
 
 <style>
-    .user-info img {
-        width: 3rem;
-        height: 3rem;
+
+    .profile {
+        width: 2.4rem;
+        height: 2.4rem;
+    }
+
+    .bell {
+        width: 2.2rem;
+        height: 2.2rem;
     }
 
     .stats img {
@@ -90,7 +98,7 @@
     }
 
     .player-name {
-        font-size: 0.8rem;
+        font-size: 0.9rem;
         font-weight: 600;
     }
 
@@ -99,12 +107,20 @@
         flex-direction: column;
         justify-content: center;
         align-items: flex-end;
+        gap: 0.3rem;
+    }
+
+    .user-icon-info-div {
+        display: flex;
+        flex-direction: row;
+        justify-content: center;
+        align-items: center;
         gap: 0.5rem;
     }
 
     .user-info {
         display: flex;
-        gap: 1rem;
+        gap: 0.8rem;
     }
 
     .stats {
@@ -121,24 +137,24 @@
         gap: 0.25rem;
         white-space: nowrap;
         color: var(--color-text-gray);
-        font-size: 0.8rem;
+        font-size: 0.7rem;
     }
 
     .logo {
         display: flex;
         align-items: center;
-        gap: 1rem;
+        gap: 0.8rem;
         font-weight: 600;
         color: var(--color-text-gray);
     }
 
     .logo p {
-        font-size: 1.25rem;
+        font-size: 1rem;
     }
 
     .logo img {
-        width: 3rem;
-        height: 3rem;
+        width: 2.2rem;
+        height: 2.2rem;
     }
 
     .header-div {
@@ -146,7 +162,7 @@
         display: flex;
         align-items: center;
         justify-content: space-between;
-        padding: 1.25rem 2.5rem;
+        padding: 1rem 1.4rem;
         border-bottom: 0.0625rem solid var(--color-border);
     }
 

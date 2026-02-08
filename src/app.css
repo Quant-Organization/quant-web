@@ -9,16 +9,51 @@
     --font-bold: 800;
     --font-normal: 600;
 
+	/* Background Colors */
 	--color-bg-0: rgba(255, 255, 255, 1);
+	--color-bg-1: rgba(255, 255, 255, 1);
 	--color-bg-2: hsl(224, 44%, 95%);
 
+	/* Theme Colors */
 	--color-theme-1: #00529B;
 	--color-theme-1-dark: #004480;
 	--color-theme-2: #ECF2FE;
+
+	/* Text Colors */
 	--color-text: rgba(0, 0, 0, 1);
     --color-text-gray: rgba(100, 117, 139, 1);
 
+	/* Border */
     --color-border: rgba(227, 233, 241, 1);
+
+	/* Semantic Colors */
+	--color-positive: #10b981;
+	--color-negative: #ef4444;
+
+	/* Card & Component Styling */
+	--card-border-radius: 0.75rem;
+	--card-padding: 1.5rem;
+	--card-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
+	--card-border-color: #e5e7eb;
+
+	/* Stat Card Styling */
+	--stat-label-size: 0.95rem;
+	--stat-label-color: #666;
+	--stat-value-size: 2rem;
+	--stat-value-weight: 800;
+	--stat-change-size: 1rem;
+	--stat-change-weight: 600;
+	--stat-change-positive: #2ecc71;
+
+	/* Page Header Styling */
+	--page-title-size: 1.625rem;
+	--page-title-weight: 700;
+	--page-desc-size: 0.9375rem;
+
+	/* Spacing */
+	--spacing-sm: 1rem;
+	--spacing-md: 1.5rem;
+	--spacing-lg: 2rem;
 
     font-family: var(--font-body), sans-serif;
 	color: var(--color-text);

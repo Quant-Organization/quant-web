@@ -1,29 +1,34 @@
 <script lang="ts">
-    import SideBar from '$lib/components/SideBar.svelte';
-    import { onMount } from 'svelte';
-    import { updateSection } from '$lib/stores/sidebar';
+    import { afterNavigate } from '$app/navigation';
+    import { updateSection, selectedIndex, sidebarConfigs } from '$lib/stores/sidebar';
+    import { page } from '$app/stores';
+    import { get } from 'svelte/store';
 
     let { children } = $props();
 
-    onMount(() => {
-        updateSection('leaderboard');
+    function setSelectedIndexForPath(pathname: string) {
+        const items = sidebarConfigs.leaderboard;
+        const index = items.findIndex(item => pathname.includes(item.link.split('/').pop() || ''));
+        if (index !== -1) {
+            selectedIndex.set(index);
+        }
+    }
+
+    updateSection('leaderboard');
+    setSelectedIndexForPath(get(page).url.pathname);
+
+    afterNavigate(({ to }) => {
+        if (to?.url.pathname) {
+            setSelectedIndexForPath(to.url.pathname);
+        }
     });
 </script>
 
-<div class="page-container">
-    <SideBar />
-    <div class="content">
-        {@render children()}
-    </div>
+<div class="content">
+    {@render children()}
 </div>
 
 <style>
-    .page-container {
-        display: flex;
-        width: 100%;
-        height: 100%;
-    }
-
     .content {
         flex: 1;
         padding: 2rem;

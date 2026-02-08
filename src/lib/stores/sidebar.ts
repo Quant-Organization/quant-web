@@ -32,12 +32,11 @@ export const sidebarConfigs = {
     ],
     business: [
         { name: "대시보드", img: bell, link: "/business/dashboard" },
-        { name: "세계 정세", img: bell, link: "/business/world" }
+        { name: "국제 정세", img: bell, link: "/business/world" }
     ],
     leaderboard: [
-        { name: "글로벌 랭킹", img: bell, link: "/leaderboard/global" },
-        { name: "로컬 랭킹", img: bell, link: "/leaderboard/local" },
-        { name: "친구 랭킹", img: bell, link: "/leaderboard/friends" }
+        { name: "내 프로필", img: graph_support, link: "/leaderboard/profile" },
+        { name: "리더보드", img: ver_graph, link: "/leaderboard/ranking" }
     ]
 };
 
@@ -49,11 +48,20 @@ export const currentSection = writable<SectionType>('dashboard');
 export const sidebarItems = writable<SidebarItem[]>(sidebarConfigs.dashboard);
 export const selectedIndex = writable<number>(0);
 export const transitionDirection = writable<number>(1);
+export const currentCompanyId = writable<string | null>(null);
 
 export function updateSection(section: SectionType, direction?: number) {
+    const current = get(currentSection);
+    const companyId = get(currentCompanyId);
+    
+    // 같은 섹션이고 company 사이드바가 아니면 무시 (불필요한 애니메이션 방지)
+    // company 사이드바인 경우 일반 섹션 사이드바로 되돌려야 함
+    if (current === section && companyId === null) {
+        return;
+    }
+
     // direction이 제공되지 않은 경우에만 계산
     if (direction === undefined) {
-        const current = get(currentSection);
         const currentIndex = sectionOrder.indexOf(current);
         const newIndex = sectionOrder.indexOf(section);
         direction = newIndex > currentIndex ? 1 : -1;
@@ -63,4 +71,16 @@ export function updateSection(section: SectionType, direction?: number) {
     currentSection.set(section);
     sidebarItems.set(sidebarConfigs[section]);
     selectedIndex.set(0);
+    currentCompanyId.set(null);
+}
+
+export function setCompanySidebar(companyId: string, companyName: string) {
+    currentCompanyId.set(companyId);
+    currentSection.set('business');
+    sidebarItems.set([
+        { name: "기업 현황", img: graph_support, link: `/business/company/${companyId}/overview` },
+        { name: "공장 관리", img: ver_graph, link: `/business/company/${companyId}/factory` },
+        { name: "R&D센터", img: graph, link: `/business/company/${companyId}/rnd` },
+        { name: "유통 및 판매", img: document, link: `/business/company/${companyId}/distribution` }
+    ]);
 }

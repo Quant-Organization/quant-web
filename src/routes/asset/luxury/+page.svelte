@@ -1,5 +1,6 @@
 <script>
     import {goto} from '$app/navigation';
+    import auction_background from '$lib/images/auction_background.png';
 
     // 상단 요약 데이터
     const stats = [
@@ -56,7 +57,7 @@
         </div>
     </header>
 
-    <section class="hero-banner">
+    <section class="hero-banner" style="background-image: linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.5)), url({auction_background});">
         <div class="hero-content"
              role="button"
              tabindex="0"
@@ -143,9 +144,7 @@
     /* 히어로 배너 */
     .hero-banner {
         width: 100%;
-        height: 300px;
-        background: linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.5)),
-        url('https://images.unsplash.com/photo-1509194671848-d400355a24ec?q=80&w=1200&auto=format&fit=crop');
+        height: 250px;
         background-size: cover;
         background-position: center;
         border-radius: 16px;

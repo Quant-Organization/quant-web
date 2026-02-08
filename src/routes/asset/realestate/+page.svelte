@@ -1,4 +1,11 @@
 <script>
+    import { onMount } from 'svelte';
+    import { selectedIndex } from '$lib/stores/sidebar';
+
+    onMount(() => {
+        selectedIndex.set(4); // 개인 부동산
+    });
+
     // 1. 좌측: 보유 차량 리스트 데이터
     const myCars = [
         { name: '그랜저', price: '$2,500,000', img: 'https://images.unsplash.com/photo-1552519507-da3b142c6e3d?auto=format&fit=crop&w=150&q=80' },
