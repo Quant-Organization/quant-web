@@ -3,7 +3,7 @@
     import { selectedIndex } from '$lib/stores/sidebar';
 
     onMount(() => {
-        selectedIndex.set(4); // 개인 부동산
+        selectedIndex.set(4);
     });
 
     // 1. 좌측: 보유 차량 리스트 데이터

@@ -8,7 +8,10 @@
 
     function setSelectedIndexForPath(pathname: string) {
         const items = sidebarConfigs.asset;
-        const index = items.findIndex(item => item.link === pathname);
+        let index = items.findIndex(item => item.link === pathname);
+        if (index === -1) {
+            index = items.findIndex(item => pathname.startsWith(item.link + '/'));
+        }
         if (index !== -1) {
             selectedIndex.set(index);
         }
