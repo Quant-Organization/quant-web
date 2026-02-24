@@ -1,6 +1,7 @@
 <script lang="ts">
     import { goto } from '$app/navigation';
     import { sidebarItems, selectedIndex as storeSelectedIndex, transitionDirection } from '$lib/stores/sidebar';
+    import { balance, formatCurrency } from '$lib/stores/asset';
     import { fly } from 'svelte/transition';
     import { quintOut } from 'svelte/easing';
     import setting from '$lib/images/setting.svg'
@@ -50,9 +51,16 @@
             </div>
         {/key}
     </ul>
-    <div class="side-bar__list-item-container">
-        <img src={setting} alt="setting"/>
-        <p>설정</p>
+    <div class="side-bar__bottom">
+        <div class="side-bar__balance-card">
+            <span class="balance-label">잔고</span>
+            <span class="balance-value">{formatCurrency($balance)}</span>
+        </div>
+        <div class="side-bar__divider"></div>
+        <div class="side-bar__list-item-container">
+            <img src={setting} alt="setting"/>
+            <p>설정</p>
+        </div>
     </div>
 </div>
 
@@ -154,5 +162,39 @@
 
     .side-bar__list-item-container:hover img {
         filter: brightness(0) saturate(100%) invert(23%) sepia(99%) saturate(1785%) hue-rotate(193deg) brightness(98%) contrast(101%);
+    }
+
+    .side-bar__bottom {
+        display: flex;
+        flex-direction: column;
+        gap: 0;
+    }
+
+    .side-bar__balance-card {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+        padding: 0.75rem;
+        background-color: var(--color-theme-2);
+        border: 0.0625rem solid var(--color-border);
+        border-radius: 0.625rem;
+    }
+
+    .balance-label {
+        font-size: 0.7rem;
+        color: var(--color-text-gray);
+        font-weight: 600;
+    }
+
+    .balance-value {
+        font-size: 0.85rem;
+        font-weight: 700;
+        color: var(--color-theme-1);
+    }
+
+    .side-bar__divider {
+        height: 0.0625rem;
+        background-color: var(--color-border);
+        margin: 0.75rem -1.5rem;
     }
 </style>
