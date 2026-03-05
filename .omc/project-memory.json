@@ -1,0 +1,421 @@
+{
+  "version": "1.0.0",
+  "lastScanned": 1772599653012,
+  "projectRoot": "/Users/kmj5004/WebstormProjects/quant-web",
+  "techStack": {
+    "languages": [
+      {
+        "name": "JavaScript/TypeScript",
+        "version": null,
+        "confidence": "high",
+        "markers": [
+          "package.json"
+        ]
+      },
+      {
+        "name": "TypeScript",
+        "version": null,
+        "confidence": "high",
+        "markers": [
+          "tsconfig.json"
+        ]
+      }
+    ],
+    "frameworks": [
+      {
+        "name": "@sveltejs/kit",
+        "version": "2.47.1",
+        "category": "fullstack"
+      },
+      {
+        "name": "svelte",
+        "version": "5.41.0",
+        "category": "frontend"
+      },
+      {
+        "name": "vite",
+        "version": "7.1.10",
+        "category": "build"
+      }
+    ],
+    "packageManager": "npm",
+    "runtime": null
+  },
+  "build": {
+    "buildCommand": "npm run build",
+    "testCommand": null,
+    "lintCommand": null,
+    "devCommand": "npm run dev",
+    "scripts": {
+      "dev": "vite dev",
+      "build": "vite build",
+      "preview": "vite preview",
+      "prepare": "svelte-kit sync || echo ''",
+      "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+      "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch"
+    }
+  },
+  "conventions": {
+    "namingStyle": null,
+    "importStyle": null,
+    "testPattern": null,
+    "fileOrganization": null
+  },
+  "structure": {
+    "isMonorepo": false,
+    "workspaces": [],
+    "mainDirectories": [
+      "src",
+      "static"
+    ],
+    "gitBranches": {
+      "defaultBranch": "main",
+      "branchingStrategy": null
+    }
+  },
+  "customNotes": [],
+  "directoryMap": {
+    "src": {
+      "path": "src",
+      "purpose": "Source code",
+      "fileCount": 3,
+      "lastAccessed": 1772599652960,
+      "keyFiles": [
+        "app.css",
+        "app.d.ts",
+        "app.html"
+      ]
+    },
+    "static": {
+      "path": "static",
+      "purpose": "Static files",
+      "fileCount": 2,
+      "lastAccessed": 1772599652960,
+      "keyFiles": [
+        "favicon.svg",
+        "robots.txt"
+      ]
+    },
+    "src/lib": {
+      "path": "src/lib",
+      "purpose": "Library code",
+      "fileCount": 0,
+      "lastAccessed": 1772599652975,
+      "keyFiles": []
+    },
+    "src/routes": {
+      "path": "src/routes",
+      "purpose": "Route handlers",
+      "fileCount": 3,
+      "lastAccessed": 1772599652979,
+      "keyFiles": [
+        "+layout.svelte",
+        "+page.svelte",
+        "+page.ts"
+      ]
+    }
+  },
+  "hotPaths": [
+    {
+      "path": "src/routes/asset/jet/+page.svelte",
+      "accessCount": 32,
+      "lastAccessed": 1772604002759,
+      "type": "file"
+    },
+    {
+      "path": "src/routes/asset/vehicles/+page.svelte",
+      "accessCount": 17,
+      "lastAccessed": 1772604001879,
+      "type": "file"
+    },
+    {
+      "path": "src/routes/dashboard/coin/+page.svelte",
+      "accessCount": 16,
+      "lastAccessed": 1772619216328,
+      "type": "file"
+    },
+    {
+      "path": "src/routes/business/company/[id]/overview/+page.svelte",
+      "accessCount": 15,
+      "lastAccessed": 1772605375074,
+      "type": "file"
+    },
+    {
+      "path": "src/routes/dashboard/etf/+page.svelte",
+      "accessCount": 14,
+      "lastAccessed": 1772605491270,
+      "type": "file"
+    },
+    {
+      "path": "src/routes/dashboard/overview/+page.svelte",
+      "accessCount": 13,
+      "lastAccessed": 1772618922738,
+      "type": "file"
+    },
+    {
+      "path": "src/lib/stock/OrderPanel.svelte",
+      "accessCount": 11,
+      "lastAccessed": 1772600848185,
+      "type": "file"
+    },
+    {
+      "path": "src/routes/dashboard/loan/+page.svelte",
+      "accessCount": 11,
+      "lastAccessed": 1772601750379,
+      "type": "file"
+    },
+    {
+      "path": "src/lib/api/market.ts",
+      "accessCount": 11,
+      "lastAccessed": 1772619064693,
+      "type": "file"
+    },
+    {
+      "path": "src/lib/api/dashboard.ts",
+      "accessCount": 10,
+      "lastAccessed": 1772604723422,
+      "type": "file"
+    },
+    {
+      "path": "src/lib/api/asset.ts",
+      "accessCount": 10,
+      "lastAccessed": 1772604726548,
+      "type": "file"
+    },
+    {
+      "path": "src/routes/dashboard/stock/+page.svelte",
+      "accessCount": 9,
+      "lastAccessed": 1772618921761,
+      "type": "file"
+    },
+    {
+      "path": "src/lib/stock/StockHeader.svelte",
+      "accessCount": 9,
+      "lastAccessed": 1772618937711,
+      "type": "file"
+    },
+    {
+      "path": "src/lib/api/config.ts",
+      "accessCount": 9,
+      "lastAccessed": 1772619008822,
+      "type": "file"
+    },
+    {
+      "path": "src/lib/api/crypto.ts",
+      "accessCount": 9,
+      "lastAccessed": 1772619209925,
+      "type": "file"
+    },
+    {
+      "path": "src/lib/api/macro.ts",
+      "accessCount": 9,
+      "lastAccessed": 1772619287843,
+      "type": "file"
+    },
+    {
+      "path": "src/lib/api/etf.ts",
+      "accessCount": 9,
+      "lastAccessed": 1772619417759,
+      "type": "file"
+    },
+    {
+      "path": "src/lib/components/Header.svelte",
+      "accessCount": 8,
+      "lastAccessed": 1772601155203,
+      "type": "file"
+    },
+    {
+      "path": "src/routes/auction/+page.svelte",
+      "accessCount": 7,
+      "lastAccessed": 1772601740351,
+      "type": "file"
+    },
+    {
+      "path": "src/lib/api/company.ts",
+      "accessCount": 7,
+      "lastAccessed": 1772604723787,
+      "type": "file"
+    },
+    {
+      "path": "src/lib/api/factory.ts",
+      "accessCount": 7,
+      "lastAccessed": 1772604724185,
+      "type": "file"
+    },
+    {
+      "path": "src/routes/dashboard/bond/+page.svelte",
+      "accessCount": 6,
+      "lastAccessed": 1772601747461,
+      "type": "file"
+    },
+    {
+      "path": "src/routes/business/dashboard/+page.svelte",
+      "accessCount": 6,
+      "lastAccessed": 1772601750824,
+      "type": "file"
+    },
+    {
+      "path": "src/lib/stores/sidebar.ts",
+      "accessCount": 6,
+      "lastAccessed": 1772604010686,
+      "type": "file"
+    },
+    {
+      "path": "src/lib/stores/auth.ts",
+      "accessCount": 6,
+      "lastAccessed": 1772606135344,
+      "type": "file"
+    },
+    {
+      "path": "src/lib/api/trade.ts",
+      "accessCount": 6,
+      "lastAccessed": 1772607898254,
+      "type": "file"
+    },
+    {
+      "path": "src/routes/+layout.svelte",
+      "accessCount": 5,
+      "lastAccessed": 1772601153106,
+      "type": "file"
+    },
+    {
+      "path": "src/routes/+page.svelte",
+      "accessCount": 5,
+      "lastAccessed": 1772601154264,
+      "type": "file"
+    },
+    {
+      "path": "src/routes/asset/realestate/+page.svelte",
+      "accessCount": 5,
+      "lastAccessed": 1772604002885,
+      "type": "file"
+    },
+    {
+      "path": "src/routes/asset/luxury/+page.svelte",
+      "accessCount": 5,
+      "lastAccessed": 1772604003279,
+      "type": "file"
+    },
+    {
+      "path": "src/routes/asset/overview/+page.svelte",
+      "accessCount": 5,
+      "lastAccessed": 1772604003533,
+      "type": "file"
+    },
+    {
+      "path": "src/lib/api/auth.ts",
+      "accessCount": 5,
+      "lastAccessed": 1772606135090,
+      "type": "file"
+    },
+    {
+      "path": "src/routes/leaderboard/ranking/+page.svelte",
+      "accessCount": 5,
+      "lastAccessed": 1772618922439,
+      "type": "file"
+    },
+    {
+      "path": "src/routes/dashboard/bank/+page.svelte",
+      "accessCount": 4,
+      "lastAccessed": 1772601748104,
+      "type": "file"
+    },
+    {
+      "path": "src/lib/stock/StockChart.svelte",
+      "accessCount": 4,
+      "lastAccessed": 1772618938064,
+      "type": "file"
+    },
+    {
+      "path": "src/lib/stores/asset.ts",
+      "accessCount": 3,
+      "lastAccessed": 1772600454729,
+      "type": "file"
+    },
+    {
+      "path": "CLAUDE.md",
+      "accessCount": 2,
+      "lastAccessed": 1772599741704,
+      "type": "file"
+    },
+    {
+      "path": "src/routes/+page.ts",
+      "accessCount": 2,
+      "lastAccessed": 1772600121976,
+      "type": "file"
+    },
+    {
+      "path": "src/routes/dashboard/+layout.svelte",
+      "accessCount": 2,
+      "lastAccessed": 1772600125529,
+      "type": "file"
+    },
+    {
+      "path": "src/routes/business/+layout.svelte",
+      "accessCount": 2,
+      "lastAccessed": 1772600136423,
+      "type": "file"
+    },
+    {
+      "path": "package.json",
+      "accessCount": 2,
+      "lastAccessed": 1772600151434,
+      "type": "file"
+    },
+    {
+      "path": "src/app.css",
+      "accessCount": 2,
+      "lastAccessed": 1772600455008,
+      "type": "file"
+    },
+    {
+      "path": "svelte.config.js",
+      "accessCount": 1,
+      "lastAccessed": 1772599661622,
+      "type": "file"
+    },
+    {
+      "path": "tsconfig.json",
+      "accessCount": 1,
+      "lastAccessed": 1772599662513,
+      "type": "file"
+    },
+    {
+      "path": "README.md",
+      "accessCount": 1,
+      "lastAccessed": 1772599670321,
+      "type": "file"
+    },
+    {
+      "path": "FIGMA_CONVERSION.md",
+      "accessCount": 1,
+      "lastAccessed": 1772599680702,
+      "type": "file"
+    },
+    {
+      "path": "src/lib/components/SideBar.svelte",
+      "accessCount": 1,
+      "lastAccessed": 1772599682350,
+      "type": "file"
+    },
+    {
+      "path": "src/routes/dashboard/+page.svelte",
+      "accessCount": 1,
+      "lastAccessed": 1772600125644,
+      "type": "file"
+    },
+    {
+      "path": "src/routes/asset/+layout.svelte",
+      "accessCount": 1,
+      "lastAccessed": 1772600132579,
+      "type": "file"
+    },
+    {
+      "path": "src/routes/leaderboard/+layout.svelte",
+      "accessCount": 1,
+      "lastAccessed": 1772600137238,
+      "type": "file"
+    }
+  ],
+  "userDirectives": []
+}

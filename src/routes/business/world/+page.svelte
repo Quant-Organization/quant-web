@@ -1,465 +1,534 @@
 <script lang="ts">
-  // --- Types ---
-  interface CountryGDP {
-    rank: number;
-    code: string;
-    name: string;
-    nameKr: string;
-    flag: string;
-    value: string;
-    region: string;
-    growth: string;
-    population: string;
-    inflation: string;
-  }
+    import { onMount } from 'svelte';
+    import { getMarketState, getCommodities, getCommodityHistory, getMacroIndicators, getMacroEconomy, getGlobalEvents, getMarketEvents } from '$lib/api/macro';
+    import { getSectorPerformance } from '$lib/api/market';
+    import type { MarketState, Commodity, MacroIndicator, GlobalEvent, MarketEvent } from '$lib/api/macro';
+    import type { SectorPerformance } from '$lib/api/market';
 
-  interface Material {
-    name: string;
-    change: number;
-    price: string;
-    imageUrl: string;
-  }
+    let marketState: MarketState | null = $state(null);
+    let commodities: Commodity[] = $state([]);
+    let macroIndicators: MacroIndicator[] = $state([]);
+    let globalEvents: GlobalEvent[] = $state([]);
+    let sectorPerf: SectorPerformance | null = $state(null);
+    let marketEvents: MarketEvent[] = $state([]);
+    let macroEconomy: Record<string, unknown> | null = $state(null);
 
-  interface NewsItem {
-    source: string;
-    time: string;
-    title: string;
-  }
+    // Commodity chart state
+    let selectedCommodity: Commodity | null = $state(null);
+    let commodityChartData: { close: number }[] = $state([]);
 
-  // --- Data ---
+    let loading = $state(true);
+    let error = $state('');
 
-  // 1. GDP 국가 목록
-  const gdpList: CountryGDP[] = [
-    { rank: 1, code: 'USA', name: 'USA', nameKr: '미국', flag: '🇺🇸', value: '29.18T', region: '북아메리카', growth: '3.3%', population: '3억 4115만명', inflation: '5.3%' },
-    { rank: 2, code: 'CHN', name: 'China', nameKr: '중국', flag: '🇨🇳', value: '18.74T', region: '아시아', growth: '5.2%', population: '14억 2570만명', inflation: '0.2%' },
-    { rank: 3, code: 'DEU', name: 'Germany', nameKr: '독일', flag: '🇩🇪', value: '4.66T', region: '유럽', growth: '0.1%', population: '8420만명', inflation: '2.9%' },
-    { rank: 4, code: 'JPN', name: 'Japan', nameKr: '일본', flag: '🇯🇵', value: '4.03T', region: '아시아', growth: '1.9%', population: '1억 2450만명', inflation: '2.8%' },
-    { rank: 5, code: 'IND', name: 'India', nameKr: '인도', flag: '🇮🇳', value: '3.91T', region: '아시아', growth: '7.2%', population: '14억 2860만명', inflation: '5.1%' },
-    { rank: 6, code: 'UK', name: 'UK', nameKr: '영국', flag: '🇬🇧', value: '3.64T', region: '유럽', growth: '0.5%', population: '6720만명', inflation: '4.0%' },
-  ];
+    onMount(async () => {
+        try {
+            const [ms, cm, mi, ge, sp, me, eco] = await Promise.all([
+                getMarketState(),
+                getCommodities(),
+                getMacroIndicators(),
+                getGlobalEvents(),
+                getSectorPerformance(),
+                getMarketEvents(true, 10).catch(() => []),
+                getMacroEconomy().catch(() => null)
+            ]);
+            marketState = ms;
+            commodities = cm.commodities;
+            macroIndicators = mi.indicators;
+            globalEvents = ge.active_events;
+            sectorPerf = sp;
+            marketEvents = Array.isArray(me) ? me : [];
+            macroEconomy = eco as Record<string, unknown> | null;
+        } catch (e) {
+            error = '데이터를 불러오는 중 오류가 발생했습니다.';
+        } finally {
+            loading = false;
+        }
+    });
 
-  // 2. 선택된 국가 코드 (반응형)
-  let selectedCode = $state('USA');
+    // Load commodity history when selected
+    $effect(() => {
+        if (!selectedCommodity) {
+            commodityChartData = [];
+            return;
+        }
+        const id = selectedCommodity.id;
+        getCommodityHistory(id, 100).then((data: unknown) => {
+            commodityChartData = Array.isArray(data) ? data : [];
+        }).catch(() => {
+            commodityChartData = [];
+        });
+    });
 
-  // 3. 선택된 국가 상세 정보 (derived)
-  let selectedCountry = $derived(gdpList.find(c => c.code === selectedCode) || gdpList[0]);
+    // SVG sparkline for commodity
+    let commoditySparkline = $derived(() => {
+        if (commodityChartData.length < 2) return '';
+        const prices = commodityChartData.map((c: { close: number }) => c.close);
+        const min = Math.min(...prices);
+        const max = Math.max(...prices);
+        const range = max - min || 1;
+        const w = 400;
+        const h = 60;
+        return prices.map((p: number, i: number) => {
+            const x = (i / (prices.length - 1)) * w;
+            const y = h - ((p - min) / range) * h;
+            return (i === 0 ? 'M' : 'L') + x.toFixed(1) + ',' + y.toFixed(1);
+        }).join(' ');
+    });
 
-  function selectCountry(code: string) {
-    selectedCode = code;
-  }
+    function formatChange(n: number): string {
+        return (n >= 0 ? '+' : '') + n.toFixed(2) + '%';
+    }
 
-  // 3. 원자재 시세
-  const materials: Material[] = [
-    { name: "원유", change: -1.25, price: "$76.6", imageUrl: "https://cdn-icons-png.flaticon.com/512/2933/2933942.png" },
-    { name: "천연가스", change: 5.25, price: "$46.6", imageUrl: "https://cdn-icons-png.flaticon.com/512/4248/4248332.png" },
-    { name: "철", change: -3.25, price: "$63.2", imageUrl: "https://cdn-icons-png.flaticon.com/512/5816/5816309.png" },
-    { name: "구리", change: 2.25, price: "$53.3", imageUrl: "https://cdn-icons-png.flaticon.com/512/3792/3792160.png" },
-    { name: "희토류", change: 0.25, price: "$133.2", imageUrl: "https://cdn-icons-png.flaticon.com/512/7168/7168434.png" }
-  ];
+    function formatValue(n: number): string {
+        if (Math.abs(n) >= 1_000_000) return (n / 1_000_000).toFixed(2) + 'M';
+        if (Math.abs(n) >= 1_000) return (n / 1_000).toFixed(2) + 'K';
+        return n.toFixed(2);
+    }
 
-  // 4. 뉴스 데이터
-  const newsList: NewsItem[] = [
-    { source: "BBC", time: "2분전", title: "미 연준, 기준 금리 동결 시사... 시장은 안도 랠리" },
-    { source: "Reuters", time: "15분전", title: "중국 경제 성장률 5.2% 달성, 목표치 상회" },
-    { source: "Bloomberg", time: "32분전", title: "유럽 중앙은행, 금리 인하 가능성 시사" },
-    { source: "CNBC", time: "1시간전", title: "애플, 신규 AI 칩 개발 발표... 주가 3% 상승" },
-    { source: "WSJ", time: "1시간전", title: "국제 유가, 중동 긴장 고조에 2% 급등" },
-    { source: "FT", time: "2시간전", title: "일본 엔화, 34년 만에 최저치 기록" },
-    { source: "Reuters", time: "2시간전", title: "인도 GDP, 세계 4위 경제 대국으로 부상" },
-    { source: "BBC", time: "3시간전", title: "영국 인플레이션, 예상보다 빠르게 둔화" },
-  ];
+    function formatDate(s: string): string {
+        try {
+            return new Date(s).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+        } catch {
+            return s;
+        }
+    }
 
+    const impactColors: Record<string, string> = {
+        POSITIVE: '#059669',
+        NEGATIVE: '#dc2626',
+        NEUTRAL: '#6b7280',
+    };
 </script>
 
 <svelte:head>
-  <title>세계 정세</title>
+    <title>세계 정세</title>
 </svelte:head>
 
 <div class="page-container">
-
-  <header class="page-header">
-    <div class="header-text">
-      <h1>국제 정세 및 경제 분석</h1>
-      <p>비즈니스 전략에 영향을 미치는 거시 경제 환경을 깊이 있게 파악하세요.</p>
-    </div>
-  </header>
-
-  <div class="dashboard-grid">
-
-    <div class="left-column">
-
-      <div class="card gdp-card">
-        <div class="country-list">
-          <div class="list-header">
-            <span class="divider-line"></span>
-            <span class="header-text">GDP 순위</span>
-            <span class="divider-line"></span>
-          </div>
-          <ul>
-            {#each gdpList as country}
-              <li class:selected={country.code === selectedCode} onclick={() => selectCountry(country.code)}>
-                <div class="flag-name">
-                  <span class="flag">{country.flag}</span>
-                  <span class="name">{country.name}</span>
+    <header class="page-header">
+        <div class="header-text">
+            <h1>국제 정세 및 경제 분석</h1>
+            <p>비즈니스 전략에 영향을 미치는 거시 경제 환경을 파악하세요.</p>
+        </div>
+        {#if marketState}
+            <div class="header-badges">
+                <div class="badge-card">
+                    <span class="badge-label">경제 상태</span>
+                    <span class="badge-val">{marketState.economy_mode}</span>
                 </div>
-                <span class="value">{country.value}</span>
-              </li>
-            {/each}
-          </ul>
+                <div class="badge-card">
+                    <span class="badge-label">활성 이벤트</span>
+                    <span class="badge-val">{marketState.active_events_count}개</span>
+                </div>
+                <div class="badge-card">
+                    <span class="badge-label">시장 변동성</span>
+                    <span class="badge-val">{(marketState.market_volatility * 100).toFixed(1)}%</span>
+                </div>
+            </div>
+        {/if}
+    </header>
+
+    {#if loading}
+        <div class="loading-state">데이터를 불러오는 중...</div>
+    {:else if error}
+        <div class="error-state">{error}</div>
+    {:else}
+        <div class="dashboard-grid">
+            <div class="left-column">
+
+                <!-- 원자재 시세 -->
+                {#if commodities.length > 0}
+                    <div class="card">
+                        <h3>주요 원자재 시세</h3>
+                        <div class="commodity-list">
+                            {#each commodities as c}
+                                <button
+                                    class="commodity-item"
+                                    class:commodity-selected={selectedCommodity?.id === c.id}
+                                    onclick={() => { selectedCommodity = selectedCommodity?.id === c.id ? null : c; }}
+                                >
+                                    <div class="commodity-name-row">
+                                        <span class="commodity-name">{c.name}</span>
+                                        <span class="commodity-change" class:pos={c.price_change_pct >= 0} class:neg={c.price_change_pct < 0}>
+                                            {formatChange(c.price_change_pct)}
+                                        </span>
+                                    </div>
+                                    <div class="commodity-price">{formatValue(c.current_price)}</div>
+                                    <div class="commodity-vol">변동성 {(c.volatility * 100).toFixed(1)}%</div>
+                                </button>
+                            {/each}
+                        </div>
+
+                        {#if selectedCommodity && commoditySparkline()}
+                            <div class="commodity-chart-section">
+                                <h4 class="chart-label">{selectedCommodity.name} 가격 추이</h4>
+                                <div class="commodity-chart-wrap">
+                                    <svg viewBox="0 0 400 60" class="commodity-chart-svg">
+                                        <path d={commoditySparkline()} fill="none" stroke={selectedCommodity.price_change_pct >= 0 ? 'var(--color-positive, #10b981)' : 'var(--color-negative, #ef4444)'} stroke-width="1.5" />
+                                    </svg>
+                                </div>
+                            </div>
+                        {/if}
+                    </div>
+                {/if}
+
+                <!-- 거시 지표 -->
+                {#if macroIndicators.length > 0}
+                    <div class="card">
+                        <h3>거시 경제 지표</h3>
+                        <div class="macro-table-wrap">
+                            <table class="macro-table">
+                                <thead>
+                                    <tr>
+                                        <th>지표</th>
+                                        <th>현재값</th>
+                                        <th>변화</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {#each macroIndicators as ind}
+                                        <tr>
+                                            <td class="ind-name">{ind.name}</td>
+                                            <td class="ind-val">{formatValue(ind.current_value)}</td>
+                                            <td class:pos={ind.change_value >= 0} class:neg={ind.change_value < 0}>
+                                                {ind.change_value >= 0 ? '+' : ''}{formatValue(ind.change_value)}
+                                            </td>
+                                        </tr>
+                                    {/each}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                {/if}
+
+            </div>
+
+            <div class="right-column">
+
+                <!-- 활성 글로벌 이벤트 -->
+                {#if globalEvents.length > 0}
+                    <div class="card">
+                        <h3>활성 글로벌 이벤트</h3>
+                        <div class="events-list">
+                            {#each globalEvents as ev}
+                                <div class="event-item">
+                                    <div class="event-header">
+                                        <span class="event-name">{ev.name}</span>
+                                        <span
+                                            class="impact-badge"
+                                            style="color: {impactColors[ev.impact] ?? '#6b7280'}; background: {impactColors[ev.impact] ? impactColors[ev.impact] + '18' : '#f3f4f6'};"
+                                        >{ev.impact}</span>
+                                    </div>
+                                    <p class="event-desc">{ev.description}</p>
+                                    <div class="event-time">
+                                        <span>{formatDate(ev.start_time)}</span>
+                                        {#if ev.end_time}
+                                            <span> ~ {formatDate(ev.end_time)}</span>
+                                        {/if}
+                                    </div>
+                                </div>
+                            {/each}
+                        </div>
+                    </div>
+                {/if}
+
+                <!-- 섹터 성과 -->
+                {#if sectorPerf}
+                    <div class="card">
+                        <h3>섹터별 성과</h3>
+                        <div class="sector-list">
+                            {#each Object.entries(sectorPerf.sector_performance) as [sector, pct]}
+                                <div class="sector-item">
+                                    <span class="sector-name">{sector}</span>
+                                    <div class="sector-bar-wrap">
+                                        <div
+                                            class="sector-bar"
+                                            class:bar-pos={pct >= 0}
+                                            class:bar-neg={pct < 0}
+                                            style="width: {Math.min(Math.abs(pct) * 4, 100)}%"
+                                        ></div>
+                                    </div>
+                                    <span class="sector-pct" class:pos={pct >= 0} class:neg={pct < 0}>{formatChange(pct)}</span>
+                                </div>
+                            {/each}
+                        </div>
+
+                        {#if sectorPerf.top_sectors.length > 0}
+                            <div class="top-sectors">
+                                <span class="top-label">상위 섹터</span>
+                                <div class="top-badges">
+                                    {#each sectorPerf.top_sectors.slice(0, 3) as ts}
+                                        <span class="top-badge">{ts.sector} {formatChange(ts.change_pct)}</span>
+                                    {/each}
+                                </div>
+                            </div>
+                        {/if}
+                    </div>
+                {/if}
+
+            </div>
+
+            <!-- 시장 이벤트 -->
+            {#if marketEvents.length > 0}
+                <div class="card full-width-card">
+                    <h3>시장 이벤트</h3>
+                    <div class="market-events-list">
+                        {#each marketEvents as mev}
+                            <div class="market-event-item">
+                                <div class="market-event-header">
+                                    <span class="market-event-name">{mev.name}</span>
+                                    <span class="market-event-type-badge">{mev.event_type}</span>
+                                </div>
+                                <p class="market-event-desc">{mev.description}</p>
+                                <div class="market-event-meta">
+                                    <span class="market-event-impact" class:pos={mev.impact >= 0} class:neg={mev.impact < 0}>
+                                        영향도: {mev.impact >= 0 ? '+' : ''}{mev.impact.toFixed(1)}
+                                    </span>
+                                    <span class="market-event-time">{formatDate(mev.start_time)}</span>
+                                    {#if mev.end_time}
+                                        <span class="market-event-time">~ {formatDate(mev.end_time)}</span>
+                                    {/if}
+                                </div>
+                            </div>
+                        {/each}
+                    </div>
+                </div>
+            {/if}
+
+            <!-- 거시경제 종합 -->
+            {#if macroEconomy}
+                <div class="card full-width-card">
+                    <h3>거시경제 종합 현황</h3>
+                    <div class="macro-economy-grid">
+                        {#each Object.entries(macroEconomy) as [key, value]}
+                            <div class="macro-eco-item">
+                                <span class="macro-eco-label">{key}</span>
+                                <span class="macro-eco-value">
+                                    {typeof value === 'number' ? formatValue(value) : String(value)}
+                                </span>
+                            </div>
+                        {/each}
+                    </div>
+                </div>
+            {/if}
         </div>
-
-        <div class="country-detail">
-          <div class="detail-header">
-            <h2>{selectedCountry.nameKr} <span class="region">{selectedCountry.region}</span></h2>
-          </div>
-
-          <div class="stats-grid">
-            <div class="stat-box">
-              <span class="label">GDP</span>
-              <span class="val">{selectedCountry.value}</span>
-            </div>
-            <div class="stat-box">
-              <span class="label">GDP 성장률</span>
-              <span class="val text-green">{selectedCountry.growth}</span>
-            </div>
-            <div class="stat-box">
-              <span class="label">인구</span>
-              <span class="val">{selectedCountry.population}</span>
-            </div>
-            <div class="stat-box">
-              <span class="label">인플레이션</span>
-              <span class="val">{selectedCountry.inflation}</span>
-            </div>
-          </div>
-
-          <div class="chart-area">
-            <svg viewBox="0 0 300 100" class="line-chart">
-              <line x1="0" y1="25" x2="300" y2="25" stroke="var(--color-border)" />
-              <line x1="0" y1="50" x2="300" y2="50" stroke="var(--color-border)" />
-              <line x1="0" y1="75" x2="300" y2="75" stroke="var(--color-border)" />
-              <path d="M0 90 Q 50 85, 100 80 T 200 40 T 300 20" fill="none" stroke="var(--color-theme-1)" stroke-width="2" />
-              <text x="0" y="98" font-size="8" fill="var(--color-text-gray)">1994</text>
-              <text x="100" y="98" font-size="8" fill="var(--color-text-gray)">2004</text>
-              <text x="200" y="98" font-size="8" fill="var(--color-text-gray)">2014</text>
-              <text x="280" y="98" font-size="8" fill="var(--color-text-gray)">2024</text>
-            </svg>
-          </div>
-        </div>
-      </div>
-
-      <div class="card material-card">
-        <h3>주요 원자재 시세</h3>
-        <div class="material-list">
-          {#each materials as mat}
-            <div class="material-item">
-              <div class="mat-header">
-                <span class="mat-name">{mat.name}</span>
-                <span class="mat-change {mat.change > 0 ? 'text-blue' : 'text-red'}">
-                  {mat.change > 0 ? '+' : ''}{mat.change}%
-                </span>
-              </div>
-              <div class="mat-icon-wrapper">
-                <img src={mat.imageUrl} alt={mat.name} class="mat-img" />
-              </div>
-              <div class="mat-price">{mat.price}</div>
-            </div>
-          {/each}
-        </div>
-      </div>
-
-    </div>
-
-    <div class="right-column">
-      <div class="card news-card">
-        <h3>실시간 글로벌 뉴스</h3>
-        <div class="news-list">
-          {#each newsList as news}
-            <div class="news-item">
-              <div class="news-meta">
-                <span class="source">{news.source}</span>
-                <span class="dot">•</span>
-                <span class="time">{news.time}</span>
-              </div>
-              <div class="news-title">{news.title}</div>
-            </div>
-          {/each}
-        </div>
-        <div class="news-footer">
-          <button>더 보기</button>
-        </div>
-      </div>
-    </div>
-
-  </div>
+    {/if}
 </div>
 
 <style>
-  .page-container {
-    background-color: var(--color-bg-0);
-    min-height: 100vh;
-  }
-
-  .page-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    margin-bottom: var(--spacing-md);
-  }
-
-  .page-header h1 {
-    font-size: var(--page-title-size);
-    font-weight: var(--page-title-weight);
-    margin: 0 0 0.5rem 0;
-  }
-
-  .page-header p {
-    font-size: var(--page-desc-size);
-    color: var(--color-text-gray);
-    margin: 0;
-  }
-
-  .dashboard-grid {
-    display: grid;
-    grid-template-columns: 2fr 1fr;
-    grid-template-rows: 1fr;
-    gap: var(--spacing-md);
-  }
-
-  .left-column {
-    display: flex;
-    flex-direction: column;
-    gap: var(--spacing-md);
-  }
-
-  .right-column {
-    display: grid;
-  }
-
-  .news-card {
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-  }
-
-  .news-card h3 {
-    flex-shrink: 0;
-  }
-
-  .news-card .news-list {
-    flex: 1;
-    overflow-y: auto;
-  }
-
-  .news-card .news-footer {
-    flex-shrink: 0;
-  }
-
-  .card {
-    background: var(--color-bg-1);
-    border-radius: var(--card-border-radius);
-    box-shadow: var(--card-shadow);
-    border: 1px solid var(--color-border);
-    padding: var(--card-padding);
-  }
-
-  h3 { font-size: 1.125rem; font-weight: 700; margin: 0 0 1.25rem 0; }
-
-  .gdp-card {
-    display: flex;
-    gap: 32px;
-    padding: 0;
-    overflow: hidden;
-  }
-
-  .country-list {
-    width: 240px;
-    padding: 24px 0 24px 24px;
-  }
-
-  .list-header {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 0 12px;
-    margin-bottom: 12px;
-    margin-right: 12px;
-    height: 30px;
-  }
-
-  .list-header .divider-line {
-    flex: 1;
-    height: 1px;
-    background-color: var(--color-text);
-  }
-
-  .list-header .header-text {
-    font-size: 18px;
-    font-weight: 700;
-    color: var(--color-text);
-    white-space: nowrap;
-  }
-
-  .country-list ul { list-style: none; padding: 0; margin: 0; }
-
-  .country-list li {
-    display: flex;
-    justify-content: space-between;
-    padding: 12px 24px 12px 12px;
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 14px;
-    font-weight: 500;
-    color: var(--color-text);
-    transition: background-color 0.2s;
-  }
-
-  .country-list li:hover {
-    background-color: var(--color-bg-2);
-  }
-
-  .country-list li.selected {
-    background-color: var(--color-bg-2);
-    font-weight: 700;
-  }
-
-  .flag-name { display: flex; gap: 8px; align-items: center; }
-  .flag { font-size: 16px; }
-
-  .country-detail {
-    flex: 1;
-    padding: 24px 32px 24px 32px;
-  }
-
-  .detail-header { margin-bottom: 20px; height: 30px; display: flex; align-items: center; }
-  .detail-header h2 { font-size: 22px; margin: 0; display: flex; align-items: baseline; gap: 8px; font-weight: 700; }
-  .detail-header .region { font-size: 13px; color: var(--color-text-gray); font-weight: 400; }
-
-  .stats-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 16px;
-    margin-bottom: 24px;
-  }
-
-  .stat-box {
-    background-color: var(--color-bg-2);
-    padding: var(--card-padding);
-    border-radius: 8px;
-  }
-
-  .stat-box .label { display: block; font-size: var(--stat-label-size); color: var(--stat-label-color); margin-bottom: 0.5rem; }
-  .stat-box .val { font-size: var(--stat-value-size); font-weight: var(--stat-value-weight); color: var(--color-text); }
-
-  .chart-area {
-    background-color: var(--color-bg-1);
-    border: 1px solid var(--color-border);
-    border-radius: 8px;
-    padding: 16px;
-    height: 120px;
-  }
-  .line-chart { width: 100%; height: 100%; }
-
-  .material-list {
-    display: flex;
-    justify-content: space-between;
-    gap: 12px;
-  }
-
-  .material-item {
-    flex: 1;
-    text-align: center;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-  }
-
-  .mat-header {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 4px;
-    font-size: 13px;
-    margin-bottom: 12px;
-    white-space: nowrap;
-  }
-
-  .mat-name { font-weight: 600; }
-  .mat-change { font-size: 11px; }
-
-  .mat-icon-wrapper {
-    width: 60px;
-    height: 60px;
-    margin-bottom: 12px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .mat-img {
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
-    filter: drop-shadow(0 4px 6px rgba(0,0,0,0.1));
-  }
-
-  .mat-price { font-weight: 700; font-size: 15px; }
-
-  .news-list {
-    display: flex;
-    flex-direction: column;
-  }
-
-  .news-item {
-    padding: 16px 0;
-    border-bottom: 1px solid var(--color-border);
-    flex-shrink: 0;
-  }
-  .news-item:first-child { padding-top: 0; }
-
-  .news-meta {
-    font-size: 12px;
-    color: var(--color-text-gray);
-    margin-bottom: 6px;
-  }
-
-  .news-title {
-    font-size: 15px;
-    line-height: 1.4;
-    color: var(--color-text);
-    font-weight: 500;
-  }
-
-  .news-footer {
-    padding-top: 20px;
-    text-align: center;
-    flex-shrink: 0;
-    margin-top: auto;
-  }
-
-  .news-footer button {
-    background: none;
-    border: none;
-    color: var(--color-theme-1);
-    font-weight: 600;
-    cursor: pointer;
-    font-size: 14px;
-  }
-
-  .text-green { color: var(--color-positive); }
-  .text-red { color: var(--color-negative); }
-  .text-blue { color: var(--color-theme-1); }
-
-  @media (max-width: 1024px) {
-    .dashboard-grid {
-      grid-template-columns: 1fr;
+    .page-container {
+        background-color: var(--color-bg-0);
+        min-height: 100vh;
     }
-  }
 
-  @media (max-width: 768px) {
-    .gdp-card { flex-direction: column; }
-    .country-list { width: 100%; border-bottom: 1px solid var(--color-border); padding-right: 24px; }
-    .country-detail { padding-left: 24px; }
-    .material-list { flex-wrap: wrap; }
-    .material-item { min-width: 45%; margin-bottom: 16px; }
-  }
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: var(--spacing-md, 1.5rem);
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+
+    .page-header h1 { font-size: var(--page-title-size, 1.75rem); font-weight: 700; margin: 0 0 0.5rem 0; }
+    .page-header p { font-size: var(--page-desc-size, 0.95rem); color: var(--color-text-gray); margin: 0; }
+
+    .header-badges { display: flex; gap: 1rem; flex-wrap: wrap; }
+
+    .badge-card {
+        background: var(--color-bg-1, white);
+        border: 1px solid var(--color-border, #e5e7eb);
+        border-radius: 10px;
+        padding: 0.75rem 1.25rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+        min-width: 110px;
+    }
+
+    .badge-label { font-size: 0.78rem; color: var(--color-text-gray); }
+    .badge-val { font-size: 1rem; font-weight: 700; }
+
+    .loading-state, .error-state {
+        display: flex; align-items: center; justify-content: center;
+        min-height: 40vh; font-size: 1rem; color: var(--color-text-gray);
+    }
+    .error-state { color: var(--color-negative); }
+
+    .dashboard-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: var(--spacing-md, 1.5rem);
+    }
+
+    .left-column, .right-column { display: flex; flex-direction: column; gap: var(--spacing-md, 1.5rem); }
+
+    .card {
+        background: var(--color-bg-1, white);
+        border-radius: var(--card-border-radius, 12px);
+        border: 1px solid var(--color-border, #e5e7eb);
+        padding: var(--card-padding, 1.25rem);
+        box-shadow: var(--card-shadow, 0 1px 4px rgba(0,0,0,0.04));
+    }
+
+    h3 { font-size: 1rem; font-weight: 700; margin: 0 0 1rem 0; }
+
+    /* Commodities */
+    .commodity-list {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+        gap: 0.75rem;
+    }
+
+    .commodity-item {
+        background: var(--color-bg-2, #f9fafb);
+        border-radius: 8px;
+        padding: 0.85rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.3rem;
+    }
+
+    .commodity-name-row { display: flex; justify-content: space-between; align-items: center; }
+    .commodity-name { font-size: 0.85rem; font-weight: 700; }
+    .commodity-change { font-size: 0.8rem; font-weight: 700; }
+    .commodity-price { font-size: 1rem; font-weight: 800; color: #111; }
+    .commodity-vol { font-size: 0.72rem; color: var(--color-text-gray); }
+
+    /* Macro table */
+    .macro-table-wrap { overflow-x: auto; }
+
+    .macro-table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+    .macro-table th {
+        text-align: left; padding: 0.5rem 0.75rem;
+        border-bottom: 2px solid var(--color-border, #e5e7eb);
+        color: var(--color-text-gray); font-weight: 600;
+    }
+    .macro-table td { padding: 0.6rem 0.75rem; border-bottom: 1px solid #f0f0f0; }
+    .ind-name { font-weight: 600; color: #111; }
+    .ind-val { font-family: 'Fira Mono', monospace; font-weight: 700; }
+
+    /* Global events */
+    .events-list { display: flex; flex-direction: column; gap: 0; }
+
+    .event-item {
+        padding: 0.85rem 0;
+        border-bottom: 1px solid var(--color-border, #e5e7eb);
+    }
+    .event-item:last-child { border-bottom: none; }
+
+    .event-header { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; margin-bottom: 0.4rem; flex-wrap: wrap; }
+    .event-name { font-size: 0.9rem; font-weight: 700; }
+
+    .impact-badge {
+        border-radius: 4px;
+        padding: 0.15rem 0.5rem;
+        font-size: 0.72rem;
+        font-weight: 700;
+    }
+
+    .event-desc { font-size: 0.82rem; color: var(--color-text-gray); margin: 0 0 0.4rem 0; line-height: 1.5; }
+    .event-time { font-size: 0.75rem; color: var(--color-text-gray); }
+
+    /* Sector performance */
+    .sector-list { display: flex; flex-direction: column; gap: 0.6rem; margin-bottom: 1rem; }
+
+    .sector-item {
+        display: grid;
+        grid-template-columns: 120px 1fr 60px;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .sector-name { font-size: 0.82rem; font-weight: 600; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    .sector-bar-wrap { height: 8px; background: #e5e7eb; border-radius: 4px; overflow: hidden; }
+
+    .sector-bar {
+        height: 100%;
+        border-radius: 4px;
+        min-width: 2px;
+    }
+    .sector-bar.bar-pos { background: var(--color-positive, #10b981); }
+    .sector-bar.bar-neg { background: var(--color-negative, #ef4444); }
+
+    .sector-pct { font-size: 0.82rem; font-weight: 700; text-align: right; }
+
+    .top-sectors {
+        padding-top: 0.75rem;
+        border-top: 1px solid var(--color-border, #e5e7eb);
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+    }
+
+    .top-label { font-size: 0.78rem; color: var(--color-text-gray); font-weight: 600; }
+
+    .top-badges { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+
+    .top-badge {
+        background: #ECF2FE;
+        color: var(--color-theme-1, #00529B);
+        border-radius: 20px;
+        padding: 0.2rem 0.7rem;
+        font-size: 0.75rem;
+        font-weight: 700;
+    }
+
+    .pos { color: var(--color-positive, #10b981); }
+    .neg { color: var(--color-negative, #ef4444); }
+
+    /* Commodity clickable + chart */
+    .commodity-item { cursor: pointer; border: none; text-align: left; width: 100%; transition: outline 0.15s; }
+    .commodity-item:hover { outline: 2px solid var(--color-theme-1, #00529B); outline-offset: -2px; border-radius: 8px; }
+    .commodity-selected { outline: 2px solid var(--color-theme-1, #00529B); outline-offset: -2px; }
+
+    .commodity-chart-section { margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--color-border, #e5e7eb); }
+    .chart-label { font-size: 0.85rem; font-weight: 600; margin: 0 0 0.5rem 0; color: #333; }
+    .commodity-chart-wrap { background: var(--color-bg-2, #f9fafb); border-radius: 8px; padding: 0.75rem; }
+    .commodity-chart-svg { width: 100%; height: 60px; }
+
+    /* Full-width cards spanning both columns */
+    .full-width-card { grid-column: 1 / -1; }
+
+    /* Market events */
+    .market-events-list { display: flex; flex-direction: column; gap: 0; }
+    .market-event-item { padding: 0.85rem 0; border-bottom: 1px solid var(--color-border, #e5e7eb); }
+    .market-event-item:last-child { border-bottom: none; }
+    .market-event-header { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; margin-bottom: 0.3rem; flex-wrap: wrap; }
+    .market-event-name { font-size: 0.9rem; font-weight: 700; }
+    .market-event-type-badge {
+        background: #ECF2FE; color: var(--color-theme-1, #00529B);
+        border-radius: 4px; padding: 0.15rem 0.5rem; font-size: 0.72rem; font-weight: 700;
+    }
+    .market-event-desc { font-size: 0.82rem; color: var(--color-text-gray); margin: 0 0 0.4rem 0; line-height: 1.5; }
+    .market-event-meta { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; }
+    .market-event-impact { font-size: 0.8rem; font-weight: 700; }
+    .market-event-time { font-size: 0.75rem; color: var(--color-text-gray); }
+
+    /* Macro economy grid */
+    .macro-economy-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+        gap: 0.75rem;
+    }
+    .macro-eco-item {
+        background: var(--color-bg-2, #f9fafb);
+        border-radius: 8px;
+        padding: 0.85rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+    .macro-eco-label { font-size: 0.78rem; color: var(--color-text-gray); font-weight: 500; }
+    .macro-eco-value { font-size: 0.95rem; font-weight: 700; color: #111; }
+
+    @media (max-width: 1024px) {
+        .dashboard-grid { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 600px) {
+        .commodity-list { grid-template-columns: repeat(2, 1fr); }
+    }
 </style>

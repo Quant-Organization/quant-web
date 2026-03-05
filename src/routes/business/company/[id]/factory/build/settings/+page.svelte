@@ -1,16 +1,10 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
+  import { factoryBuild, updateFactoryBuild, getFactoryBuild } from '$lib/stores/factoryBuild';
 
   // --- Types ---
-  interface OptionItem {
-    id: string;
-    label: string;
-    desc: string;
-    effect: string;
-    costValue: number;
-  }
-
   interface CategoryOption {
     id: string;
     title: string;
@@ -19,15 +13,21 @@
     costValue: number;
   }
 
-  // --- Data ---
+  interface FacilityOption {
+    id: string;
+    label: string;
+    desc: string;
+    effect: string;
+    costValue: number;
+    level: number;
+  }
 
-  // 1. 공장 기본 정보
-  const factoryInfo = {
-    name: "기가 팩토리",
-    region: "대구광역시",
-    baseCost: 2.0,
-    bonus: "건설 속도 +5%"
-  };
+  // --- Data from store ---
+  let storeName = $state('');
+  let storeRegion = $state('');
+  let storeBaseCost = $state(0);
+  let storeBonus = $state('');
+  let factoryName = $state('');
 
   // 2. 생산 라인 옵션
   const productionLines: CategoryOption[] = [
@@ -39,16 +39,16 @@
   // 3. 시설 규모 옵션
   const facilityOptions = {
     land: [
-      { id: 'l1', label: '1단계', desc: '+1B 건설비', effect: '+5% 생산량', costValue: 1.0 },
-      { id: 'l2', label: '2단계', desc: '+3B 건설비', effect: '+10% 생산량', costValue: 3.0 }
+      { id: 'l1', label: '1단계', desc: '+1B 건설비', effect: '+5% 생산량', costValue: 1.0, level: 1 },
+      { id: 'l2', label: '2단계', desc: '+3B 건설비', effect: '+10% 생산량', costValue: 3.0, level: 2 }
     ],
     building: [
-      { id: 'b1', label: '1단계', desc: '+2B 건설비', effect: '+5% 생산량', costValue: 2.0 },
-      { id: 'b2', label: '2단계', desc: '+5B 건설비', effect: '+10% 생산량', costValue: 5.0 }
+      { id: 'b1', label: '1단계', desc: '+2B 건설비', effect: '+5% 생산량', costValue: 2.0, level: 1 },
+      { id: 'b2', label: '2단계', desc: '+5B 건설비', effect: '+10% 생산량', costValue: 5.0, level: 2 }
     ],
     rest: [
-      { id: 'r1', label: '1단계', desc: '+1B 건설비', effect: '+5% 직원 수용량', costValue: 1.0 },
-      { id: 'r2', label: '2단계', desc: '+3B 건설비', effect: '+10% 직원 수용량', costValue: 3.0 }
+      { id: 'r1', label: '1단계', desc: '+1B 건설비', effect: '+5% 직원 수용량', costValue: 1.0, level: 1 },
+      { id: 'r2', label: '2단계', desc: '+3B 건설비', effect: '+10% 직원 수용량', costValue: 3.0, level: 2 }
     ]
   };
 
@@ -68,13 +68,13 @@
 
   // --- State Management ---
   let selectedProdLine = $state(productionLines[1]);
-  let selectedEnergy = $state(energyOptions[2]);
-  let selectedSecurity = $state(securityOptions[2]);
+  let selectedEnergy = $state(energyOptions[0]);
+  let selectedSecurity = $state(securityOptions[0]);
 
   let selectedFacility = $state({
-    land: facilityOptions.land[1],
-    building: facilityOptions.building[1],
-    rest: facilityOptions.rest[1]
+    land: facilityOptions.land[0],
+    building: facilityOptions.building[0],
+    rest: facilityOptions.rest[0]
   });
 
   // --- Derived Values ---
@@ -85,7 +85,7 @@
   );
 
   let totalCost = $derived(
-    factoryInfo.baseCost +
+    storeBaseCost +
     selectedProdLine.costValue +
     facilityCost +
     selectedEnergy.costValue +
@@ -93,16 +93,38 @@
   );
 
   let costBreakdown = $derived({
-    base: (factoryInfo.baseCost / totalCost) * 100,
-    prod: (selectedProdLine.costValue / totalCost) * 100,
-    facility: (facilityCost / totalCost) * 100,
-    energy: (selectedEnergy.costValue / totalCost) * 100,
-    security: (selectedSecurity.costValue / totalCost) * 100
+    base: totalCost > 0 ? (storeBaseCost / totalCost) * 100 : 0,
+    prod: totalCost > 0 ? (selectedProdLine.costValue / totalCost) * 100 : 0,
+    facility: totalCost > 0 ? (facilityCost / totalCost) * 100 : 0,
+    energy: totalCost > 0 ? (selectedEnergy.costValue / totalCost) * 100 : 0,
+    security: totalCost > 0 ? (selectedSecurity.costValue / totalCost) * 100 : 0
   });
 
   const formatMoney = (val: number) => `${val % 1 === 0 ? val : val.toFixed(1)}B`;
 
+  onMount(() => {
+    const state = getFactoryBuild();
+    if (!state.grade || !state.regionId) {
+      goto(`/business/company/${$page.params.id}/factory/build`);
+      return;
+    }
+    storeName = state.gradeName;
+    storeRegion = state.regionName;
+    storeBaseCost = 2.0; // base cost in B units
+    storeBonus = '건설 속도 +5%';
+    factoryName = `${state.gradeName} - ${state.regionName}`;
+  });
+
   function goToNextStep() {
+    updateFactoryBuild({
+      name: factoryName,
+      productionLineType: selectedProdLine.id,
+      landExpansionLevel: selectedFacility.land.level,
+      buildingExpansionLevel: selectedFacility.building.level,
+      loungeLevel: selectedFacility.rest.level,
+      energyOption: selectedEnergy.id,
+      securityOption: selectedSecurity.id
+    });
     goto(`/business/company/${$page.params.id}/factory/build/contract`);
   }
 </script>
@@ -140,18 +162,22 @@
 
       <div class="card info-card">
         <div class="info-text">
-          <h3>{factoryInfo.name}</h3>
+          <h3>{storeName || '공장'}</h3>
+          <div class="info-row">
+            <span class="lbl">공장 이름</span>
+            <input class="name-input" type="text" bind:value={factoryName} placeholder="공장 이름을 입력하세요" />
+          </div>
           <div class="info-row">
             <span class="lbl">지역</span>
-            <span class="val">{factoryInfo.region}</span>
+            <span class="val">{storeRegion || '-'}</span>
           </div>
           <div class="info-row">
             <span class="lbl">기반 비용</span>
-            <span class="val">{formatMoney(factoryInfo.baseCost)}</span>
+            <span class="val">{formatMoney(storeBaseCost)}</span>
           </div>
           <div class="info-row">
             <span class="lbl">지역 보너스</span>
-            <span class="val text-bold">{factoryInfo.bonus}</span>
+            <span class="val text-bold">{storeBonus || '-'}</span>
           </div>
         </div>
         <div class="info-img">
@@ -285,7 +311,7 @@
         <div class="summary-list">
           <div class="sum-row">
             <span>기반 비용</span>
-            <span class="val">{formatMoney(factoryInfo.baseCost)}</span>
+            <span class="val">{formatMoney(storeBaseCost)}</span>
           </div>
           <div class="sum-row">
             <span>생산 라인</span>
@@ -382,6 +408,13 @@
   .info-row .lbl { width: 100px; color: var(--color-text-gray); }
   .info-row .val { font-weight: 500; }
   .info-row .text-bold { font-weight: 700; }
+
+  .name-input {
+    flex: 1; padding: 6px 10px; border: 1px solid var(--color-border);
+    border-radius: 6px; font-size: 14px; background: var(--color-bg-1);
+    color: var(--color-text);
+  }
+  .name-input:focus { outline: none; border-color: var(--color-theme-1); }
 
   .info-img { width: 200px; height: 120px; border-radius: 8px; overflow: hidden; }
   .img-placeholder {

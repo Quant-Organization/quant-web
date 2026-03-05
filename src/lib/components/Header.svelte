@@ -5,12 +5,24 @@
     import dot from '$lib/images/dot.svg';
     import star from '$lib/images/star.svg'
     import alam from '$lib/images/alam.svg'
-    import profile from '$lib/images/profile.svg'
+    import profileIcon from '$lib/images/profile.svg'
     import {updateSection, type SectionType, sectionOrder} from '$lib/stores/sidebar';
+    import { auth } from '$lib/stores/auth';
+    import { showLoginModal } from '$lib/stores/loginModal';
+    import { get } from 'svelte/store';
 
-    export let playerName = "PlayerName";
-    export let playerLevel = 42
-    export let starCount = 8750;
+    let userData = $state(get(auth.user));
+    let isLoggedIn = $state(get(auth.isLoggedIn));
+
+    $effect(() => {
+        const unsub1 = auth.user.subscribe((u) => { userData = u; });
+        const unsub2 = auth.isLoggedIn.subscribe((v) => { isLoggedIn = v; });
+        return () => { unsub1(); unsub2(); };
+    });
+
+    let playerName = $derived(userData?.playerName || userData?.username || 'Player');
+    let playerLevel = $derived(userData?.level ?? 1);
+    let starCount = $derived(userData?.fame ?? 0);
 
     function handleNavClick(section: SectionType, path: string) {
         // 현재 섹션의 인덱스 찾기
@@ -56,6 +68,7 @@
             </ul>
         </nav>
         <div class="user-info">
+            {#if isLoggedIn}
             <div class="user-info-div">
                 <p class="player-name">{playerName}</p>
                 <div class="stats">
@@ -69,13 +82,39 @@
             </div>
             <div class="user-icon-info-div">
                 <img src="{alam}" alt="alam" class="bell"/>
-                <img src="{profile}" alt="profile" class="profile"/>
+                <button class="profile-btn" onclick={() => auth.logout()} title="로그아웃">
+                    <img src="{profileIcon}" alt="profile" class="profile"/>
+                </button>
             </div>
+            {:else}
+            <button class="login-header-btn" onclick={() => showLoginModal.set(true)}>로그인</button>
+            {/if}
         </div>
     </div>
 </header>
 
 <style>
+
+    .profile-btn {
+        background: none;
+        border: none;
+        padding: 0;
+        cursor: pointer;
+    }
+
+    .login-header-btn {
+        padding: 0.45rem 1.2rem;
+        background: var(--color-theme-1, #00529B);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-size: 0.9rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.2s;
+        font-family: var(--font-body);
+    }
+    .login-header-btn:hover { background: var(--color-theme-1-dark, #004480); }
 
     .profile {
         width: 2.4rem;

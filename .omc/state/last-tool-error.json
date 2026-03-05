@@ -1,0 +1,7 @@
+{
+  "tool_name": "Bash",
+  "tool_input_preview": "{\"command\":\"npx playwright test tests/e2e/find-error-page.spec.ts 2>&1\",\"timeout\":180000,\"description\":\"Run per-page error isolation test\"}",
+  "error": "Exit code 1\n\nRunning 7 tests using 1 worker\n\n  ✓  1 [chromium] › tests/e2e/find-error-page.spec.ts:44:2 › errors on /dashboard/overview (3.6s)\n  ✓  2 [chromium] › tests/e2e/find-error-page.spec.ts:44:2 › errors on /dashboard/coin (3.4s)\nERRORS on /dashboard/etf: [\n  \u001b[32m'$.get(...).map is not a function\\n'\u001b[39m +\n    \u001b[32m'\\n'\u001b[39m +\n    \u001b[32m'\\tin <unknown>\\n'\u001b[39m +\n    \u001b[32m'\\tin +page.svelte\\n'\u001b[39m +\n    \u001b[32m'\\tin +layout.svelte\\n'\u001b[39m +\n    \u001b[32m'\\tin +layout.svelte\\n'\u001b[39m +\n    \u001b[32m'...",
+  "timestamp": "2026-03-04T10:16:01.305Z",
+  "retry_count": 2
+}

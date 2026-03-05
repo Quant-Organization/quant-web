@@ -1,29 +1,77 @@
-<script>
-    let tab = 'buy';
-    let price = 100300;
-    let qty = 0;
-    const balance = 1400000000;
+<script lang="ts">
+    import { buyStock, sellStock } from '$lib/api/trade';
+    import type { PriceMap } from '$lib/api/market';
+    import type { AccountResponse } from '$lib/api/trade';
 
-    function adjustPrice(delta) {
-        price = Math.max(0, Math.floor(Number(price || 0) + delta));
+    interface Props {
+        selectedCompanyId: string;
+        priceMap: PriceMap;
+        account: AccountResponse | null;
+        onOrderComplete: () => void;
     }
 
-    function setPercent(percent) {
-        const p = Math.max(0, percent);
-        const pQty = Math.floor((balance * p) / 100 / Math.max(1, Number(price || 1)));
-        qty = Math.max(0, pQty);
+    let { selectedCompanyId, priceMap, account, onOrderComplete }: Props = $props();
+
+    let tab = $state<'buy' | 'sell' | 'reserve'>('buy');
+    let qty = $state(0);
+    let submitting = $state(false);
+    let errorMsg = $state('');
+
+    let currentPrice = $derived(
+        selectedCompanyId && priceMap.prices[selectedCompanyId]
+            ? priceMap.prices[selectedCompanyId]
+            : 0
+    );
+
+    let balance = $derived(account?.cash ?? 0);
+
+    let holding = $derived(
+        account?.holdings.find(h => h.company_id === selectedCompanyId) ?? null
+    );
+
+    let maxSellQty = $derived(holding?.quantity ?? 0);
+
+    let total = $derived(currentPrice * Math.max(0, qty));
+
+    function setPercent(percent: number) {
+        if (tab === 'buy') {
+            const affordable = Math.floor((balance * percent) / 100 / Math.max(1, currentPrice));
+            qty = Math.max(0, affordable);
+        } else if (tab === 'sell') {
+            qty = Math.max(0, Math.floor((maxSellQty * percent) / 100));
+        }
     }
 
-    function onQtyInput(e) {
-        const v = Number(e.target.value || 0);
+    function onQtyInput(e: Event) {
+        const v = Number((e.target as HTMLInputElement).value || 0);
         qty = Math.max(0, Math.floor(v));
     }
 
-    $: numericPrice = Math.max(0, Number(price || 0));
-    $: numericQty = Math.max(0, Number(qty || 0));
-    $: total = numericPrice * numericQty;
+    function adjustPrice(delta: number) {
+        // price is read-only from market; delta adjusts qty instead for UX
+        qty = Math.max(0, qty + delta);
+    }
 
-    function money(n) {
+    async function submitOrder() {
+        if (!selectedCompanyId || qty <= 0 || submitting) return;
+        submitting = true;
+        errorMsg = '';
+        try {
+            if (tab === 'buy') {
+                await buyStock(selectedCompanyId, qty);
+            } else if (tab === 'sell') {
+                await sellStock(selectedCompanyId, qty);
+            }
+            qty = 0;
+            onOrderComplete();
+        } catch (e: unknown) {
+            errorMsg = e instanceof Error ? e.message : '주문 실패';
+        } finally {
+            submitting = false;
+        }
+    }
+
+    function money(n: number) {
         return n.toLocaleString();
     }
 </script>
@@ -31,70 +79,83 @@
 <aside class="panel" style="height: fit-content;">
     <div class="tabs">
         <button
-                class="tab-btn"
-                class:active={tab === 'buy'}
-                on:click={() => (tab = 'buy')}
+            class="tab-btn"
+            class:active={tab === 'buy'}
+            onclick={() => { tab = 'buy'; qty = 0; errorMsg = ''; }}
         >
             매수
         </button>
         <button
-                class="tab-btn"
-                class:active={tab === 'sell'}
-                on:click={() => (tab = 'sell')}
+            class="tab-btn"
+            class:active={tab === 'sell'}
+            onclick={() => { tab = 'sell'; qty = 0; errorMsg = ''; }}
         >
             매도
         </button>
         <button
-                class="tab-btn"
-                class:active={tab === 'reserve'}
-                on:click={() => (tab = 'reserve')}
+            class="tab-btn"
+            class:active={tab === 'reserve'}
+            onclick={() => { tab = 'reserve'; qty = 0; errorMsg = ''; }}
         >
             예약
         </button>
     </div>
 
-    <label class="label">주문 가격 (USD)</label>
+    <span class="label">현재가 (KRW)</span>
     <div class="price-box">
-        <button class="step" on:click={() => adjustPrice(-100)}>−</button>
-        <input
-                class="price-input"
-                type="number"
-                bind:value={price}
-        />
-        <button class="step" on:click={() => adjustPrice(100)}>+</button>
+        <button class="step" onclick={() => adjustPrice(-1)}>−</button>
+        <span class="price-display">₩{money(currentPrice)}</span>
+        <button class="step" onclick={() => adjustPrice(1)}>+</button>
     </div>
 
-    <label class="label">수량 (주)</label>
+    <span class="label">수량 (주)</span>
     <div class="qty-box">
         <input
-                class="qty-input"
-                type="number"
-                min="0"
-                on:input={onQtyInput}
-                value={qty}
+            class="qty-input"
+            type="number"
+            min="0"
+            oninput={onQtyInput}
+            value={qty}
         />
         <span class="unit">주</span>
     </div>
 
     <div class="percent">
-        <button on:click={() => setPercent(10)}>10%</button>
-        <button on:click={() => setPercent(25)}>25%</button>
-        <button on:click={() => setPercent(50)}>50%</button>
-        <button on:click={() => setPercent(100)}>최대</button>
+        <button onclick={() => setPercent(10)}>10%</button>
+        <button onclick={() => setPercent(25)}>25%</button>
+        <button onclick={() => setPercent(50)}>50%</button>
+        <button onclick={() => setPercent(100)}>최대</button>
     </div>
 
     <div class="summary">
         <div class="summary-row">
             <span class="label-small">주문 총액</span>
-            <strong class="value">${money(total)}</strong>
+            <strong class="value">₩{money(total)}</strong>
         </div>
         <div class="summary-row dimmed">
-            <span class="label-small">가능 금액</span>
-            <strong class="value">${money(balance)}</strong>
+            <span class="label-small">{tab === 'sell' ? '보유 수량' : '가능 금액'}</span>
+            <strong class="value">
+                {tab === 'sell' ? `${maxSellQty}주` : `₩${money(balance)}`}
+            </strong>
         </div>
     </div>
 
-    <button class="buy">매수</button>
+    {#if errorMsg}
+        <p class="error">{errorMsg}</p>
+    {/if}
+
+    {#if tab !== 'reserve'}
+        <button
+            class="submit-btn"
+            class:sell-btn={tab === 'sell'}
+            onclick={submitOrder}
+            disabled={submitting || qty <= 0 || currentPrice === 0}
+        >
+            {submitting ? '처리 중...' : tab === 'buy' ? '매수' : '매도'}
+        </button>
+    {:else}
+        <button class="submit-btn" disabled>예약 기능 준비 중</button>
+    {/if}
 </aside>
 
 <style>
@@ -170,12 +231,12 @@
         width: 200%;
         height: 200%;
         background: linear-gradient(
-                -45deg,
-                rgba(255, 255, 255, 0.8) 0%,
-                rgba(255, 255, 255, 0.2) 25%,
-                transparent 50%,
-                rgba(255, 255, 255, 0.2) 75%,
-                rgba(255, 255, 255, 0.8) 100%
+            -45deg,
+            rgba(255, 255, 255, 0.8) 0%,
+            rgba(255, 255, 255, 0.2) 25%,
+            transparent 50%,
+            rgba(255, 255, 255, 0.2) 75%,
+            rgba(255, 255, 255, 0.8) 100%
         );
         pointer-events: none;
         opacity: 0.5;
@@ -195,17 +256,14 @@
         z-index: 1;
     }
 
-    .price-input {
+    .price-display {
         flex: 1;
-        background: transparent;
-        border: none;
-        outline: none;
         font-size: 1.25rem;
         font-weight: 800;
         text-align: center;
-        min-width: 0;
         position: relative;
         z-index: 1;
+        color: #102a43;
     }
 
     .qty-box {
@@ -233,12 +291,12 @@
         width: 200%;
         height: 200%;
         background: linear-gradient(
-                -45deg,
-                rgba(255, 255, 255, 0.8) 0%,
-                rgba(255, 255, 255, 0.2) 25%,
-                transparent 50%,
-                rgba(255, 255, 255, 0.2) 75%,
-                rgba(255, 255, 255, 0.8) 100%
+            -45deg,
+            rgba(255, 255, 255, 0.8) 0%,
+            rgba(255, 255, 255, 0.2) 25%,
+            transparent 50%,
+            rgba(255, 255, 255, 0.2) 75%,
+            rgba(255, 255, 255, 0.8) 100%
         );
         pointer-events: none;
         opacity: 0.5;
@@ -302,12 +360,12 @@
         width: 200%;
         height: 200%;
         background: linear-gradient(
-                -45deg,
-                rgba(255, 255, 255, 0.8) 0%,
-                rgba(255, 255, 255, 0.2) 25%,
-                transparent 50%,
-                rgba(255, 255, 255, 0.2) 75%,
-                rgba(255, 255, 255, 0.8) 100%
+            -45deg,
+            rgba(255, 255, 255, 0.8) 0%,
+            rgba(255, 255, 255, 0.2) 25%,
+            transparent 50%,
+            rgba(255, 255, 255, 0.2) 75%,
+            rgba(255, 255, 255, 0.8) 100%
         );
         pointer-events: none;
         opacity: 0.5;
@@ -337,8 +395,15 @@
         color: #102a43;
     }
 
-    .buy {
-        width: 100%;
+    .error {
+        color: #dc2626;
+        font-size: 0.8125rem;
+        margin: 0 0.875rem 0.75rem 0.875rem;
+        font-weight: 600;
+    }
+
+    .submit-btn {
+        width: calc(100% - 1.75rem);
         padding: 1rem;
         background: var(--color-theme-1);
         color: white;
@@ -347,8 +412,17 @@
         border: none;
         cursor: pointer;
         font-size: 1.5rem;
-        width: calc(100% - 1.75rem);
         margin: 0 0.875rem 1rem;
+        transition: opacity 0.2s;
+    }
+
+    .submit-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .submit-btn.sell-btn {
+        background: #ef4444;
     }
 
     input[type="number"]::-webkit-outer-spin-button,
@@ -359,5 +433,6 @@
 
     input[type="number"] {
         -moz-appearance: textfield;
+        appearance: textfield;
     }
 </style>

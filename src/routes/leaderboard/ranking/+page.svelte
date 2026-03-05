@@ -1,98 +1,55 @@
 <script lang="ts">
-  // ------------------------------------------
-  // 1. 데이터 타입 정의 (TypeScript)
-  // ------------------------------------------
-  interface TopStat {
-    label: string;
-    mainValue: string;
-    subValue?: string;
-    subValueColor?: 'green' | 'red' | 'gray';
-    iconType: 'medal' | 'crown' | 'chart';
+  import { onMount } from 'svelte';
+  import { getTopRankers, getMyRank, type LeaderboardEntry } from '$lib/api/leaderboard';
+
+  // --- State ---
+  let players = $state<LeaderboardEntry[]>([]);
+  let myRank = $state<LeaderboardEntry | null>(null);
+  let loading = $state(true);
+  let error = $state<string | null>(null);
+  let searchText = $state('');
+
+  // --- Derived ---
+  let filteredPlayers = $derived(
+    players.filter((p) =>
+      p.playerName.toLowerCase().includes(searchText.toLowerCase()) ||
+      p.username.toLowerCase().includes(searchText.toLowerCase())
+    )
+  );
+
+  let topStats = $derived([
+    {
+      label: '내 현재 순위',
+      mainValue: myRank ? `#${myRank.rank.toLocaleString()}` : '-',
+      subValue: myRank && myRank.rankChange !== 0
+        ? (myRank.rankChange > 0 ? `↑${myRank.rankChange}위 상승` : `↓${Math.abs(myRank.rankChange)}위 하락`)
+        : '-',
+      subValueColor: myRank && myRank.rankChange > 0 ? 'green' : myRank && myRank.rankChange < 0 ? 'red' : 'gray',
+      iconType: 'medal' as const
+    },
+    {
+      label: '1위 총 자산',
+      mainValue: players[0] ? formatAsset(players[0].totalAssetValue) : '-',
+      subValue: players[0] ? players[0].playerName : '',
+      subValueColor: 'gray' as const,
+      iconType: 'chart' as const
+    },
+    {
+      label: '상위 플레이어',
+      mainValue: players[0] ? players[0].playerName : '-',
+      subValue: players[0] ? players[0].title : '',
+      subValueColor: 'gray' as const,
+      iconType: 'crown' as const
+    }
+  ]);
+
+  function formatAsset(n: number): string {
+    if (n >= 1_000_000_000) return '$' + (n / 1_000_000_000).toFixed(1) + 'B';
+    if (n >= 1_000_000) return '$' + (n / 1_000_000).toFixed(1) + 'M';
+    if (n >= 1_000) return '$' + (n / 1_000).toFixed(1) + 'K';
+    return '$' + String(n);
   }
 
-  interface Player {
-    id: number;
-    rank: number;
-    rankChange: number;
-    name: string;
-    level: number;
-    title: string;
-    tag: string;
-    assets: string;
-    weeklyReturn: string;
-    avatarUrl: string;
-  }
-
-  // ------------------------------------------
-  // 2. 목업 데이터 (Mock Data)
-  // ------------------------------------------
-
-  const topStats: TopStat[] = [
-    {
-      label: "상위 1% 자산 평균",
-      mainValue: "#1,204",
-      subValue: "↑24위 상승",
-      subValueColor: 'green',
-      iconType: 'medal'
-    },
-    {
-      label: "상위 1% 자산 평균",
-      mainValue: "$42.8B",
-      subValue: "(약 55조원)",
-      subValueColor: 'gray',
-      iconType: 'chart'
-    },
-    {
-      label: "이번주 최고 수익률",
-      mainValue: "+145.5%",
-      subValue: "Player_7",
-      subValueColor: 'gray',
-      iconType: 'crown'
-    }
-  ];
-
-  const players: Player[] = [
-    {
-      id: 1, rank: 1, rankChange: 3,
-      name: "Allwayshapppy", level: 66, title: "Grand Master",
-      tag: "무법자", assets: "$33.4B", weeklyReturn: "+12.4%",
-      avatarUrl: "https://api.dicebear.com/7.x/avataaars/svg?seed=Felix"
-    },
-    {
-      id: 2, rank: 2, rankChange: -1,
-      name: "Good Day", level: 59, title: "Grand Master",
-      tag: "싸이코", assets: "$33.4B", weeklyReturn: "-3.2%",
-      avatarUrl: "https://api.dicebear.com/7.x/avataaars/svg?seed=Aneka"
-    },
-    {
-      id: 3, rank: 3, rankChange: 0,
-      name: "여기는 넘으면 안되에에에에에엠", level: 59, title: "Grand Master",
-      tag: "챔피언", assets: "$33.4B", weeklyReturn: "+5.1%",
-      avatarUrl: "https://api.dicebear.com/7.x/avataaars/svg?seed=Zoe"
-    },
-    {
-      id: 4, rank: 4, rankChange: 3,
-      name: "User_1", level: 59, title: "Grand Master",
-      tag: "챔피언", assets: "$33.4B", weeklyReturn: "+5.1%",
-      avatarUrl: "https://api.dicebear.com/7.x/avataaars/svg?seed=Jack"
-    },
-    {
-      id: 5, rank: 5, rankChange: 3,
-      name: "User_2", level: 59, title: "Grand Master",
-      tag: "챔피언", assets: "$33.4B", weeklyReturn: "+5.1%",
-      avatarUrl: "https://api.dicebear.com/7.x/avataaars/svg?seed=Jack"
-    },
-    {
-      id: 6, rank: 6, rankChange: 3,
-      name: "User_3", level: 59, title: "Grand Master",
-      tag: "챔피언", assets: "$33.4B", weeklyReturn: "+5.1%",
-      avatarUrl: "https://api.dicebear.com/7.x/avataaars/svg?seed=Jack"
-    }
-  ];
-
-  // ------------------------------------------
-  // 3. 헬퍼 함수
-  // ------------------------------------------
   function getRankColorClass(rank: number) {
     if (rank === 1) return 'rank-1';
     if (rank === 2) return 'rank-2';
@@ -100,14 +57,24 @@
     return 'rank-default';
   }
 
-  function getTagStyle(tag: string) {
-    switch (tag) {
-      case '무법자': return 'tag-red';
-      case '싸이코': return 'tag-black';
-      case '챔피언': return 'tag-black';
-      default: return 'tag-default';
-    }
+  function getAvatarUrl(username: string): string {
+    return `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(username)}`;
   }
+
+  onMount(async () => {
+    try {
+      const [topRes, myRes] = await Promise.allSettled([
+        getTopRankers(50),
+        getMyRank()
+      ]);
+      if (topRes.status === 'fulfilled') players = topRes.value;
+      if (myRes.status === 'fulfilled') myRank = myRes.value;
+    } catch (e) {
+      error = '데이터를 불러오지 못했습니다.';
+    } finally {
+      loading = false;
+    }
+  });
 </script>
 
 <svelte:head>
@@ -123,102 +90,117 @@
     </div>
   </header>
 
-  <section class="stats-grid">
-    {#each topStats as stat}
-      <div class="stat-card">
-        <div class="stat-content">
-          <span class="stat-label">{stat.label}</span>
-          <div class="stat-values">
-            <span class="main-val">{stat.mainValue}</span>
-            {#if stat.subValue}
-              <span class="sub-val {stat.subValueColor}">{stat.subValue}</span>
+  {#if loading}
+    <div class="loading-state">데이터를 불러오는 중...</div>
+  {:else if error}
+    <div class="error-state">{error}</div>
+  {:else}
+    <section class="stats-grid">
+      {#each topStats as stat}
+        <div class="stat-card">
+          <div class="stat-content">
+            <span class="stat-label">{stat.label}</span>
+            <div class="stat-values">
+              <span class="main-val">{stat.mainValue}</span>
+              {#if stat.subValue}
+                <span class="sub-val {stat.subValueColor}">{stat.subValue}</span>
+              {/if}
+            </div>
+          </div>
+          <div class="stat-icon">
+            {#if stat.iconType === 'medal'}
+              <div class="circle-icon gold">🥇</div>
+            {:else if stat.iconType === 'crown'}
+              <div class="circle-icon green">👑</div>
             {/if}
           </div>
         </div>
-        <div class="stat-icon">
-          {#if stat.iconType === 'medal'}
-            <div class="circle-icon gold">🥇</div>
-          {:else if stat.iconType === 'crown'}
-            <div class="circle-icon green">👑</div>
+      {/each}
+    </section>
+
+    <section class="ranking-container">
+
+      <div class="ranking-controls">
+        <h2>실시간 랭킹</h2>
+        <div class="control-right">
+          <div class="search-box">
+            <svg class="search-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+            </svg>
+            <input type="text" placeholder="플레이어 검색" bind:value={searchText} />
+          </div>
+          <button class="filter-btn">
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/>
+            </svg>
+            필터
+          </button>
+        </div>
+      </div>
+
+      <div class="ranking-table">
+        <div class="table-header">
+          <div class="col-rank">순위</div>
+          <div class="col-player">플레이어</div>
+          <div class="col-tag">칭호</div>
+          <div class="col-assets">총 자산 가치</div>
+          <div class="col-return">순위 변동</div>
+        </div>
+
+        <div class="table-body">
+          {#if filteredPlayers.length === 0}
+            <div class="empty-row">검색 결과가 없습니다.</div>
           {/if}
-        </div>
-      </div>
-    {/each}
-  </section>
+          {#each filteredPlayers as player}
+            <div class="table-row" class:my-rank={myRank?.username === player.username}>
 
-  <section class="ranking-container">
-
-    <div class="ranking-controls">
-      <h2>실시간 랭킹</h2>
-      <div class="control-right">
-        <div class="search-box">
-          <svg class="search-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-          </svg>
-          <input type="text" placeholder="플레이어 검색" />
-        </div>
-        <button class="filter-btn">
-          <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/>
-          </svg>
-          필터
-        </button>
-      </div>
-    </div>
-
-    <div class="ranking-table">
-      <div class="table-header">
-        <div class="col-rank">순위</div>
-        <div class="col-player">플레이어</div>
-        <div class="col-tag">투자 성향</div>
-        <div class="col-assets">총 자산 가치</div>
-        <div class="col-return">주간 수익률</div>
-      </div>
-
-      <div class="table-body">
-        {#each players as player}
-          <div class="table-row">
-
-            <div class="col-rank">
-              <div class="rank-circle {getRankColorClass(player.rank)}">
-                {player.rank}
+              <div class="col-rank">
+                <div class="rank-circle {getRankColorClass(player.rank)}">
+                  {player.rank}
+                </div>
+                <div class="rank-change {player.rankChange > 0 ? 'up' : player.rankChange < 0 ? 'down' : 'neutral'}">
+                  {#if player.rankChange > 0}
+                    ↑{player.rankChange}
+                  {:else if player.rankChange < 0}
+                    ↓{Math.abs(player.rankChange)}
+                  {:else}
+                    -
+                  {/if}
+                </div>
               </div>
-              <div class="rank-change {player.rankChange >= 0 ? 'up' : 'down'}">
+
+              <div class="col-player flex-align">
+                <img src={getAvatarUrl(player.username)} alt="avatar" class="avatar" />
+                <div class="player-info">
+                  <span class="p-name">{player.playerName}</span>
+                  <span class="p-level">Level {player.level} · {player.title}</span>
+                </div>
+              </div>
+
+              <div class="col-tag">
+                <span class="badge">{player.title}</span>
+              </div>
+
+              <div class="col-assets font-bold">
+                {formatAsset(player.totalAssetValue)}
+              </div>
+
+              <div class="col-return font-bold {player.rankChange > 0 ? 'text-green' : player.rankChange < 0 ? 'text-red' : ''}">
                 {#if player.rankChange > 0}
-                  ↑{player.rankChange}
+                  +{player.rankChange}
                 {:else if player.rankChange < 0}
-                  ↓{Math.abs(player.rankChange)}
+                  {player.rankChange}
                 {:else}
                   -
                 {/if}
               </div>
-            </div>
 
-            <div class="col-player flex-align">
-              <img src={player.avatarUrl} alt="avatar" class="avatar" />
-              <div class="player-info">
-                <span class="p-name">{player.name}</span>
-                <span class="p-level">Level {player.level} · {player.title}</span>
-              </div>
             </div>
-
-            <div class="col-tag">
-              <span class="badge {getTagStyle(player.tag)}">{player.tag}</span>
-            </div>
-
-            <div class="col-assets font-bold">
-              {player.assets}
-            </div>
-
-            <div class="col-return font-bold {player.weeklyReturn.startsWith('+') ? 'text-green' : 'text-red'}">
-              {player.weeklyReturn}
-            </div>
-
-          </div>
-        {/each}
+          {/each}
+        </div>
       </div>
-    </div>
-  </section>
+    </section>
+  {/if}
 </div>
 
 <style>
@@ -245,6 +227,15 @@
     color: var(--color-text-gray);
     margin: 0;
   }
+
+  .loading-state,
+  .error-state {
+    text-align: center;
+    padding: 60px 0;
+    color: var(--color-text-gray);
+    font-size: 15px;
+  }
+  .error-state { color: var(--color-negative); }
 
   .stats-grid {
     display: grid;
@@ -289,6 +280,7 @@
     font-weight: var(--stat-change-weight);
   }
   .sub-val.green { color: var(--stat-change-positive); }
+  .sub-val.red { color: var(--color-negative); }
   .sub-val.gray { color: var(--stat-label-color); font-weight: 400; }
 
   .circle-icon {
@@ -401,6 +393,14 @@
   }
   .table-row:last-child { border-bottom: none; }
   .table-row:hover { background-color: var(--color-bg-2); }
+  .table-row.my-rank { background-color: #eff6ff; }
+
+  .empty-row {
+    padding: 40px;
+    text-align: center;
+    color: var(--color-text-gray);
+    font-size: 14px;
+  }
 
   .col-rank {
     display: flex;
@@ -431,6 +431,7 @@
   }
   .rank-change.up { color: #22c55e; }
   .rank-change.down { color: #ef4444; }
+  .rank-change.neutral { color: var(--color-text-gray); }
 
   .col-player { padding-right: 16px; }
   .flex-align { display: flex; align-items: center; gap: 12px; }
@@ -464,10 +465,10 @@
     border-radius: 20px;
     font-size: 12px;
     font-weight: 700;
+    border: 1px solid var(--color-text);
+    color: var(--color-text);
+    background: var(--color-bg-1);
   }
-  .tag-red { background-color: #fee2e2; color: #991b1b; }
-  .tag-black { border: 1px solid var(--color-text); color: var(--color-text); background: var(--color-bg-1); }
-  .tag-default { background: var(--color-bg-2); color: var(--color-text-gray); }
 
   .col-assets { color: var(--color-text); font-size: 15px; }
   .col-return { font-size: 15px; }

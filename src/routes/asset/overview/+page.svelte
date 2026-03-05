@@ -1,81 +1,147 @@
-<script>
+<script lang="ts">
+    import { onMount } from 'svelte';
+    import { getDashboard, getProfileStats } from '$lib/api/dashboard';
+    import type { DashboardData, ProfileStats } from '$lib/api/dashboard';
+    import { auth } from '$lib/stores/auth';
     import luxury_car from '$lib/images/luxury_car.png';
     import luxury_jet from '$lib/images/luxury_jet.png';
     import luxury_house from '$lib/images/luxury_house.png';
     import luxury_yacht from '$lib/images/luxury_yacht.png';
     import sea from '$lib/images/sea.png';
 
-    // 이미지의 텍스트와 수치 데이터를 변수로 관리합니다.
-    const metrics = [
-        { title: '실시간 수익 현황', value: '$257,800,000', change: '+1.2%', isMoney: true },
-        { title: '획득 명성 점수', value: '12,500P', change: '+50', isMoney: false },
-        { title: '컬렉션 완성도', value: '76%', isProgress: true }
-    ];
+    let dashboard = $state<DashboardData | null>(null);
+    let profile = $state<ProfileStats | null>(null);
+    let loading = $state(true);
 
-    const assets = [
+    let currentUser = $state<{ fame?: number } | null>(null);
+    auth.user.subscribe((u) => { currentUser = u; });
+
+    onMount(async () => {
+        try {
+            const [dashboardResult, profileResult] = await Promise.all([
+                getDashboard(),
+                getProfileStats()
+            ]);
+            dashboard = dashboardResult;
+            profile = profileResult;
+        } catch (e) {
+            console.error('자산 데이터 로드 실패:', e);
+        } finally {
+            loading = false;
+        }
+    });
+
+    function formatCurrency(value: number): string {
+        return '$' + value.toLocaleString();
+    }
+
+    function formatNumber(value: number): string {
+        return value.toLocaleString();
+    }
+
+    // 컬렉션 완성도: 자산 카테고리 중 보유한 것의 비율
+    let collectionPercent = $derived(() => {
+        if (!dashboard) return 0;
+        const { vehicleCount, jetCount, yachtCount, realEstateCount, luxuryCount } = dashboard.assets;
+        const total = vehicleCount + jetCount + yachtCount + realEstateCount + luxuryCount;
+        // 전체 최대치 대비 비율 (임의 기준: 각 카테고리 최대 10개 기준)
+        const max = 50;
+        return Math.min(Math.round((total / max) * 100), 100);
+    });
+
+    let assets = $derived(() => [
         {
             type: '고급 차량',
-            count: '5대',
-            totalValue: '$12,500,000',
+            count: `${dashboard?.assets.vehicleCount ?? 0}대`,
+            totalValue: formatCurrency(profile?.transportValue ?? 0),
             image: luxury_car,
             link: '/asset/vehicles'
         },
         {
             type: '전용기',
-            count: '2대',
-            totalValue: '$120,000,000',
+            count: `${dashboard?.assets.jetCount ?? 0}대`,
+            totalValue: formatCurrency(0),
             image: luxury_jet,
             link: '/asset/jet'
         },
         {
             type: '개인 부동산',
-            count: '3채',
-            totalValue: '$85,000,000',
+            count: `${dashboard?.assets.realEstateCount ?? 0}채`,
+            totalValue: formatCurrency(profile?.realEstateValue ?? 0),
             image: luxury_house,
             link: '/asset/realestate'
         },
         {
             type: '요트',
-            count: '1대',
-            totalValue: '$40,000,000',
+            count: `${dashboard?.assets.yachtCount ?? 0}대`,
+            totalValue: formatCurrency(0),
             image: luxury_yacht,
             link: '/asset/yacht'
         }
-    ];
+    ]);
 </script>
 
 <div class="dashboard-content">
     <h1 class="page-title">내 자산 대시보드</h1>
 
     <section class="metrics-grid">
-        {#each metrics as metric}
-            <div class="card metric-card">
-                <div class="card-header">
-                    <span class="metric-title">{metric.title}</span>
-                </div>
-                <div class="card-body">
-                    <span class="metric-value">{metric.value}</span>
-
-                    {#if metric.isProgress}
-                        <div class="progress-container">
-                            <div class="progress-bar" style="width: {metric.value}"></div>
-                        </div>
-                    {:else}
-                        <span class="metric-change positive">{metric.change}</span>
-                    {/if}
-                </div>
+        <div class="card metric-card">
+            <div class="card-header">
+                <span class="metric-title">실시간 수익 현황</span>
             </div>
-        {/each}
+            <div class="card-body">
+                {#if loading}
+                    <span class="metric-value">--</span>
+                {:else}
+                    <span class="metric-value">{formatCurrency(dashboard?.account.passiveIncomePerSecond ?? 0)}/s</span>
+                    <span class="metric-change positive">+{formatNumber(dashboard?.income.passiveIncome ?? 0)}</span>
+                {/if}
+            </div>
+        </div>
+
+        <div class="card metric-card">
+            <div class="card-header">
+                <span class="metric-title">획득 명성 점수</span>
+            </div>
+            <div class="card-body">
+                {#if loading}
+                    <span class="metric-value">--</span>
+                {:else}
+                    <span class="metric-value">{formatNumber(currentUser?.fame ?? 0)}P</span>
+                    <span class="metric-change positive">명성</span>
+                {/if}
+            </div>
+        </div>
+
+        <div class="card metric-card">
+            <div class="card-header">
+                <span class="metric-title">컬렉션 완성도</span>
+            </div>
+            <div class="card-body">
+                {#if loading}
+                    <span class="metric-value">--</span>
+                {:else}
+                    <span class="metric-value">{collectionPercent()}%</span>
+                    <div class="progress-container">
+                        <div class="progress-bar" style="width: {collectionPercent()}%"></div>
+                    </div>
+                {/if}
+            </div>
+        </div>
     </section>
 
     <section class="assets-section">
         <h2 class="section-title">보유 자산 요약</h2>
         <div class="assets-grid">
-            {#each assets as asset}
+            {#each assets() as asset}
                 <a href={asset.link} class="asset-card" style="background-image: url('{asset.image}')">
                     <div class="asset-overlay">
                         <h3>{asset.type}</h3>
-                        <p>{asset.count} / 총 가치 : {asset.totalValue}</p>
+                        {#if loading}
+                            <p>로딩 중...</p>
+                        {:else}
+                            <p>{asset.count} / 총 가치 : {asset.totalValue}</p>
+                        {/if}
                     </div>
                 </a>
             {/each}

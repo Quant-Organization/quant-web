@@ -2,72 +2,84 @@
     import { fly, fade } from 'svelte/transition';
     import { quintOut } from 'svelte/easing';
     import { goto } from '$app/navigation';
-    import sinhan from '$lib/images/sinhan.svg';
-    import sinhyup from '$lib/images/sinhyup.svg';
-    import ok from '$lib/images/ok.svg';
     import arrow from '$lib/images/arrow.svg';
     import graph_yellow from '$lib/images/graph_yellow.svg';
     import bankIcon from '$lib/images/bank.svg';
 
-    // --- 기존 데이터 ---
-    let currentBalance = 15000000;
-    let loanAmount = $state(1500000);
-    let repaymentAmount = $state(150000);
-    let nextPaymentDate = $state('2025-12-02');
+    import { onMount } from 'svelte';
+    import { getSpringAccount } from '$lib/api/dashboard';
+    import { getBanks, getBankProducts, type BankResponse, type BankProductResponse } from '$lib/api/bank';
+    import { getLoanSummary, getActiveLoans, type LoanSummaryResponse } from '$lib/api/loan';
 
-    // --- 드롭다운 및 은행 목록 State ---
-    let openDropdown: 'bank1' | 'bank2' | 'bank3' | null = $state(null);
-    let dropdownPosition = $state({ top: 0, left: 0, width: 0 });
+    // --- 잔고 API 연동 ---
+    let currentBalance = $state(0);
+    let loanSummary = $state<LoanSummaryResponse | null>(null);
 
-    let selectedBanks = $state({
-        bank1: { name: '신한은행', icon: sinhan, rate: 3.5, tier: 1 },
-        bank2: { name: '신협', icon: sinhyup, rate: 5.5, tier: 2 },
-        bank3: { name: 'OK저축은행', icon: ok, rate: 8.5, tier: 3 }
+    // --- 은행 목록 API ---
+    let allBanks = $state<BankResponse[]>([]);
+
+    // tier별 은행 그룹
+    let banksByTier = $derived(() => {
+        const result: Record<number, BankResponse[]> = { 1: [], 2: [], 3: [] };
+        for (const b of allBanks) {
+            if (result[b.tier]) result[b.tier].push(b);
+        }
+        return result;
     });
 
-    const banks = [
-        {
-            tier: 1,
-            title: '제1금융권',
-            institutions: [
-                { name: '신한은행', icon: sinhan, rate: 3.5, tier: 1 },
-                { name: 'KB국민은행', icon: sinhan, rate: 3.8, tier: 1 },
-                { name: '우리은행', icon: sinhan, rate: 3.7, tier: 1 }
-            ]
-        },
-        {
-            tier: 2,
-            title: '제2금융권',
-            institutions: [
-                { name: '신협', icon: sinhyup, rate: 5.5, tier: 2 },
-                { name: '새마을금고', icon: sinhyup, rate: 5.8, tier: 2 },
-                { name: '수협', icon: sinhyup, rate: 5.3, tier: 2 }
-            ]
-        },
-        {
-            tier: 3,
-            title: '제3금융권',
-            institutions: [
-                { name: 'OK저축은행', icon: ok, rate: 8.5, tier: 3 },
-                { name: '웰컴저축은행', icon: ok, rate: 9.2, tier: 3 },
-                { name: 'SBI저축은행', icon: ok, rate: 8.8, tier: 3 }
-            ]
-        }
-    ];
+    // 각 tier의 선택된 은행
+    let selectedBanks = $state<Record<number, BankResponse | null>>({ 1: null, 2: null, 3: null });
+
+    onMount(async () => {
+        try {
+            const [account, banks, summary] = await Promise.all([
+                getSpringAccount().catch(() => null),
+                getBanks().catch(() => [] as BankResponse[]),
+                getLoanSummary().catch(() => null)
+            ]);
+            if (account) currentBalance = account.cashBalance;
+            allBanks = banks;
+            // 각 tier에서 첫 번째 은행을 기본 선택
+            for (const tier of [1, 2, 3]) {
+                const found = banks.find(b => b.tier === tier);
+                if (found) selectedBanks[tier] = found;
+            }
+            loanSummary = summary;
+        } catch { /* fallback */ }
+    });
+
+    // --- 등급 필터 ---
+    let activeTierFilter = $state(0); // 0 = 전체
+    const tierFilters: Array<[number, string]> = [[0, '전체'], [1, '1등급'], [2, '2등급'], [3, '3등급']];
+
+    // --- 은행 상품 확장 ---
+    let expandedBankId = $state<number | null>(null);
+    let bankProducts = $state<Record<number, BankProductResponse[]>>({});
+    let loadingProducts = $state<Record<number, boolean>>({});
+
+    // --- 드롭다운 State ---
+    let openDropdown: number | null = $state(null);
+    let dropdownPosition = $state({ top: 0, left: 0, width: 0 });
+
+    const tierTitles: Record<number, string> = {
+        1: '제1금융권',
+        2: '제2금융권',
+        3: '제3금융권'
+    };
+    const tierSubtitles: Record<number, string> = {
+        1: '(First-tier financial institutions)',
+        2: '(Second-tier)',
+        3: '(Unregulated)'
+    };
 
     // --- Functions ---
-    function goToLoanPage(bank: any) {
-        const bankData = encodeURIComponent(JSON.stringify(bank));
-        goto(`/dashboard/loan?bank=${bankData}`);
+    function goToLoanPage(bank: BankResponse) {
+        goto(`/dashboard/loan?bankId=${bank.id}&bankName=${encodeURIComponent(bank.name)}&rate=${bank.interestRate}&tier=${bank.tier}`);
     }
 
-    function handleFinalLoan() {
-        alert('대출 신청이 완료되었습니다.');
-    }
-
-    function toggleDropdown(slot: 'bank1' | 'bank2' | 'bank3', event: MouseEvent) {
+    function toggleDropdown(tier: number, event: MouseEvent) {
         event.stopPropagation();
-        if (openDropdown === slot) {
+        if (openDropdown === tier) {
             openDropdown = null;
             return;
         }
@@ -81,31 +93,44 @@
                 width: rect.width
             };
         }
-        openDropdown = slot;
+        openDropdown = tier;
     }
 
-    function selectBank(slot: 'bank1' | 'bank2' | 'bank3', bank: any) {
-        selectedBanks[slot] = bank;
+    function selectBank(tier: number, bank: BankResponse) {
+        selectedBanks[tier] = bank;
         openDropdown = null;
-    }
-
-    function getBanksForTier(tier: number) {
-        const tierData = banks.find(b => b.tier === tier);
-        return tierData ? tierData.institutions : [];
+        expandedBankId = null;
     }
 
     function closeDropdown() {
         openDropdown = null;
     }
 
-    // 키보드 이벤트 핸들러 (a11y 해결용)
     function handleKeydown(event: KeyboardEvent, callback: () => void) {
         if (event.key === 'Enter' || event.key === ' ') {
             event.preventDefault();
             callback();
         }
     }
-</script>
+
+    async function toggleExpand(bank: BankResponse) {
+        if (expandedBankId === bank.id) {
+            expandedBankId = null;
+            return;
+        }
+        expandedBankId = bank.id;
+        if (!bankProducts[bank.id]) {
+            loadingProducts[bank.id] = true;
+            try {
+                const products = await getBankProducts(bank.id);
+                bankProducts[bank.id] = products;
+            } catch {
+                bankProducts[bank.id] = [];
+            } finally {
+                loadingProducts[bank.id] = false;
+            }
+        }
+    }</script>
 
 <div class="bank-container">
     <div class="hero-section">
@@ -130,201 +155,168 @@
 
     <div class="main-content">
         <div class="list-view">
-            <div class="banks-grid">
+            <div class="tier-filter-bar">
+                {#each tierFilters as [t, label]}
+                    <button
+                        class="tier-filter-btn"
+                        class:active={activeTierFilter === t}
+                        onclick={() => { activeTierFilter = t; expandedBankId = null; }}
+                    >{label}</button>
+                {/each}
+            </div>
+            <div class="banks-grid" style="grid-template-columns: repeat({activeTierFilter === 0 ? 3 : 1}, 1fr);">
+                {#each (activeTierFilter === 0 ? [1, 2, 3] : [activeTierFilter]) as tier}
+                    {@const bank = selectedBanks[tier]}
                     <div class="bank-card-wrapper">
                         <div class="tier-header">
-                            <div class="tier-title">제1금융권</div>
-                            <div class="tier-subtitle">(First-tier financial institutions)</div>
+                            <div class="tier-title">{tierTitles[tier]}</div>
+                            <div class="tier-subtitle">{tierSubtitles[tier]}</div>
                         </div>
+                        {#if bank}
                         <div
                                 class="bank-card simple hoverable"
+                                class:expanded={expandedBankId === bank.id}
                                 role="button"
                                 tabindex="0"
-                                onclick={() => goToLoanPage(selectedBanks.bank1)}
-                                onkeydown={(e) => handleKeydown(e, () => goToLoanPage(selectedBanks.bank1))}
+                                onclick={() => toggleExpand(bank)}
+                                onkeydown={(e) => handleKeydown(e, () => toggleExpand(bank))}
                         >
                             <div class="bank-header-simple">
-                                <img src={selectedBanks.bank1.icon} alt={selectedBanks.bank1.name} class="bank-logo"/>
-                                <span class="bank-name-simple">{selectedBanks.bank1.name}</span>
-                                <button class="toggle-button" onclick={(e) => toggleDropdown('bank1', e)}>
-                                    <img src={arrow} alt="변경" class="arrow-icon" class:rotated={openDropdown === 'bank1'}/>
+                                {#if bank.logoUrl}
+                                    <img src={bank.logoUrl} alt={bank.name} class="bank-logo"/>
+                                {:else}
+                                    <span class="bank-emoji">🏦</span>
+                                {/if}
+                                <span class="bank-name-simple">{bank.name}</span>
+                                <button class="toggle-button" onclick={(e) => toggleDropdown(tier, e)}>
+                                    <img src={arrow} alt="변경" class="arrow-icon" class:rotated={openDropdown === tier}/>
                                 </button>
                             </div>
                             <div class="bank-rate-bar">
                                 <img src={graph_yellow} alt="금리" class="rate-icon"/>
-                                <span class="rate-text">금리: {selectedBanks.bank1.rate}%</span>
+                                <span class="rate-text">금리: {bank.interestRate}%</span>
                             </div>
 
                             <div class="bank-details">
                                 <div class="detail-row">
                                     <span class="detail-icon">💰</span>
-                                    <span class="detail-label">대출 원금</span>
-                                    <span class="detail-value">{loanAmount.toLocaleString()}원</span>
+                                    <span class="detail-label">총 대출 잔액</span>
+                                    <span class="detail-value">{(loanSummary?.totalRemainingPrincipal ?? 0).toLocaleString()}원</span>
                                 </div>
                                 <div class="detail-row">
                                     <span class="detail-icon">💵</span>
-                                    <span class="detail-label">상환 금액</span>
-                                    <span class="detail-value">{repaymentAmount.toLocaleString()}원</span>
+                                    <span class="detail-label">다음 상환액</span>
+                                    <span class="detail-value">{(loanSummary?.nextPaymentAmount ?? 0).toLocaleString()}원</span>
                                 </div>
                                 <div class="detail-row">
                                     <span class="detail-icon">📅</span>
                                     <span class="detail-label">이자 납입일</span>
-                                    <span class="detail-value">{nextPaymentDate}</span>
+                                    <span class="detail-value">{loanSummary?.nextPaymentDate ? new Date(loanSummary.nextPaymentDate).toLocaleDateString('ko-KR') : '-'}</span>
                                 </div>
                             </div>
+                        </div>
+                        {:else}
+                        <div class="bank-card simple">
+                            <p class="loading-text">은행 정보를 불러오는 중...</p>
+                        </div>
+                        {/if}
+                        {#if bank && expandedBankId === bank.id}
+                        <div class="products-expand" transition:fly={{ y: -10, duration: 250, easing: quintOut }}>
+                            <h4 class="products-title">{bank.name} 대출 상품</h4>
+                            {#if loadingProducts[bank.id]}
+                                <p class="products-loading">상품 불러오는 중...</p>
+                            {:else if !(bankProducts[bank.id]?.length)}
+                                <p class="products-empty">등록된 대출 상품이 없습니다.</p>
+                            {:else}
+                                {#each (bankProducts[bank.id] ?? []) as product}
+                                    <div class="product-row">
+                                        <div class="product-info">
+                                            <div class="product-name">{product.name}</div>
+                                            <div class="product-meta">
+                                                <span class="product-type-badge">{product.loanTypeName}</span>
+                                                <span class="product-rate">금리 {product.baseInterestRate}%</span>
+                                                <span class="product-range">{product.minAmount.toLocaleString()}원 ~ {product.maxAmount.toLocaleString()}원</span>
+                                            </div>
+                                        </div>
+                                        <button class="apply-btn" onclick={() => goToLoanPage(bank)}>대출 신청</button>
+                                    </div>
+                                {/each}
+                            {/if}
+                        </div>
+                        {/if}
+                    </div>
+                {/each}
+            </div>
+
+            <div class="bottom-section">
+                <div class="summary-section">
+                    <div class="summary-card">
+                        <h3 class="section-title">총 대출 요약</h3>
+                        <div class="summary-row">
+                            <div class="summary-label">
+                                <span>총 대출 잔액</span>
+                                <span class="sublabel">Total loan balance</span>
+                            </div>
+                            <div class="summary-value">{(loanSummary?.totalRemainingPrincipal ?? 0).toLocaleString()}원</div>
+                        </div>
+                        <div class="summary-row">
+                            <div class="summary-label">
+                                <span>총 납부 이자</span>
+                                <span class="sublabel">Total interest paid</span>
+                            </div>
+                            <div class="summary-value">{(loanSummary?.totalInterestPaid ?? 0).toLocaleString()}원</div>
+                        </div>
+                        {#if loanSummary && loanSummary.totalBorrowedAmount > 0}
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width: {Math.min(100, (1 - loanSummary.totalRemainingPrincipal / loanSummary.totalBorrowedAmount) * 100)}%"></div>
+                        </div>
+                        {:else}
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width: 0%"></div>
+                        </div>
+                        {/if}
+                    </div>
+
+                    <button class="repay-btn" onclick={() => goto('/dashboard/loan')}>
+                        대출 상환하기
+                    </button>
+                </div>
+                <div class="payment-card">
+                    <h3 class="section-title">상환 일정</h3>
+
+                    <div class="payment-detail-group">
+                        <div class="payment-item">
+                            <div class="payment-label-sm">다음 상환일</div>
+                            <div class="payment-date-blue">
+                                {loanSummary?.nextPaymentDate ? new Date(loanSummary.nextPaymentDate).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' }) : '-'}
+                            </div>
+                        </div>
+
+                        <div class="payment-item">
+                            <div class="payment-label-sm">예상 상환액</div>
+                            <div class="payment-amount-lg">{(loanSummary?.nextPaymentAmount ?? 0).toLocaleString()}원</div>
                         </div>
                     </div>
 
-                    <div class="bank-card-wrapper">
-                        <div class="tier-header">
-                            <div class="tier-title">제2금융권</div>
-                            <div class="tier-subtitle">(Second-tier)</div>
-                        </div>
-                        <div
-                                class="bank-card simple hoverable"
-                                role="button"
-                                tabindex="0"
-                                onclick={() => goToLoanPage(selectedBanks.bank2)}
-                                onkeydown={(e) => handleKeydown(e, () => goToLoanPage(selectedBanks.bank2))}
-                        >
-                            <div class="bank-header-simple">
-                                <img src={selectedBanks.bank2.icon} alt={selectedBanks.bank2.name} class="bank-logo"/>
-                                <span class="bank-name-simple">{selectedBanks.bank2.name}</span>
-                                <button class="toggle-button" onclick={(e) => toggleDropdown('bank2', e)}>
-                                    <img src={arrow} alt="변경" class="arrow-icon" class:rotated={openDropdown === 'bank2'}/>
-                                </button>
-                            </div>
-                            <div class="bank-rate-bar">
-                                <img src={graph_yellow} alt="금리" class="rate-icon"/>
-                                <span class="rate-text">금리: {selectedBanks.bank2.rate}%</span>
-                            </div>
+                    <div class="dashed-divider"></div>
 
-                            <div class="bank-details">
-                                <div class="detail-row">
-                                    <span class="detail-icon">💰</span>
-                                    <span class="detail-label">대출 원금</span>
-                                    <span class="detail-value">{loanAmount.toLocaleString()}원</span>
-                                </div>
-                                <div class="detail-row">
-                                    <span class="detail-icon">💵</span>
-                                    <span class="detail-label">상환 금액</span>
-                                    <span class="detail-value">{repaymentAmount.toLocaleString()}원</span>
-                                </div>
-                                <div class="detail-row">
-                                    <span class="detail-icon">📅</span>
-                                    <span class="detail-label">이자 납입일</span>
-                                    <span class="detail-value">{nextPaymentDate}</span>
-                                </div>
-                            </div>
+                    <div class="payment-breakdown">
+                        <div class="breakdown-row">
+                            <span class="breakdown-label">활성 대출 수</span>
+                            <span class="breakdown-value">{loanSummary?.activeLoanCount ?? 0}건</span>
                         </div>
-                    </div>
-
-                    <div class="bank-card-wrapper">
-                        <div class="tier-header">
-                            <div class="tier-title">제3금융권</div>
-                            <div class="tier-subtitle">(Unregulated)</div>
-                        </div>
-                        <div
-                                class="bank-card simple hoverable"
-                                role="button"
-                                tabindex="0"
-                                onclick={() => goToLoanPage(selectedBanks.bank3)}
-                                onkeydown={(e) => handleKeydown(e, () => goToLoanPage(selectedBanks.bank3))}
-                        >
-                            <div class="bank-header-simple">
-                                <img src={selectedBanks.bank3.icon} alt={selectedBanks.bank3.name} class="bank-logo"/>
-                                <span class="bank-name-simple">{selectedBanks.bank3.name}</span>
-                                <button class="toggle-button" onclick={(e) => toggleDropdown('bank3', e)}>
-                                    <img src={arrow} alt="변경" class="arrow-icon" class:rotated={openDropdown === 'bank3'}/>
-                                </button>
-                            </div>
-                            <div class="bank-rate-bar">
-                                <img src={graph_yellow} alt="금리" class="rate-icon"/>
-                                <span class="rate-text">금리: {selectedBanks.bank3.rate}%</span>
-                            </div>
-
-                            <div class="bank-details">
-                                <div class="detail-row">
-                                    <span class="detail-icon">💰</span>
-                                    <span class="detail-label">대출 원금</span>
-                                    <span class="detail-value">{loanAmount.toLocaleString()}원</span>
-                                </div>
-                                <div class="detail-row">
-                                    <span class="detail-icon">💵</span>
-                                    <span class="detail-label">상환 금액</span>
-                                    <span class="detail-value">{repaymentAmount.toLocaleString()}원</span>
-                                </div>
-                                <div class="detail-row">
-                                    <span class="detail-icon">📅</span>
-                                    <span class="detail-label">이자 납입일</span>
-                                    <span class="detail-value">{nextPaymentDate}</span>
-                                </div>
-                            </div>
+                        <div class="breakdown-row">
+                            <span class="breakdown-label">총 차입액</span>
+                            <span class="breakdown-value">{(loanSummary?.totalBorrowedAmount ?? 0).toLocaleString()}원</span>
                         </div>
                     </div>
                 </div>
-
-                <div class="bottom-section">
-                    <div class="summary-section">
-                        <div class="summary-card">
-                            <h3 class="section-title">총 대출 요약</h3>
-                            <div class="summary-row">
-                                <div class="summary-label">
-                                    <span>총 대출 잔액</span>
-                                    <span class="sublabel">Total loan history</span>
-                                </div>
-                                <div class="summary-value">4,500,000원</div>
-                            </div>
-                            <div class="summary-row">
-                                <div class="summary-label">
-                                    <span>총 상환 금액</span>
-                                    <span class="sublabel">Total repayment</span>
-                                </div>
-                                <div class="summary-value">1,500,000원</div>
-                            </div>
-                            <div class="progress-bar">
-                                <div class="progress-fill" style="width: 33%"></div>
-                            </div>
-                        </div>
-
-                        <button class="repay-btn">
-                            대출 상환하기
-                        </button>
-                    </div>
-                    <div class="payment-card">
-                        <h3 class="section-title">상환 일정</h3>
-
-                        <div class="payment-detail-group">
-                            <div class="payment-item">
-                                <div class="payment-label-sm">다음 상환일</div>
-                                <div class="payment-date-blue">2025년 12월 12일 (금)</div>
-                            </div>
-
-                            <div class="payment-item">
-                                <div class="payment-label-sm">예상 상환액</div>
-                                <div class="payment-amount-lg">{(loanAmount + repaymentAmount).toLocaleString()}원</div>
-                            </div>
-                        </div>
-
-                        <div class="dashed-divider"></div>
-
-                        <div class="payment-breakdown">
-                            <div class="breakdown-row">
-                                <span class="breakdown-label">원금</span>
-                                <span class="breakdown-value">{loanAmount.toLocaleString()}원</span>
-                            </div>
-                            <div class="breakdown-row">
-                                <span class="breakdown-label">이자</span>
-                                <span class="breakdown-value">{repaymentAmount.toLocaleString()}원</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+            </div>
         </div>
     </div>
 </div>
 
-{#if openDropdown}
+{#if openDropdown !== null}
     <div
             class="dropdown-overlay"
             role="button"
@@ -339,16 +331,20 @@
             transition:fly={{ y: -10, duration: 300, easing: quintOut }}
     >
         <div class="dropdown-header">
-            <h4>제{selectedBanks[openDropdown].tier}금융권</h4>
+            <h4>{tierTitles[openDropdown]}</h4>
         </div>
-        {#each getBanksForTier(selectedBanks[openDropdown].tier) as bank}
+        {#each (banksByTier()[openDropdown] ?? []) as bank}
             <button class="dropdown-item" onclick={() => selectBank(openDropdown!, bank)}>
-                <img src={bank.icon} alt={bank.name} class="dropdown-item-logo"/>
+                {#if bank.logoUrl}
+                    <img src={bank.logoUrl} alt={bank.name} class="dropdown-item-logo"/>
+                {:else}
+                    <span class="bank-emoji-sm">🏦</span>
+                {/if}
                 <div class="dropdown-item-info">
                     <span class="dropdown-item-name">{bank.name}</span>
-                    <span class="dropdown-item-rate">금리: {bank.rate}%</span>
+                    <span class="dropdown-item-rate">금리: {bank.interestRate}%</span>
                 </div>
-                {#if bank.name === selectedBanks[openDropdown].name}
+                {#if bank.id === selectedBanks[openDropdown]?.id}
                     <svg class="checkmark" width="20" height="20" viewBox="0 0 20 20" fill="none">
                         <path d="M16.6668 5L7.50016 14.1667L3.3335 10" stroke="currentColor" stroke-width="2"
                               stroke-linecap="round" stroke-linejoin="round"/>
@@ -527,8 +523,33 @@
     .dropdown-item-rate { font-size: 0.8rem; color: #6b7280; }
     .checkmark { color: var(--color-theme-1); }
 
+    .bank-emoji { font-size: 2rem; }
+    .bank-emoji-sm { font-size: 1.5rem; }
+    .loading-text { color: #9ca3af; text-align: center; padding: 2rem; }
+
     @media (max-width: 1024px) {
         .banks-grid, .loan-content-grid, .bottom-section { grid-template-columns: 1fr; }
         .hero-content, .main-content, .top-bar { padding-left: 1.5rem; padding-right: 1.5rem; }
     }
+
+    .tier-filter-bar { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; flex-wrap: wrap; }
+    .tier-filter-btn { padding: 0.45rem 1.2rem; border: 1.5px solid var(--color-border, #e5e7eb); border-radius: 2rem; background: white; cursor: pointer; font-size: 0.95rem; font-weight: 600; color: #4b5563; transition: all 0.2s; }
+    .tier-filter-btn:hover { border-color: var(--color-theme-1); color: var(--color-theme-1); }
+    .tier-filter-btn.active { background: var(--color-theme-1); color: white; border-color: var(--color-theme-1); }
+
+    .bank-card.simple.hoverable.expanded { border-color: var(--color-theme-1); box-shadow: 0 10px 15px rgba(30,90,142,0.12); }
+
+    .products-expand { background: #f8faff; border: 1.5px solid var(--color-theme-2, #ecf2fe); border-radius: 12px; padding: 1rem; display: flex; flex-direction: column; gap: 0.6rem; }
+    .products-title { font-size: 1rem; font-weight: 700; color: var(--color-theme-1); margin: 0 0 0.25rem 0; }
+    .products-loading { color: #9ca3af; text-align: center; padding: 1rem; margin: 0; font-size: 0.9rem; }
+    .products-empty { color: #9ca3af; text-align: center; padding: 1rem; margin: 0; font-size: 0.9rem; }
+    .product-row { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 0.75rem 1rem; }
+    .product-info { display: flex; flex-direction: column; gap: 0.3rem; flex: 1; min-width: 0; }
+    .product-name { font-weight: 600; font-size: 0.95rem; color: #1a1a1a; }
+    .product-meta { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; }
+    .product-type-badge { background: var(--color-theme-2, #ecf2fe); color: var(--color-theme-1); font-size: 0.75rem; font-weight: 600; padding: 0.15rem 0.5rem; border-radius: 1rem; white-space: nowrap; }
+    .product-rate { font-size: 0.85rem; color: #059669; font-weight: 600; }
+    .product-range { font-size: 0.8rem; color: #6b7280; }
+    .apply-btn { background: var(--color-theme-1); color: white; border: none; border-radius: 8px; padding: 0.5rem 1rem; font-size: 0.875rem; font-weight: 600; cursor: pointer; white-space: nowrap; flex-shrink: 0; transition: background-color 0.2s; }
+    .apply-btn:hover { background: var(--color-theme-1-dark, #004480); }
 </style>

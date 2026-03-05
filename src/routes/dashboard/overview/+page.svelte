@@ -1,37 +1,83 @@
 
-<script>
+<script lang="ts">
+    import { onMount } from 'svelte';
     import masterCard from '$lib/images/masterCard.svg';
     import receipt from '$lib/images/receipt.svg';
     import pointer from '$lib/images/pointer.svg';
     import pointer_clicked from '$lib/images/pointer_clicked.svg';
+    import { getDashboard } from '$lib/api/dashboard';
+    import { clickEarn, clickUpgrade, getClickInfo } from '$lib/api/click';
+    import { getGlobalEvents } from '$lib/api/macro';
+    import type { DashboardData } from '$lib/api/dashboard';
+    import type { ClickInfo } from '$lib/api/click';
+    import type { GlobalEvent } from '$lib/api/macro';
 
-    let balance = $state(300000);
-    let clickIncome = 5430;
+    let dashboardData = $state<DashboardData | null>(null);
+    let clickInfo = $state<ClickInfo | null>(null);
+    let globalEvents = $state<GlobalEvent[]>([]);
+    let isLoading = $state(true);
+
+    let balance = $state(0);
     let isReceiptClicked = $state(false);
     let showIncomePopup = $state(false);
     let incomeAmount = $state(0);
     let isMouseDown = $state(false);
+    let upgradeLoading = $state(false);
 
-    function formatNumber(num) {
+    function formatNumber(num: number) {
         return num.toLocaleString('en-US');
     }
 
-    function formatCurrency(num) {
+    function formatCurrency(num: number) {
         return `$ ${formatNumber(num)}`;
     }
 
-    function handleReceiptClick() {
-        balance += clickIncome;
-        incomeAmount = clickIncome;
-        showIncomePopup = true;
-        
-        if (!isReceiptClicked) {
-            isReceiptClicked = true;
+    function formatTimeRemaining(endTime: string): string {
+        const end = new Date(endTime);
+        const now = new Date();
+        const diffMs = end.getTime() - now.getTime();
+        if (diffMs <= 0) return '종료됨';
+        const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+        const diffHours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        if (diffDays > 0) return `${diffDays}일 ${diffHours}시간 남음`;
+        return `${diffHours}시간 남음`;
+    }
+
+    async function handleReceiptClick() {
+        try {
+            const result = await clickEarn();
+            balance = result.newBalance;
+            incomeAmount = result.earned;
+            showIncomePopup = true;
+            if (!isReceiptClicked) {
+                isReceiptClicked = true;
+            }
+            setTimeout(() => {
+                showIncomePopup = false;
+            }, 1500);
+        } catch {
+            // fallback: use local clickInfo value
+            const earned = clickInfo?.incomePerClick ?? 0;
+            balance += earned;
+            incomeAmount = earned;
+            showIncomePopup = true;
+            if (!isReceiptClicked) isReceiptClicked = true;
+            setTimeout(() => { showIncomePopup = false; }, 1500);
         }
-        
-        setTimeout(() => {
-            showIncomePopup = false;
-        }, 1500);
+    }
+
+    async function handleUpgrade() {
+        if (upgradeLoading || !clickInfo || clickInfo.isMaxLevel) return;
+        upgradeLoading = true;
+        try {
+            const result = await clickUpgrade();
+            balance = result.remainingBalance;
+            clickInfo = await getClickInfo();
+        } catch (e: any) {
+            alert(e.message || '업그레이드에 실패했습니다.');
+        } finally {
+            upgradeLoading = false;
+        }
     }
 
     function handleMouseDown() {
@@ -41,6 +87,30 @@
     function handleMouseUp() {
         isMouseDown = false;
     }
+
+    onMount(async () => {
+        try {
+            const [dashboard, click, events] = await Promise.allSettled([
+                getDashboard(),
+                getClickInfo(),
+                getGlobalEvents()
+            ]);
+
+            if (dashboard.status === 'fulfilled') {
+                dashboardData = dashboard.value;
+                balance = dashboard.value.account.cashBalance;
+            }
+            if (click.status === 'fulfilled') {
+                clickInfo = click.value;
+                if (!dashboardData) balance = click.value.currentBalance;
+            }
+            if (events.status === 'fulfilled') {
+                globalEvents = events.value.active_events ?? [];
+            }
+        } finally {
+            isLoading = false;
+        }
+    });
 </script>
 
 <div class="dashboard-body">
@@ -51,27 +121,73 @@
                     <h2 class="card-title">실시간 수익 현황</h2>
                     <div class="income-item">
                         <span class="label">초당 수익</span>
-                        <span class="value positive">+$12,430/s</span>
+                        <span class="value positive">
+                            {#if isLoading}
+                                -
+                            {:else}
+                                +${formatNumber(dashboardData?.account.passiveIncomePerSecond ?? 0)}/s
+                            {/if}
+                        </span>
                     </div>
                     <div class="income-item del-bottom-margin">
                         <span class="label">클릭당 수익</span>
-                        <span class="value positive">+$5,430/s</span>
+                        <span class="value positive">
+                            {#if isLoading}
+                                -
+                            {:else}
+                                +${formatNumber(dashboardData?.account.clickIncomePerClick ?? clickInfo?.incomePerClick ?? 0)}/클릭
+                            {/if}
+                        </span>
                     </div>
+                </div>
+
+                <div class="card small-card">
+                    <h2 class="card-title">클릭 업그레이드</h2>
+                    {#if clickInfo && !clickInfo.isMaxLevel}
+                        <div class="upgrade-info">
+                            <div class="income-item">
+                                <span class="label">현재 Lv.{clickInfo.currentLevel}</span>
+                                <span class="value">${formatNumber(clickInfo.incomePerClick)}/클릭</span>
+                            </div>
+                            <div class="income-item">
+                                <span class="label">다음 Lv.{clickInfo.nextLevel}</span>
+                                <span class="value positive">${formatNumber(clickInfo.nextIncome)}/클릭</span>
+                            </div>
+                            <button class="upgrade-btn" onclick={handleUpgrade} disabled={upgradeLoading}>
+                                {upgradeLoading ? '처리중...' : `업그레이드 ($${formatNumber(clickInfo.upgradeCost)})`}
+                            </button>
+                        </div>
+                    {:else if clickInfo?.isMaxLevel}
+                        <div class="income-item del-bottom-margin">
+                            <span class="label">최대 레벨 도달</span>
+                            <span class="value">Lv.{clickInfo.currentLevel}</span>
+                        </div>
+                    {:else}
+                        <div class="income-item del-bottom-margin">
+                            <span class="label">로딩 중...</span>
+                        </div>
+                    {/if}
                 </div>
 
                 <div class="card small-card">
                     <h2 class="card-title">핵심 지표</h2>
                     <div class="metric-item">
                         <span class="label">비지니스 :</span>
-                        <span class="value">12개</span>
+                        <span class="value">
+                            {#if isLoading}-{:else}{dashboardData?.business.companyCount ?? 0}개{/if}
+                        </span>
                     </div>
                     <div class="metric-item">
-                        <span class="label">투자 수익률 :</span>
-                        <span class="value positive">+5.2%</span>
+                        <span class="label">순위 :</span>
+                        <span class="value positive">
+                            {#if isLoading}-{:else}#{formatNumber(dashboardData?.rank.rank ?? 0)}{/if}
+                        </span>
                     </div>
                     <div class="metric-item del-bottom-margin">
                         <span class="label">부동산 :</span>
-                        <span class="value">7개</span>
+                        <span class="value">
+                            {#if isLoading}-{:else}{dashboardData?.assets.realEstateCount ?? 0}개{/if}
+                        </span>
                     </div>
                 </div>
             </div>
@@ -90,25 +206,25 @@
                     </div>
                     <div class="card-balance-section">
                         <span class="balance-label">잔고:</span>
-                        <span class="balance-value">{formatCurrency(balance)}</span>
+                        <span class="balance-value">{isLoading ? '로딩 중...' : formatCurrency(balance)}</span>
                     </div>
                 </div>
-                <div 
-                    class="receipt-wrapper" 
+                <div
+                    class="receipt-wrapper"
                     onclick={handleReceiptClick}
                     onmousedown={handleMouseDown}
                     onmouseup={handleMouseUp}
                     onmouseleave={handleMouseUp}
                 >
-                    <img 
-                        src={receipt} 
-                        alt="receipt" 
+                    <img
+                        src={receipt}
+                        alt="receipt"
                         class="receipt-icon"
                         draggable="false"
                     />
-                    <img 
-                        src={isMouseDown ? pointer_clicked : pointer} 
-                        alt="pointer" 
+                    <img
+                        src={isMouseDown ? pointer_clicked : pointer}
+                        alt="pointer"
                         class="pointer-icon"
                         class:pulse={!isReceiptClicked}
                         draggable="false"
@@ -131,21 +247,35 @@
                 <div class="asset-row">
                     <div class="asset-column">
                         <span class="label">총 자산</span>
-                        <span class="value">$1.85B</span>
+                        <span class="value">
+                            {#if isLoading}-{:else}${formatNumber(dashboardData?.assets.totalAssetValue ?? 0)}{/if}
+                        </span>
                     </div>
                     <div class="asset-column">
-                        <span class="label-sub">투자 수익</span>
-                        <span class="value positive">+%25.1M <small>지난 24시간</small></span>
+                        <span class="label-sub">월간 수익</span>
+                        <span class="value positive">
+                            {#if isLoading}-{:else}+${formatNumber(dashboardData?.business.totalMonthlyProfit ?? 0)} <small>이번 달</small>{/if}
+                        </span>
                     </div>
                 </div>
                 <div class="asset-row mt">
                     <div class="asset-column">
                         <span class="label">순위</span>
-                        <span class="value">#1,204</span>
+                        <span class="value">
+                            {#if isLoading}-{:else}#{formatNumber(dashboardData?.rank.rank ?? 0)}{/if}
+                        </span>
                     </div>
                     <div class="asset-column">
-                        <span class="label-sub">자산 가치</span>
-                        <span class="value positive">+2.1% <small>지난 7일</small></span>
+                        <span class="label-sub">순위 변동</span>
+                        <span class="value positive">
+                            {#if isLoading}
+                                -
+                            {:else if (dashboardData?.rank.rankChange ?? 0) >= 0}
+                                +{dashboardData?.rank.rankChange ?? 0} <small>이전 대비</small>
+                            {:else}
+                                {dashboardData?.rank.rankChange ?? 0} <small>이전 대비</small>
+                            {/if}
+                        </span>
                     </div>
                 </div>
             </div>
@@ -156,28 +286,37 @@
                     <button class="view-all">모두 보기</button>
                 </div>
                 <div class="news-list">
-                    <div class="news-item">
-                        <div class="news-icon blue">
-                            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                                <rect x="4" y="4" width="12" height="12" rx="2" stroke="currentColor" stroke-width="2"/>
-                            </svg>
+                    {#if isLoading}
+                        <div class="news-item">
+                            <div class="news-content">
+                                <div class="news-title">로딩 중...</div>
+                            </div>
                         </div>
-                        <div class="news-content">
-                            <div class="news-title">새로운 글로벌 이벤트: 기술 박람회</div>
-                            <div class="news-time">2일 14시간 남음</div>
+                    {:else if globalEvents.length === 0}
+                        <div class="news-item">
+                            <div class="news-content">
+                                <div class="news-title">현재 진행 중인 이벤트가 없습니다.</div>
+                            </div>
                         </div>
-                    </div>
-                    <div class="news-item">
-                        <div class="news-icon red">
-                            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                                <path d="M10 3L12 8L17 9L13 13L14 18L10 15L6 18L7 13L3 9L8 8L10 3Z" stroke="currentColor" stroke-width="2"/>
-                            </svg>
-                        </div>
-                        <div class="news-content">
-                            <div class="news-title">새로운 글로벌 이벤트: 기술 박람회</div>
-                            <div class="news-time">2일 14시간 남음</div>
-                        </div>
-                    </div>
+                    {:else}
+                        {#each globalEvents.slice(0, 5) as event, i}
+                            <div class="news-item">
+                                <div class="news-icon {i % 2 === 0 ? 'blue' : 'red'}">
+                                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                                        {#if i % 2 === 0}
+                                            <rect x="4" y="4" width="12" height="12" rx="2" stroke="currentColor" stroke-width="2"/>
+                                        {:else}
+                                            <path d="M10 3L12 8L17 9L13 13L14 18L10 15L6 18L7 13L3 9L8 8L10 3Z" stroke="currentColor" stroke-width="2"/>
+                                        {/if}
+                                    </svg>
+                                </div>
+                                <div class="news-content">
+                                    <div class="news-title">{event.name}</div>
+                                    <div class="news-time">{formatTimeRemaining(event.end_time)}</div>
+                                </div>
+                            </div>
+                        {/each}
+                    {/if}
                 </div>
             </div>
         </div>
@@ -200,7 +339,7 @@
 
     .small-cards-row {
         display: grid;
-        grid-template-columns: 1fr 1fr;
+        grid-template-columns: 1fr 1fr 1fr;
         gap: 2rem;
     }
 
@@ -532,9 +671,34 @@
         color: #999;
     }
 
+    .upgrade-info {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .upgrade-btn {
+        width: 100%;
+        padding: 8px 12px;
+        background: var(--color-theme-1, #00529B);
+        color: white;
+        border: none;
+        border-radius: 6px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.2s;
+        margin-top: 0.3rem;
+    }
+    .upgrade-btn:hover { background: #0c3b66; }
+    .upgrade-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
     @media (max-width: 1024px) {
         .layout-wrapper {
             grid-template-columns: 1fr;
+        }
+        .small-cards-row {
+            grid-template-columns: 1fr 1fr;
         }
     }
 

@@ -4,22 +4,28 @@
     import { quintOut } from 'svelte/easing';
     import { selectedIndex } from '$lib/stores/sidebar';
     import {
-        ownedYachts,
-        hasMarina,
         storageFacilities,
         storageTierConfigs,
         tierOrder,
         purchaseStorage,
-        purchaseVehicle,
         hasStorageFor,
         getRemainingCapacity,
-        balance,
         formatCurrency,
     } from '$lib/stores/asset';
-    import type { Vehicle, StorageTier, VehicleType } from '$lib/stores/asset';
+    import type { StorageTier, VehicleType } from '$lib/stores/asset';
+    import {
+        getYachts,
+        getMyYachts,
+        purchaseYacht as apiPurchaseYacht,
+        sellYacht as apiSellYacht,
+        getYachtDetail,
+    } from '$lib/api/asset';
+    import type { YachtItem } from '$lib/api/asset';
+    import { getSpringAccount } from '$lib/api/dashboard';
 
-    onMount(() => {
+    onMount(async () => {
         selectedIndex.set(3);
+        await Promise.all([loadMarketItems(), loadMyYachts(), loadAccount()]);
     });
 
     const [send, receive] = crossfade({
@@ -38,54 +44,49 @@
 
     let activeTab: 'collection' | 'market' | 'storage' = $state('collection');
     let toastMsg = $state('');
+    let loading = $state(true);
+
+    // API data
+    let marketItems: YachtItem[] = $state([]);
+    let ownedYachts: YachtItem[] = $state([]);
+    let cashBalance = $state(0);
+
+    async function loadMarketItems() {
+        try { const res = await getYachts(); marketItems = res.content ?? res as any; } catch { /* ignore */ }
+    }
+    async function loadMyYachts() {
+        try { ownedYachts = await getMyYachts(); } catch { /* ignore */ }
+    }
+    async function loadAccount() {
+        try { const acct = await getSpringAccount(); cashBalance = acct.cashBalance; } catch { /* ignore */ }
+        loading = false;
+    }
 
     let marina = $derived($storageFacilities.find(f => f.type === 'marina'));
     let marinaCapacity = $derived(marina?.capacity ?? 0);
-    let totalYachtValue = $derived($ownedYachts.reduce((sum, v) => sum + v.price, 0));
+    let totalYachtValue = $derived(ownedYachts.reduce((sum, v) => sum + v.price, 0));
     let tiers = storageTierConfigs.marina;
 
     const vehicleType: VehicleType = 'yacht';
     let hasStorage = $derived(hasStorageFor(vehicleType));
     let remaining = $derived(getRemainingCapacity(vehicleType));
+    let hasMarina = $derived(!!marina);
 
-    const marketItems = [
-        {
-            name: '아지무트 그란데 35',
-            price: 420_000_000, fame: 880, maintenanceCost: 1_500_000,
-            img: 'https://images.unsplash.com/photo-1567899378494-47b22a2ae96a?auto=format&fit=crop&w=600&q=80',
-            specs: { '전장': '35m', '최고 속도': '28노트', '객실': '5실', '승선 인원': '12명' } as Record<string, string>
-        },
-        {
-            name: '선시커 프레데터 74',
-            price: 380_000_000, fame: 850, maintenanceCost: 1_200_000,
-            img: 'https://images.unsplash.com/photo-1605281317010-fe5ffe798166?auto=format&fit=crop&w=600&q=80',
-            specs: { '전장': '22.6m', '최고 속도': '38노트', '객실': '4실', '승선 인원': '8명' } as Record<string, string>
-        },
-        {
-            name: '베네티 오아시스 40M',
-            price: 650_000_000, fame: 950, maintenanceCost: 2_000_000,
-            img: 'https://images.unsplash.com/photo-1544551763-46a013bb70d5?auto=format&fit=crop&w=600&q=80',
-            specs: { '전장': '40m', '최고 속도': '16노트', '객실': '6실', '승선 인원': '14명' } as Record<string, string>
-        },
-        {
-            name: '페레티 나비게타 30',
-            price: 320_000_000, fame: 800, maintenanceCost: 1_000_000,
-            img: 'https://images.unsplash.com/photo-1569263979104-865ab7cd8d13?auto=format&fit=crop&w=600&q=80',
-            specs: { '전장': '28.6m', '최고 속도': '24노트', '객실': '4실', '승선 인원': '10명' } as Record<string, string>
-        },
-        {
-            name: '프린세스 X95',
-            price: 480_000_000, fame: 900, maintenanceCost: 1_600_000,
-            img: 'https://images.unsplash.com/photo-1562281302-809108fd533c?auto=format&fit=crop&w=600&q=80',
-            specs: { '전장': '28.9m', '최고 속도': '24노트', '객실': '5실', '승선 인원': '10명' } as Record<string, string>
-        }
-    ];
+    let selectedMarketItem: YachtItem | null = $state(null);
+    let selectedCollectionItem: YachtItem | null = $state(null);
 
-    let selectedMarketItem: typeof marketItems[0] | null = $state(null);
-    let selectedCollectionItem: Vehicle | null = $state(null);
+    async function selectMarketItem(item: YachtItem) {
+        selectedMarketItem = item;
+        try { selectedMarketItem = await getYachtDetail(item.id); } catch { /* keep existing */ }
+    }
+
+    async function selectCollectionItem(item: YachtItem) {
+        selectedCollectionItem = item;
+        try { selectedCollectionItem = await getYachtDetail(item.id); } catch { /* keep existing */ }
+    }
 
     const dealershipOptions = ['프리미엄 마리나', '럭셔리 요트 클럽', 'VIP 마리나'];
-    const brandOptions = ['모든 브랜드', '아지무트', '선시커', '베네티', '페레티', '프린세스'];
+    const brandOptions = ['모든 브랜드'];
     let selectedDealership = $state(dealershipOptions[0]);
     let selectedBrand = $state(brandOptions[0]);
     let isDealershipOpen = $state(false);
@@ -110,12 +111,27 @@
         setTimeout(() => { toastMsg = ''; }, 3000);
     }
 
-    function handleMarketPurchase(item: typeof marketItems[0]) {
-        const success = purchaseVehicle({
-            type: vehicleType, name: item.name, price: item.price,
-            img: item.img, fame: item.fame, maintenanceCost: item.maintenanceCost, specs: item.specs
-        });
-        toastMsg = success ? `${item.name} 구매 완료!` : '잔고가 부족하거나 보관소가 가득 찼습니다.';
+    async function handleMarketPurchase(item: YachtItem) {
+        try {
+            await apiPurchaseYacht(item.id);
+            toastMsg = `${item.name} 구매 완료!`;
+            await Promise.all([loadMyYachts(), loadAccount()]);
+        } catch {
+            toastMsg = '구매에 실패했습니다.';
+        }
+        selectedMarketItem = null;
+        setTimeout(() => { toastMsg = ''; }, 3000);
+    }
+
+    async function handleSell(item: YachtItem) {
+        try {
+            await apiSellYacht(item.id);
+            toastMsg = `${item.name} 판매 완료!`;
+            await Promise.all([loadMyYachts(), loadAccount()]);
+        } catch {
+            toastMsg = '판매에 실패했습니다.';
+        }
+        selectedCollectionItem = null;
         setTimeout(() => { toastMsg = ''; }, 3000);
     }
 </script>
@@ -135,8 +151,8 @@
             </div>
             <div class="stats-cards">
                 <div class="stat-card">
-                    <span class="stat-label">마리나 현황</span>
-                    <span class="stat-value">{$ownedYachts.length} / {marinaCapacity}</span>
+                    <span class="stat-label">보유 요트</span>
+                    <span class="stat-value">{ownedYachts.length}척</span>
                 </div>
                 <div class="stat-card">
                     <span class="stat-label">총 자산 가치</span>
@@ -145,14 +161,9 @@
             </div>
         </header>
 
-        {#if !$hasMarina}
-            <div class="empty-state">
-                <div class="empty-icon"><span class="empty-icon-text">!</span></div>
-                <h2 class="empty-title">마리나를 먼저 구매해야 합니다</h2>
-                <p class="empty-subtitle">요트를 정박하려면 마리나가 필요합니다.</p>
-                <button class="btn-primary" onclick={() => activeTab = 'storage'}>마리나 구매하러 가기</button>
-            </div>
-        {:else if $ownedYachts.length === 0}
+        {#if loading}
+            <div class="empty-state"><p>불러오는 중...</p></div>
+        {:else if ownedYachts.length === 0}
             <div class="empty-state">
                 <div class="empty-icon"><span class="empty-icon-text">0</span></div>
                 <h2 class="empty-title">보유한 요트가 없습니다</h2>
@@ -163,50 +174,48 @@
                  {@const cKey = selectedCollectionItem.id}
                  <button class="m-back-btn" in:fade={{delay: 300, duration: 200}} out:fade={{duration: 150}} onclick={() => { selectedCollectionItem = null; }}>← 목록으로</button>
                  <div class="panel detail-panel">
-                     <div class="detail-image" in:receive={{key: cKey}} out:send={{key: cKey}} style="background-image: url('{selectedCollectionItem.img}')"></div>
+                     <div class="detail-image" in:receive={{key: cKey}} out:send={{key: cKey}} style="background-image: url('{selectedCollectionItem.imageUrl}')"></div>
                      <div class="detail-info-fade" in:fade={{delay: 250, duration: 300}} out:fade={{duration: 200}}>
                          <div class="detail-header">
                              <h2>{selectedCollectionItem.name}</h2>
                              <div class="detail-meta">
                                  <span class="detail-price">{formatCurrency(selectedCollectionItem.price)}</span>
-                                 <span class="fame-badge">명성 +{selectedCollectionItem.fame}</span>
+                                 <span class="fame-badge">명성 +{selectedCollectionItem.fameBonus}</span>
                              </div>
                          </div>
                          <div class="spec-grid">
-                             {#each Object.entries(selectedCollectionItem.specs) as [key, value]}
-                                 <div class="spec-item">
-                                     <span class="spec-label">{key}</span>
-                                     <strong>{value}</strong>
-                                 </div>
-                             {/each}
+                             <div class="spec-item">
+                                 <span class="spec-label">브랜드</span>
+                                 <strong>{selectedCollectionItem.brand}</strong>
+                             </div>
                              <div class="spec-item">
                                  <span class="spec-label">유지비/일</span>
-                                 <strong>{formatCurrency(selectedCollectionItem.maintenanceCost)}</strong>
+                                 <strong>{formatCurrency(selectedCollectionItem.maintenanceCostPerDay)}</strong>
                              </div>
                              <div class="spec-item">
-                                 <span class="spec-label">구매일</span>
-                                 <strong>{formatDate(selectedCollectionItem.purchasedAt)}</strong>
+                                 <span class="spec-label">필요 레벨</span>
+                                 <strong>Lv. {selectedCollectionItem.requiredLevel}</strong>
                              </div>
                          </div>
+                         <button class="m-btn-sell" onclick={() => selectedCollectionItem && handleSell(selectedCollectionItem)}>판매하기</button>
                      </div>
                  </div>
              {:else}
                  <div class="m-catalog-grid">
-                     {#each $ownedYachts as vehicle (vehicle.id)}
-                         <button class="m-catalog-card" onclick={() => { selectedCollectionItem = vehicle; }}>
-                             <div class="m-catalog-img" in:receive={{key: vehicle.id}} out:send={{key: vehicle.id}} style="background-image: url('{vehicle.img}')"></div>
+                     {#each ownedYachts as vehicle (vehicle.id)}
+                         <button class="m-catalog-card" onclick={() => selectCollectionItem(vehicle)}>
+                             <div class="m-catalog-img" in:receive={{key: vehicle.id}} out:send={{key: vehicle.id}} style="background-image: url('{vehicle.imageUrl}')"></div>
                             <div class="m-catalog-body">
                                 <div class="m-catalog-header">
                                     <h3>{vehicle.name}</h3>
-                                    <span class="fame-badge">명성 +{vehicle.fame}</span>
+                                    <span class="fame-badge">명성 +{vehicle.fameBonus}</span>
                                 </div>
                                 <span class="m-catalog-price">{formatCurrency(vehicle.price)}</span>
                                 <div class="m-catalog-specs">
-                                    {#each Object.entries(vehicle.specs) as [key, val]}
-                                        <span class="m-catalog-spec-tag">{key}: {val}</span>
-                                    {/each}
+                                    <span class="m-catalog-spec-tag">브랜드: {vehicle.brand}</span>
+                                    <span class="m-catalog-spec-tag">레벨: {vehicle.requiredLevel}</span>
                                 </div>
-                                <span class="m-catalog-maintenance">유지비 {formatCurrency(vehicle.maintenanceCost)}/일</span>
+                                <span class="m-catalog-maintenance">유지비 {formatCurrency(vehicle.maintenanceCostPerDay)}/일</span>
                             </div>
                         </button>
                     {/each}
@@ -230,11 +239,11 @@
                 <div class="stats-cards">
                     <div class="stat-card">
                         <span class="stat-label">잔고</span>
-                        <span class="stat-value">{formatCurrency($balance)}</span>
+                        <span class="stat-value">{formatCurrency(cashBalance)}</span>
                     </div>
                     <div class="stat-card">
-                        <span class="stat-label">마리나 잔여</span>
-                        <span class="stat-value">{remaining}대</span>
+                        <span class="stat-label">보유 요트</span>
+                        <span class="stat-value">{ownedYachts.length}척</span>
                     </div>
                 </div>
             </header>
@@ -246,12 +255,12 @@
                  <section class="m-left-section" in:fade={{delay: 200, duration: 300}} out:fade={{duration: 150}}>
                      <h3 class="section-title">보유 요트</h3>
                      <div class="panel m-left-panel">
-                         {#if $ownedYachts.length === 0}
+                         {#if ownedYachts.length === 0}
                              <p class="empty-list-text">보유한 요트가 없습니다.</p>
                          {:else}
-                             {#each $ownedYachts as yacht}
+                             {#each ownedYachts as yacht}
                                  <div class="m-list-item">
-                                     <img src={yacht.img} alt={yacht.name} class="thumb" />
+                                     <img src={yacht.imageUrl} alt={yacht.name} class="thumb" />
                                      <div class="m-item-info">
                                          <span class="m-item-name">{yacht.name}</span>
                                          <span class="m-item-price">{formatCurrency(yacht.price)}</span>
@@ -264,7 +273,7 @@
 
                  <section class="m-center-section">
                      <div class="panel m-center-top">
-                         <div class="m-preview-image" in:receive={{key: mKey}} out:send={{key: mKey}} style="background-image: url('{selectedMarketItem.img}')"></div>
+                         <div class="m-preview-image" in:receive={{key: mKey}} out:send={{key: mKey}} style="background-image: url('{selectedMarketItem.imageUrl}')"></div>
                          <div class="m-header-info" in:fade={{delay: 250, duration: 300}} out:fade={{duration: 150}}>
                              <h2>{selectedMarketItem.name}</h2>
                              <span class="m-current-price">가격: {formatCurrency(selectedMarketItem.price)}</span>
@@ -272,19 +281,21 @@
                      </div>
                      <div class="panel m-center-bottom" in:fade={{delay: 300, duration: 300}} out:fade={{duration: 150}}>
                         <div class="m-spec-grid">
-                            {#each Object.entries(selectedMarketItem.specs) as [key, val]}
-                                <div class="m-spec-item">
-                                    <span class="m-spec-label">{key}</span>
-                                    <strong>{val}</strong>
-                                </div>
-                            {/each}
+                            <div class="m-spec-item">
+                                <span class="m-spec-label">브랜드</span>
+                                <strong>{selectedMarketItem.brand}</strong>
+                            </div>
                             <div class="m-spec-item">
                                 <span class="m-spec-label">명성</span>
-                                <strong>+{selectedMarketItem.fame}</strong>
+                                <strong>+{selectedMarketItem.fameBonus}</strong>
                             </div>
                             <div class="m-spec-item">
                                 <span class="m-spec-label">유지비/일</span>
-                                <strong>{formatCurrency(selectedMarketItem.maintenanceCost)}</strong>
+                                <strong>{formatCurrency(selectedMarketItem.maintenanceCostPerDay)}</strong>
+                            </div>
+                            <div class="m-spec-item">
+                                <span class="m-spec-label">필요 레벨</span>
+                                <strong>Lv. {selectedMarketItem.requiredLevel}</strong>
                             </div>
                         </div>
                         <button class="m-btn-purchase" onclick={() => selectedMarketItem && handleMarketPurchase(selectedMarketItem)}>구매하기</button>
@@ -321,41 +332,39 @@
                             {/if}
                         </div>
                     </div>
-                     <div class="panel m-right-panel">
-                         {#each marketItems as item}
-                             <button class="m-shop-item" onclick={() => { selectedMarketItem = item; }}>
-                                <div class="m-shop-img" style="background-image: url('{item.img}')"></div>
-                                <div class="m-shop-info">
-                                    <div class="m-shop-row">
-                                        <span class="m-shop-name">{item.name}</span>
-                                        <span class="m-shop-price">{formatCurrency(item.price)}</span>
+                         <div class="panel m-right-panel">
+                             {#each marketItems as item}
+                                 <button class="m-shop-item" onclick={() => selectMarketItem(item)}>
+                                    <div class="m-shop-img" style="background-image: url('{item.imageUrl}')"></div>
+                                    <div class="m-shop-info">
+                                        <div class="m-shop-row">
+                                            <span class="m-shop-name">{item.name}</span>
+                                            <span class="m-shop-price">{formatCurrency(item.price)}</span>
+                                        </div>
+                                        <div class="m-shop-row sub">
+                                            <span>명성 +{item.fameBonus}</span>
+                                        </div>
                                     </div>
-                                    <div class="m-shop-row sub">
-                                        <span>명성 +{item.fame}</span>
-                                    </div>
-                                </div>
-                            </button>
-                        {/each}
-                    </div>
+                                </button>
+                            {/each}
+                        </div>
                 </section>
             </main>
              {:else}
              <div class="m-catalog-grid">
-                 {#each marketItems as item (item.name)}
-                     <button class="m-catalog-card" onclick={() => { selectedMarketItem = item; }}>
-                         <div class="m-catalog-img" in:receive={{key: item.name}} out:send={{key: item.name}} style="background-image: url('{item.img}')"></div>
+                 {#each marketItems as item (item.id)}
+                     <button class="m-catalog-card" onclick={() => selectMarketItem(item)}>
+                         <div class="m-catalog-img" in:receive={{key: item.id}} out:send={{key: item.id}} style="background-image: url('{item.imageUrl}')"></div>
                         <div class="m-catalog-body">
                             <div class="m-catalog-header">
                                 <h3>{item.name}</h3>
-                                <span class="fame-badge">명성 +{item.fame}</span>
+                                <span class="fame-badge">명성 +{item.fameBonus}</span>
                             </div>
                             <span class="m-catalog-price">{formatCurrency(item.price)}</span>
                             <div class="m-catalog-specs">
-                                {#each Object.entries(item.specs) as [key, val]}
-                                    <span class="m-catalog-spec-tag">{key}: {val}</span>
-                                {/each}
+                                <span class="m-catalog-spec-tag">브랜드: {item.brand}</span>
                             </div>
-                            <span class="m-catalog-maintenance">유지비 {formatCurrency(item.maintenanceCost)}/일</span>
+                            <span class="m-catalog-maintenance">유지비 {formatCurrency(item.maintenanceCostPerDay)}/일</span>
                         </div>
                     </button>
                 {/each}
@@ -372,7 +381,7 @@
                 <div class="stats-cards">
                     <div class="stat-card">
                         <span class="stat-label">잔고</span>
-                        <span class="stat-value">{formatCurrency($balance)}</span>
+                        <span class="stat-value">{formatCurrency(cashBalance)}</span>
                     </div>
                 </div>
             </header>
@@ -410,7 +419,7 @@
                 {/each}
             </div>
 
-            {#if $hasMarina && marina}
+            {#if hasMarina && marina}
                 <div class="my-storage-section">
                     <h2>내 마리나</h2>
                     <div class="card my-storage-card">

@@ -1,107 +1,89 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
+  import { getAvailableFactoryGrades, type FactoryGrade } from '$lib/api/factory';
+  import { getRegions, getRegionsByType, getRegionDetail, type Region } from '$lib/api/region';
+  import { updateFactoryBuild, resetFactoryBuild } from '$lib/stores/factoryBuild';
 
-  // --- Types ---
-  interface FactoryType {
-    id: string;
-    name: string;
-    description: string;
-    production: string;
-    employees: number;
-    icon: string;
-    isFullWidth?: boolean;
-  }
+  // --- State ---
+  let grades = $state<FactoryGrade[]>([]);
+  let regions = $state<Region[]>([]);
+  let selectedGrade = $state('');
+  let selectedRegionId = $state(0);
+  let loading = $state(true);
+  let error = $state('');
+  let allRegions = $state<Region[]>([]);
+  let availableRegionTypes = $state<string[]>([]);
+  let selectedRegionType = $state<string | null>(null);
+  let selectedRegionDetail = $state<Region | null>(null);
 
-  interface ConstructionSummary {
-    region: string;
-    grade: string;
-    bonus: string;
-    baseCost: string;
-    maxRevenue: string;
-    isPossible: boolean;
-  }
-
-  // --- Data ---
-
-  // 공장 등급 데이터
-  const factoryTypes: FactoryType[] = [
-    {
-      id: 'workshop',
-      name: '공방',
-      description: '초기 자본이 적을 때 적합한 소규모 생산 시설로, 수작업 중심의 한정된 생산을 수행합니다.',
-      production: '40K',
-      employees: 500,
-      icon: '🏠'
-    },
-    {
-      id: 'small',
-      name: '소형 공장',
-      description: '기본적인 설비를 갖춘 공장으로, 단순 자동화를 통해 안정적인 소량 생산이 가능합니다.',
-      production: '100K',
-      employees: 1700,
-      icon: '🏭'
-    },
-    {
-      id: 'medium',
-      name: '중형 공장',
-      description: '본격적인 대량 생산을 위한 표준적인 규모의 공장으로, 생산 효율과 품질 관리가 균형을 이룹니다.',
-      production: '40K',
-      employees: 500,
-      icon: '🏭'
-    },
-    {
-      id: 'large',
-      name: '대형 공장',
-      description: '대규모 설비와 다수의 생산 라인을 갖춘 공장으로, 낮은 단가의 대량 생산이 가능합니다.',
-      production: '100K',
-      employees: 1700,
-      icon: '🏭'
-    },
-    {
-      id: 'complex',
-      name: '산업 단지',
-      description: '여러 공장이 집약된 복합 생산 구역으로, 공정 분업과 물류 효율을 극대화합니다.',
-      production: '40K',
-      employees: 500,
-      icon: '🏭'
-    },
-    {
-      id: 'mega',
-      name: '메가 팩토리',
-      description: '고도화된 자동화 설비를 기반으로 초대량 생산을 수행하는 글로벌 공급망 핵심 시설입니다.',
-      production: '100K',
-      employees: 1700,
-      icon: '🏭'
-    },
-    {
-      id: 'giga',
-      name: '기가 팩토리',
-      description: '생산, 조립, 물류, 재활용까지 하나의 체계로 통합된 초대형 시설로, 압도적인 생산량과 효율을 바탕으로 국가 산업과 글로벌 시장에 큰 영향을 미칩니다.',
-      production: '400B',
-      employees: 170000,
-      icon: '🏙️',
-      isFullWidth: true
-    }
-  ];
-
-  // 현재 선택된 상태 관리
-  let selectedTypeId = $state('giga');
-  let currentStep = $state(1);
-
-  // 선택된 공장 정보
-  let selectedFactory = $derived(factoryTypes.find(f => f.id === selectedTypeId));
-
-  const summaryInfo: ConstructionSummary = {
-    region: '대구광역시',
-    grade: '기가 팩토리',
-    bonus: '건설 속도 +5%',
-    baseCost: '₩2B',
-    maxRevenue: '₩30B',
-    isPossible: true
+  const gradeIcons: Record<string, string> = {
+    workshop: '🏠', small: '🏭', medium: '🏭', large: '🏭',
+    complex: '🏭', mega: '🏭', giga: '🏙️'
   };
 
+  function formatProduction(val: number): string {
+    if (val >= 1_000_000_000) return `${(val / 1_000_000_000).toFixed(0)}B`;
+    if (val >= 1_000_000) return `${(val / 1_000_000).toFixed(0)}M`;
+    if (val >= 1_000) return `${(val / 1_000).toFixed(0)}K`;
+    return val.toString();
+  }
+
+  function formatCost(val: number): string {
+    if (val >= 1_000_000_000) return `₩${(val / 1_000_000_000).toFixed(1)}B`;
+    if (val >= 1_000_000) return `₩${(val / 1_000_000).toFixed(0)}M`;
+    return `₩${val.toLocaleString()}`;
+  }
+
+  let selectedGradeData = $derived(grades.find(g => g.grade === selectedGrade));
+  let selectedRegion = $derived(regions.find(r => r.id === selectedRegionId));
+
+  let regionBonus = $derived(() => {
+    if (!selectedRegion) return '';
+    const speed = selectedRegion.constructionSpeedMultiplier;
+    if (speed > 1) return `건설 속도 +${Math.round((speed - 1) * 100)}%`;
+    if (speed < 1) return `건설 속도 -${Math.round((1 - speed) * 100)}%`;
+    return '보너스 없음';
+  });
+
+  onMount(async () => {
+    resetFactoryBuild();
+    try {
+      const [gradeData, regionData] = await Promise.all([
+        getAvailableFactoryGrades(),
+        getRegions()
+      ]);
+      grades = gradeData;
+      regions = regionData;
+      allRegions = regionData;
+      availableRegionTypes = [...new Set(regionData.map(r => r.regionType))];
+      if (grades.length > 0) selectedGrade = grades[0].grade;
+      if (regions.length > 0) selectedRegionId = regions[0].id;
+    } catch (e: any) {
+      error = e.message || '데이터를 불러오는데 실패했습니다.';
+    } finally {
+      loading = false;
+    }
+  });
+
+  $effect(() => {
+    if (selectedRegionId) {
+      getRegionDetail(selectedRegionId).then(detail => {
+        selectedRegionDetail = detail;
+      }).catch(() => {});
+    }
+  });
+
   function goToNextStep() {
+    if (!selectedGrade || !selectedRegionId) return;
+    updateFactoryBuild({
+      companyId: Number($page.params.id),
+      grade: selectedGrade,
+      gradeName: selectedGradeData?.displayName || selectedGrade,
+      regionId: selectedRegionId,
+      regionName: selectedRegion?.name || ''
+    });
     goto(`/business/company/${$page.params.id}/factory/build/settings`);
   }
 </script>
@@ -133,39 +115,44 @@
     </div>
   </div>
 
+  {#if loading}
+    <div class="loading-msg">데이터를 불러오는 중...</div>
+  {:else if error}
+    <div class="error-msg">{error}</div>
+  {:else}
   <div class="content-wrapper">
 
     <div class="factory-grid">
-      {#each factoryTypes as type}
+      {#each grades as grade}
         <div
-          class="card factory-card {type.isFullWidth ? 'full-width' : ''}"
-          class:selected={selectedTypeId === type.id}
-          onclick={() => selectedTypeId = type.id}
-          onkeydown={(e) => e.key === 'Enter' && (selectedTypeId = type.id)}
+          class="card factory-card {grade.grade === 'giga' ? 'full-width' : ''}"
+          class:selected={selectedGrade === grade.grade}
+          onclick={() => selectedGrade = grade.grade}
+          onkeydown={(e) => e.key === 'Enter' && (selectedGrade = grade.grade)}
           role="button"
           tabindex="0"
         >
           <div class="card-header">
-            <div class="icon-box">{type.icon}</div>
-            <h3>{type.name}</h3>
+            <div class="icon-box">{gradeIcons[grade.grade] || '🏭'}</div>
+            <h3>{grade.displayName}</h3>
           </div>
-          <p class="desc">{type.description}</p>
+          <p class="desc">Lv.{grade.requiredLevel} 이상 건설 가능</p>
 
           <div class="stats-row">
             <div class="stat">
               <span class="label">총 생산량/매달</span>
-              <span class="val">{type.production}</span>
+              <span class="val">{formatProduction(grade.monthlyProduction)}</span>
             </div>
             <div class="stat">
               <span class="label">직원 수</span>
-              <span class="val">{type.employees.toLocaleString()}</span>
+              <span class="val">{grade.employeeCount.toLocaleString()}</span>
             </div>
           </div>
 
           <div class="stat-divider"></div>
 
           <div class="detail-link">
-            ⓘ 상세 정보 보기 >
+            기반 비용: {formatCost(grade.baseConstructionCost)}
           </div>
         </div>
       {/each}
@@ -184,40 +171,76 @@
         </div>
       </div>
 
+      {#if availableRegionTypes.length > 0}
+        <div class="type-filters">
+          <button class:active={selectedRegionType === null} onclick={() => { selectedRegionType = null; regions = allRegions; }}>전체</button>
+          {#each availableRegionTypes as type}
+            <button class:active={selectedRegionType === type} onclick={() => { selectedRegionType = type; getRegionsByType(type).then(r => { regions = r; if (r.length > 0) selectedRegionId = r[0].id; }).catch(() => {}); }}>{type}</button>
+          {/each}
+        </div>
+      {/if}
+
+      <div class="region-select">
+        <label for="region">지역 선택</label>
+        <select id="region" bind:value={selectedRegionId}>
+          {#each regions as region}
+            <option value={region.id}>{region.name} ({region.regionType})</option>
+          {/each}
+        </select>
+      </div>
+
+      {#if selectedRegionDetail}
+        <div class="region-detail-panel">
+          <div class="detail-row">
+            <span class="d-lbl">비용 배율</span>
+            <span class="d-val">{Math.round(selectedRegionDetail.costMultiplier * 100)}%</span>
+          </div>
+          <div class="detail-row">
+            <span class="d-lbl">수익 배율</span>
+            <span class="d-val">{Math.round(selectedRegionDetail.revenueMultiplier * 100)}%</span>
+          </div>
+          <div class="detail-row">
+            <span class="d-lbl">건설 속도</span>
+            <span class="d-val">{Math.round(selectedRegionDetail.constructionSpeedMultiplier * 100)}%</span>
+          </div>
+        </div>
+      {/if}
+
       <div class="summary-content">
         <div class="sum-row">
           <span class="lbl">선택 지역</span>
-          <span class="val">{summaryInfo.region}</span>
+          <span class="val">{selectedRegion?.name || '-'}</span>
         </div>
         <div class="sum-row">
           <span class="lbl">선택 등급</span>
-          <span class="val highlight">{selectedFactory?.name}</span>
+          <span class="val highlight">{selectedGradeData?.displayName || '-'}</span>
         </div>
         <div class="sum-row">
           <span class="lbl">지역 보너스</span>
-          <span class="val text-green">{summaryInfo.bonus}</span>
+          <span class="val text-green">{regionBonus()}</span>
         </div>
 
         <div class="divider-dashed"></div>
 
         <div class="sum-row cost-row">
           <span class="lbl">예상 기반 비용</span>
-          <span class="val text-red">{summaryInfo.baseCost}</span>
+          <span class="val text-red">{selectedGradeData ? formatCost(selectedGradeData.baseConstructionCost) : '-'}</span>
         </div>
         <div class="sum-row cost-row">
-          <span class="lbl">연간 최대 매출액</span>
-          <span class="val text-blue">{summaryInfo.maxRevenue}</span>
+          <span class="lbl">필요 레벨</span>
+          <span class="val text-blue">Lv.{selectedGradeData?.requiredLevel || '-'}</span>
         </div>
         <div class="sum-row cost-row">
-          <span class="lbl">예상 건설 비용</span>
+          <span class="lbl">건설 가능 여부</span>
           <span class="badge-green">● 건설 가능</span>
         </div>
 
-        <button class="btn-next" onclick={goToNextStep}>다음단계로 ></button>
+        <button class="btn-next" onclick={goToNextStep} disabled={!selectedGrade || !selectedRegionId}>다음단계로 ></button>
       </div>
     </div>
 
   </div>
+  {/if}
 </div>
 
 <style>
@@ -436,6 +459,53 @@
     transition: background 0.2s;
   }
   .btn-next:hover { background-color: #0c3b66; }
+
+  /* Loading/Error */
+  .loading-msg, .error-msg {
+    text-align: center; padding: 60px 20px; font-size: 16px;
+  }
+  .error-msg { color: #ef4444; }
+
+  /* Region Select */
+  .region-select {
+    display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px;
+  }
+  .region-select label {
+    font-size: 13px; font-weight: 600; color: var(--color-text-gray);
+  }
+  .region-select select {
+    width: 100%; padding: 10px 12px; border: 1px solid var(--color-border);
+    border-radius: 8px; font-size: 14px; background: var(--color-bg-1);
+    color: var(--color-text); cursor: pointer;
+  }
+
+  .btn-next:disabled {
+    background-color: var(--color-text-gray); cursor: not-allowed; opacity: 0.7;
+  }
+
+  /* Type Filters */
+  .type-filters {
+    display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px;
+  }
+  .type-filters button {
+    padding: 4px 12px; border: 1px solid var(--color-border); border-radius: 16px;
+    font-size: 12px; font-weight: 600; cursor: pointer; background: var(--color-bg-1);
+    color: var(--color-text-gray); transition: all 0.15s;
+  }
+  .type-filters button.active {
+    background: var(--color-theme-1); color: white; border-color: var(--color-theme-1);
+  }
+
+  /* Region Detail Panel */
+  .region-detail-panel {
+    background: var(--color-bg-2); border-radius: 8px; padding: 12px 16px;
+    margin-bottom: 16px; border: 1px solid var(--color-border);
+  }
+  .detail-row {
+    display: flex; justify-content: space-between; font-size: 12px; padding: 4px 0;
+  }
+  .d-lbl { color: var(--color-text-gray); }
+  .d-val { font-weight: 700; color: var(--color-theme-1); }
 
   /* --- Responsive --- */
   @media (max-width: 1024px) {

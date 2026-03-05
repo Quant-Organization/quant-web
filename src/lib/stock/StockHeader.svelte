@@ -1,45 +1,108 @@
 <script lang="ts">
-    const price = 100_500;
+    import { getValuation } from '$lib/api/market';
+    import type { Company, PriceMap, Valuation } from '$lib/api/market';
+
+    interface Props {
+        companies: Company[];
+        selectedCompanyId: string;
+        priceMap: PriceMap;
+    }
+
+    let { companies, selectedCompanyId = $bindable(), priceMap }: Props = $props();
+
+    let valuation = $state<Valuation | null>(null);
+    let lastUpdated = $state('');
+
+    let currentPrice = $derived(
+        selectedCompanyId && priceMap.prices[selectedCompanyId]
+            ? priceMap.prices[selectedCompanyId]
+            : 0
+    );
+
+    let selectedCompany = $derived(
+        companies.find(c => c.company_id === selectedCompanyId) ?? null
+    );
+
+    $effect(() => {
+        if (!selectedCompanyId) return;
+        valuation = null;
+        getValuation(selectedCompanyId)
+            .then(v => { valuation = v; })
+            .catch(e => console.error('밸류에이션 로드 실패:', e));
+    });
+
+    $effect(() => {
+        if (currentPrice > 0) {
+            const now = new Date();
+            lastUpdated = now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+        }
+    });
+
+    let initialPrice = $derived(selectedCompany?.initial_price ?? 0);
+    let changeAmt = $derived(initialPrice > 0 ? currentPrice - initialPrice : 0);
+    let changePct = $derived(initialPrice > 0 ? (changeAmt / initialPrice) * 100 : 0);
+    let isUp = $derived(changePct >= 0);
 </script>
 
 <section class="card">
     <div class="left">
         <div class="title-row">
             <span class="pill">NASDAQ</span>
-            <h1>
-                Samsung Inc <span>(005930)</span>
-            </h1>
+            {#if companies.length > 0}
+                <select
+                    class="company-select"
+                    bind:value={selectedCompanyId}
+                >
+                    {#each companies as c}
+                        <option value={c.company_id}>{c.name} ({c.company_id})</option>
+                    {/each}
+                </select>
+            {:else}
+                <h1>로딩 중...</h1>
+            {/if}
         </div>
 
         <div class="price-row">
-            <strong class="price">₩{price.toLocaleString()}</strong>
-            <span class="up">+1.24%</span>
-            <span class="time">마지막 업데이트: 10:30 AM</span>
+            <strong class="price">₩{currentPrice.toLocaleString()}</strong>
+            {#if initialPrice > 0}
+                <span class={isUp ? 'up' : 'down'}>
+                    {isUp ? '+' : ''}{changePct.toFixed(2)}%
+                </span>
+            {/if}
+            {#if lastUpdated}
+                <span class="time">마지막 업데이트: {lastUpdated}</span>
+            {/if}
         </div>
     </div>
 
     <div class="stats">
         <div class="stat">
-            <label>시가총액</label>
-            <strong>710B</strong>
+            <span class="stat-label">현재가</span>
+            <strong>₩{currentPrice.toLocaleString()}</strong>
         </div>
 
         <div class="divider"></div>
 
         <div class="stat">
-            <label>거래량</label>
-            <strong>52.2M</strong>
+            <span class="stat-label">PER</span>
+            <strong>{valuation ? valuation.current_per.toFixed(1) : '-'}</strong>
         </div>
 
         <div class="divider"></div>
 
         <div class="stat">
-            <label>PER</label>
-            <strong>19.2</strong>
+            <span class="stat-label">PBR</span>
+            <strong>{valuation ? valuation.current_pbr.toFixed(2) : '-'}</strong>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="stat">
+            <span class="stat-label">ROE</span>
+            <strong>{valuation ? valuation.roe.toFixed(1) + '%' : '-'}</strong>
         </div>
     </div>
 </section>
-
 
 
 <style>
@@ -71,16 +134,28 @@
         border: 1px solid #e5e7eb;
     }
 
+    .company-select {
+        font-size: 1.125rem;
+        font-weight: 700;
+        color: #0f172a;
+        border: 1px solid #e5e7eb;
+        border-radius: 0.5rem;
+        padding: 0.25rem 0.5rem;
+        background: #f8fafc;
+        cursor: pointer;
+        outline: none;
+        min-width: 12rem;
+    }
+
+    .company-select:focus {
+        border-color: #3b82f6;
+    }
+
     h1 {
         font-size: 1.25rem;
         font-weight: 700;
         margin: 0;
-    }
-
-    h1 span {
         color: #94a3b8;
-        font-size: 0.875rem;
-        font-weight: 500;
     }
 
     /* --- PRICE ROW --- */
@@ -106,6 +181,15 @@
         font-weight: 700;
     }
 
+    .down {
+        background: #fee2e2;
+        color: #991b1b;
+        padding: 0.25rem 0.5rem;
+        border-radius: 0.375rem;
+        font-size: 0.8125rem;
+        font-weight: 700;
+    }
+
     .time {
         margin-left: 0.375rem;
         font-size: 0.8125rem;
@@ -124,7 +208,7 @@
         text-align: center;
     }
 
-    .stat label {
+    .stat-label {
         font-size: 0.75rem;
         color: #94a3b8;
     }
@@ -143,6 +227,4 @@
         height: 2.125rem;
         background: #e5e7eb;
     }
-
-
 </style>

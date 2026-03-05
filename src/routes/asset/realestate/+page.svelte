@@ -1,295 +1,336 @@
-<script>
+<script lang="ts">
     import { onMount } from 'svelte';
-    import { selectedIndex } from '$lib/stores/sidebar';
+    import { getRealEstates, getMyRealEstates, purchaseRealEstate, sellRealEstate, getRealEstateDetail } from '$lib/api/asset';
+    import { getSpringAccount } from '$lib/api/dashboard';
+    import type { RealEstateItem } from '$lib/api/asset';
+    import type { SpringAccount } from '$lib/api/dashboard';
 
-    onMount(() => {
-        selectedIndex.set(4);
+    let activeTab: 'market' | 'owned' = $state('market');
+
+    let marketItems: RealEstateItem[] = $state([]);
+    let ownedItems: RealEstateItem[] = $state([]);
+    let account: SpringAccount | null = $state(null);
+
+    let loading = $state(true);
+    let error = $state('');
+    let selectedItem: RealEstateItem | null = $state(null);
+
+    async function selectItem(item: RealEstateItem) {
+        selectedItem = item;
+        try { selectedItem = await getRealEstateDetail(item.id); } catch { /* keep existing */ }
+    }
+    let toastMsg = $state('');
+    let toastError = $state(false);
+
+    onMount(async () => {
+        await loadAll();
     });
 
-    // 1. 좌측: 보유 차량 리스트 데이터
-    const myCars = [
-        { name: '그랜저', price: '$2,500,000', img: 'https://images.unsplash.com/photo-1552519507-da3b142c6e3d?auto=format&fit=crop&w=150&q=80' },
-        { name: '팰리세이드', price: '$1,300,000', img: 'https://images.unsplash.com/photo-1533473359331-0135ef1bcfb0?auto=format&fit=crop&w=150&q=80' },
-        { name: '제네시스 G90', price: '$11,900,000', img: 'https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=150&q=80' }
-    ];
-
-    // 2. 중앙: 현재 선택된 차량 상세 데이터 (페라리 F8 예시)
-    let selectedCar = {
-        name: '페라리 F8',
-        currentPrice: '$850,000,000',
-        img: 'https://images.unsplash.com/photo-1592198084033-aade902d1aae?auto=format&fit=crop&w=800&q=80', // 붉은 스포츠카 이미지
-        stats: {
-            speed: '300km/h',
-            fame: '95',
-            maintenance: '$500,000'
-        },
-        colors: ['#3b82f6', '#fbbf24', '#10b981'] // 파랑, 노랑, 초록
-    };
-
-    let selectedColorIndex = 0; // 선택된 색상 인덱스 (기본값)
-
-    // 3. 우측: 딜러샵 판매 목록 데이터
-    const dealershipCars = [
-        {
-            name: '람보르기니 아벤타도르',
-            price: '$13,500,000',
-            levelReq: 15,
-            img: 'https://images.unsplash.com/photo-1621135802920-133df287f89c?auto=format&fit=crop&w=400&q=80'
-        },
-        {
-            name: '페라리 F8',
-            price: '$850,000,000',
-            levelReq: 15,
-            img: 'https://images.unsplash.com/photo-1583121274602-3e2820c698d9?auto=format&fit=crop&w=400&q=80'
+    async function loadAll() {
+        try {
+            const [mRes, oRes, aRes] = await Promise.all([
+                getRealEstates(),
+                getMyRealEstates(),
+                getSpringAccount()
+            ]);
+            marketItems = mRes.content;
+            ownedItems = oRes;
+            account = aRes;
+        } catch (e) {
+            error = '데이터를 불러오는 중 오류가 발생했습니다.';
+        } finally {
+            loading = false;
         }
-    ];
-
-    // 드롭다운 데이터
-    const dealershipOptions = ['럭셔리 딜러샵', '프리미엄 딜러샵', '클래식 딜러샵'];
-    const brandOptions = ['모든 브랜드', '페라리', '람보르기니', '포르쉐', '벤틀리'];
-
-    let selectedDealership = dealershipOptions[0];
-    let selectedBrand = brandOptions[0];
-    let isDealershipOpen = false;
-    let isBrandOpen = false;
-
-    function selectDealership(option) {
-        selectedDealership = option;
-        isDealershipOpen = false;
     }
 
-    function selectBrand(option) {
-        selectedBrand = option;
-        isBrandOpen = false;
+    function formatCurrency(n: number): string {
+        if (n >= 1_000_000_000) return '$' + (n / 1_000_000_000).toFixed(2) + 'B';
+        if (n >= 1_000_000) return '$' + (n / 1_000_000).toFixed(2) + 'M';
+        if (n >= 1_000) return '$' + (n / 1_000).toFixed(1) + 'K';
+        return '$' + n.toLocaleString();
+    }
+
+    async function handlePurchase(item: RealEstateItem) {
+        try {
+            await purchaseRealEstate(item.id);
+            toastMsg = `${item.name} 구매 완료!`;
+            toastError = false;
+            await loadAll();
+            selectedItem = null;
+        } catch (e: unknown) {
+            toastMsg = e instanceof Error ? e.message : '구매에 실패했습니다.';
+            toastError = true;
+        }
+        setTimeout(() => { toastMsg = ''; }, 3000);
+    }
+
+    async function handleSell(item: RealEstateItem) {
+        try {
+            await sellRealEstate(item.id);
+            toastMsg = `${item.name} 판매 완료!`;
+            toastError = false;
+            await loadAll();
+            selectedItem = null;
+        } catch (e: unknown) {
+            toastMsg = e instanceof Error ? e.message : '판매에 실패했습니다.';
+            toastError = true;
+        }
+        setTimeout(() => { toastMsg = ''; }, 3000);
     }
 </script>
 
-<div class="car-collection-container">
-
+<div class="page-container">
     <header class="page-header">
         <div class="header-text">
-            <h1>차량 컬렉션</h1>
-            <p>최고급 차량을 관리하고 새로운 차량을 획득하세요.</p>
+            <h1>부동산</h1>
+            <p>프리미엄 부동산을 구매하고 자산을 늘려보세요.</p>
         </div>
-        <div class="stats-cards">
-            <div class="stat-card">
-                <span class="stat-label">차고 현황</span>
-                <span class="stat-value">5 / 20</span>
+        {#if account}
+            <div class="stats-cards">
+                <div class="stat-card">
+                    <span class="stat-label">잔고</span>
+                    <span class="stat-value">{formatCurrency(account.cashBalance)}</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-label">보유 부동산</span>
+                    <span class="stat-value">{ownedItems.length}개</span>
+                </div>
             </div>
-            <div class="stat-card">
-                <span class="stat-label">총 자산 가치</span>
-                <span class="stat-value">$12,500,000</span>
-            </div>
-        </div>
+        {/if}
     </header>
 
-    <main class="main-grid">
+    <nav class="tab-bar">
+        <button class="tab-btn" class:active={activeTab === 'market'} onclick={() => { activeTab = 'market'; selectedItem = null; }}>부동산 마켓</button>
+        <button class="tab-btn" class:active={activeTab === 'owned'} onclick={() => { activeTab = 'owned'; selectedItem = null; }}>내 부동산</button>
+    </nav>
 
-        <section class="left-section">
-            <h3 class="section-title">보유 차량</h3>
-            <div class="panel left-panel">
-                <div class="car-list">
-                    {#each myCars as car}
-                        <div class="list-item">
-                            <img src={car.img} alt={car.name} class="thumb">
-                            <div class="info">
-                                <span class="name">{car.name}</span>
-                                <span class="price">{car.price}</span>
+    {#if loading}
+        <div class="loading-state">데이터를 불러오는 중...</div>
+    {:else if error}
+        <div class="error-state">{error}</div>
+    {:else if activeTab === 'market'}
+        {#if selectedItem}
+            <button class="back-btn" onclick={() => (selectedItem = null)}>← 목록으로</button>
+            <div class="detail-panel panel">
+                {#if selectedItem.imageUrl}
+                    <div class="detail-img" style="background-image: url('{selectedItem.imageUrl}')"></div>
+                {:else}
+                    <div class="detail-img placeholder-img"></div>
+                {/if}
+                <div class="detail-info">
+                    <div class="detail-title-row">
+                        <h2>{selectedItem.name}</h2>
+                        {#if selectedItem.brand}
+                            <span class="brand-badge">{selectedItem.brand}</span>
+                        {/if}
+                    </div>
+                    <div class="spec-grid">
+                        <div class="spec-item">
+                            <span class="spec-label">가격</span>
+                            <strong>{formatCurrency(selectedItem.price)}</strong>
+                        </div>
+                        <div class="spec-item">
+                            <span class="spec-label">유지비/일</span>
+                            <strong>{formatCurrency(selectedItem.maintenanceCostPerDay)}</strong>
+                        </div>
+                        <div class="spec-item">
+                            <span class="spec-label">명성</span>
+                            <strong>+{selectedItem.fameBonus}</strong>
+                        </div>
+                        <div class="spec-item">
+                            <span class="spec-label">필요 레벨</span>
+                            <strong>Lv.{selectedItem.requiredLevel}</strong>
+                        </div>
+                    </div>
+                    <button class="btn-purchase" onclick={() => selectedItem && handlePurchase(selectedItem)}>구매하기</button>
+                </div>
+            </div>
+        {:else}
+            <div class="catalog-grid">
+                {#each marketItems as item}
+                    <button class="catalog-card" onclick={() => selectItem(item)}>
+                        {#if item.imageUrl}
+                            <div class="catalog-img" style="background-image: url('{item.imageUrl}')"></div>
+                        {:else}
+                            <div class="catalog-img placeholder-img"></div>
+                        {/if}
+                        <div class="catalog-body">
+                            <div class="catalog-header">
+                                <h3>{item.name}</h3>
+                                {#if item.brand}
+                                    <span class="brand-badge">{item.brand}</span>
+                                {/if}
+                            </div>
+                            <span class="catalog-price">{formatCurrency(item.price)}</span>
+                            <div class="catalog-meta">
+                                <span>명성 +{item.fameBonus}</span>
+                                <span>유지비 {formatCurrency(item.maintenanceCostPerDay)}/일</span>
                             </div>
                         </div>
-                    {/each}
-                </div>
-            </div>
-        </section>
-
-        <section class="center-section">
-            <div class="panel center-top-panel">
-                <div class="car-preview">
-                    <div class="preview-image" style="background-image: url('{selectedCar.img}');"></div>
-                </div>
-
-                <div class="car-header-info">
-                    <h2>{selectedCar.name}</h2>
-                    <span class="current-price">현재가: {selectedCar.currentPrice}</span>
-                </div>
-            </div>
-
-            <div class="panel center-bottom-panel spec-card">
-
-                <div class="spec-grid">
-                    <div class="spec-item horizontal">
-                        <span class="label">최고 속도</span>
-                        <strong>993km/h</strong>
-                    </div>
-                    <div class="spec-item horizontal">
-                        <span class="label">명성</span>
-                        <strong>5,500</strong>
-                    </div>
-
-                    <div class="spec-item horizontal">
-                        <span class="label">유지비/일</span>
-                        <strong>$1,000,000</strong>
-                    </div>
-                    <div class="spec-item horizontal">
-                        <span class="label">좌석 수</span>
-                        <strong>19</strong>
-                    </div>
-
-                    <div class="spec-item horizontal">
-                        <span class="label">항속 거리</span>
-                        <strong>13,890km</strong>
-                    </div>
-                    <div class="spec-item horizontal">
-                        <span class="label">크기</span>
-                        <strong>33.48m</strong>
-                    </div>
-                </div>
-
-                <button class="btn-purchase">구매하기</button>
-            </div>
-
-        </section>
-
-        <section class="right-section">
-            <h3 class="section-title">럭셔리 딜러샵</h3>
-            <div class="filters">
-                <div class="custom-select">
-                    <button class="select-button" on:click={() => isDealershipOpen = !isDealershipOpen}>
-                        <span>{selectedDealership}</span>
-                        <span class="arrow">{isDealershipOpen ? '▲' : '▼'}</span>
                     </button>
-                    {#if isDealershipOpen}
-                        <div class="select-dropdown">
-                            {#each dealershipOptions as option}
-                                <div
-                                        class="select-option {option === selectedDealership ? 'selected' : ''}"
-                                        on:click={() => selectDealership(option)}
-                                >
-                                    {option}
-                                </div>
-                            {/each}
+                {/each}
+            </div>
+        {/if}
+    {:else}
+        {#if ownedItems.length === 0}
+            <div class="empty-state">
+                <div class="empty-icon"><span class="empty-icon-text">0</span></div>
+                <h2 class="empty-title">보유한 부동산이 없습니다</h2>
+                <p class="empty-subtitle">마켓에서 부동산을 구매해보세요.</p>
+                <button class="btn-primary" onclick={() => (activeTab = 'market')}>부동산 마켓으로</button>
+            </div>
+        {:else if selectedItem}
+            <button class="back-btn" onclick={() => (selectedItem = null)}>← 목록으로</button>
+            <div class="detail-panel panel">
+                {#if selectedItem.imageUrl}
+                    <div class="detail-img" style="background-image: url('{selectedItem.imageUrl}')"></div>
+                {:else}
+                    <div class="detail-img placeholder-img"></div>
+                {/if}
+                <div class="detail-info">
+                    <div class="detail-title-row">
+                        <h2>{selectedItem.name}</h2>
+                        {#if selectedItem.brand}
+                            <span class="brand-badge">{selectedItem.brand}</span>
+                        {/if}
+                    </div>
+                    <div class="spec-grid">
+                        <div class="spec-item">
+                            <span class="spec-label">구매가</span>
+                            <strong>{formatCurrency(selectedItem.price)}</strong>
                         </div>
-                    {/if}
-                </div>
-
-                <div class="custom-select">
-                    <button class="select-button" on:click={() => isBrandOpen = !isBrandOpen}>
-                        <span>{selectedBrand}</span>
-                        <span class="arrow">{isBrandOpen ? '▲' : '▼'}</span>
-                    </button>
-                    {#if isBrandOpen}
-                        <div class="select-dropdown">
-                            {#each brandOptions as option}
-                                <div
-                                        class="select-option {option === selectedBrand ? 'selected' : ''}"
-                                        on:click={() => selectBrand(option)}
-                                >
-                                    {option}
-                                </div>
-                            {/each}
+                        <div class="spec-item">
+                            <span class="spec-label">유지비/일</span>
+                            <strong>{formatCurrency(selectedItem.maintenanceCostPerDay)}</strong>
                         </div>
-                    {/if}
+                        <div class="spec-item">
+                            <span class="spec-label">명성</span>
+                            <strong>+{selectedItem.fameBonus}</strong>
+                        </div>
+                        <div class="spec-item">
+                            <span class="spec-label">필요 레벨</span>
+                            <strong>Lv.{selectedItem.requiredLevel}</strong>
+                        </div>
+                    </div>
+                    <button class="btn-sell" onclick={() => selectedItem && handleSell(selectedItem)}>판매하기</button>
                 </div>
             </div>
-
-            <div class="panel right-panel">
-                <div class="shop-list">
-                    {#each dealershipCars as car}
-                        <div class="shop-item">
-                            <div class="shop-img" style="background-image: url('{car.img}')"></div>
-                            <div class="shop-info">
-                                <div class="shop-row">
-                                    <span class="shop-name">{car.name}</span>
-                                    <span class="shop-price accent">{car.price}</span>
-                                </div>
-                                <div class="shop-row sub">
-                                    <span>필요 레벨: {car.levelReq}</span>
-                                </div>
+        {:else}
+            <div class="catalog-grid">
+                {#each ownedItems as item}
+                    <button class="catalog-card" onclick={() => selectItem(item)}>
+                        {#if item.imageUrl}
+                            <div class="catalog-img" style="background-image: url('{item.imageUrl}')"></div>
+                        {:else}
+                            <div class="catalog-img placeholder-img"></div>
+                        {/if}
+                        <div class="catalog-body">
+                            <div class="catalog-header">
+                                <h3>{item.name}</h3>
+                                {#if item.brand}
+                                    <span class="brand-badge">{item.brand}</span>
+                                {/if}
+                            </div>
+                            <span class="catalog-price">{formatCurrency(item.price)}</span>
+                            <div class="catalog-meta">
+                                <span>명성 +{item.fameBonus}</span>
+                                <span>유지비 {formatCurrency(item.maintenanceCostPerDay)}/일</span>
                             </div>
                         </div>
-                    {/each}
-                </div>
+                    </button>
+                {/each}
             </div>
-        </section>
-
-    </main>
+        {/if}
+    {/if}
 </div>
 
-<svelte:window on:click={(e) => {
-    if (!e.target.closest('.custom-select')) {
-        isDealershipOpen = false;
-        isBrandOpen = false;
-    }
-}} />
+{#if toastMsg}
+    <div class="toast" class:toast-error={toastError}>{toastMsg}</div>
+{/if}
 
 <style>
-    /* 컨테이너 및 폰트 설정 */
-    .car-collection-container {
+    .page-container {
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
         color: #333;
         width: 100%;
     }
 
-    /* 상단 헤더 영역 */
     .page-header {
         display: flex;
         justify-content: space-between;
+        align-items: flex-start;
         margin-bottom: 2rem;
-    }
-
-    .header-text h1 {
-        font-size: 2rem;
-        font-weight: 700;
-        margin: 0 0 0.5rem 0;
-    }
-    .header-text p {
-        font-size: 1rem;
-        color: var(--color-text-gray);
-        margin: 0;
-    }
-
-    .stats-cards {
-        display: flex;
+        flex-wrap: wrap;
         gap: 1rem;
     }
+
+    .header-text h1 { font-size: 2rem; font-weight: 700; margin: 0 0 0.5rem 0; }
+    .header-text p { font-size: 1rem; color: var(--color-text-gray); margin: 0; }
+
+    .stats-cards { display: flex; gap: 1rem; }
 
     .stat-card {
         background: white;
         padding: 1rem 1.5rem;
         border-radius: 12px;
         border: 1px solid #e5e7eb;
-        min-width: 140px;
+        min-width: 130px;
     }
 
-    .stat-label {
-        display: block;
-        color: #666;
-        font-size: 0.9rem;
-        margin-bottom: 0.25rem;
+    .stat-label { display: block; color: #666; font-size: 0.85rem; margin-bottom: 0.2rem; }
+    .stat-value { display: block; font-size: 1.4rem; font-weight: 700; }
+
+    .tab-bar {
+        display: flex;
+        gap: 2rem;
+        border-bottom: 1px solid #e5e7eb;
+        margin-bottom: 2rem;
     }
 
-    .stat-value {
-        display: block;
-        font-size: 1.4rem;
+    .tab-btn {
+        background: none;
+        border: none;
+        padding: 0.75rem 0;
+        font-size: 1rem;
+        color: #888;
+        cursor: pointer;
+        position: relative;
+        font-weight: 500;
+    }
+
+    .tab-btn.active {
+        color: var(--color-theme-1);
         font-weight: 700;
     }
 
-    /* 메인 그리드 레이아웃 (좌:중:우 = 250:390:250 비율) */
-    .main-grid {
-        display: grid;
-        grid-template-columns: 250fr 390fr 250fr;
-        gap: 1.5rem;
-        align-items: start;
+    .tab-btn.active::after {
+        content: '';
+        position: absolute;
+        bottom: -1px;
+        left: 0;
+        width: 100%;
+        height: 2px;
+        background: var(--color-theme-1);
     }
 
-    /* 섹션 타이틀 (카드 바깥) */
-    .section-title {
-        margin: 0 0 1rem 0;
-        font-size: 1.3rem;
-        font-weight: 700;
+    .loading-state, .error-state {
+        display: flex; align-items: center; justify-content: center;
+        min-height: 40vh; font-size: 1rem; color: var(--color-text-gray);
     }
+    .error-state { color: var(--color-negative); }
 
-    /* 공통 패널 스타일 */
+    .back-btn {
+        background: none;
+        border: none;
+        color: var(--color-theme-1);
+        font-size: 0.95rem;
+        font-weight: 600;
+        cursor: pointer;
+        margin-bottom: 1.5rem;
+        padding: 0;
+    }
+    .back-btn:hover { text-decoration: underline; }
+
     .panel {
         background: white;
         border-radius: 12px;
@@ -297,297 +338,40 @@
         padding: 1.5rem;
     }
 
-    /* 1. 좌측 패널 (보유 차량 리스트) */
-    .left-section {
-        display: flex;
-        flex-direction: column;
-        height: 100%;
-    }
-
-    .left-panel {
-        height: 100%;
-    }
-
-    .list-item {
-        display: flex;
-        align-items: center;
-        gap: 1rem;
-        margin-bottom: 1.5rem;
-        cursor: pointer;
-        transition: opacity 0.2s;
-    }
-    .list-item:hover { opacity: 0.7; }
-
-    .list-item .thumb {
-        width: 80px;
-        height: 80px;
-        border-radius: 10px;
-        object-fit: cover;
-        background: #f3f4f6;
-    }
-
-    .list-item .info {
-        display: flex;
-        flex-direction: column;
-    }
-
-    .list-item .name { font-weight: 700; font-size: 1rem; }
-    .list-item .price { color: #666; font-size: 0.8rem; margin-top: 4px; }
-
-
-    /* 2. 중앙 패널 (상세 보기) */
-    .center-section {
-        display: flex;
-        flex-direction: column;
-        gap: 1.5rem;
-    }
-
-    .center-top-panel {
-        padding: 1rem;
-    }
-
-    .preview-image {
-        width: 100%;
-        aspect-ratio: 1 / 1;
-        background-color: #f3f4f6;
-        background-size: cover;
-        background-position: center;
-        border-radius: 12px;
-        position: relative;
-        margin-bottom: 1.5rem;
-    }
-
-    .car-header-info {
-        text-align: left;
-    }
-
-    .car-header-info h2 { margin: 0 0 0.5rem 0; font-size: 1.8rem; }
-    .current-price { color: var(--color-text-gray); font-weight: 600; font-size: 1.2rem; }
-
-    .center-bottom-panel {
-        padding: 1.3rem;
-    }
-
-    .stats-row {
-        display: flex;
-        justify-content: space-around;
-        text-align: center;
-        margin-bottom: 2rem;
-        padding: 1rem 0;
-        background: #f9fafb;
-        border-radius: 8px;
-    }
-
-    .stat-item strong { display: block; font-size: 1.2rem; color: #0e4c92; }
-    .stat-item span { font-size: 0.8rem; color: #888; margin-top: 4px; display: block;}
-
-    .custom-options {
-        margin-bottom: 2rem;
-    }
-
-    .tabs {
-        border-bottom: 1px solid #ddd;
-        margin-bottom: 1rem;
-        display: flex;
-        gap: 1.5rem;
-    }
-
-    .tabs button {
-        background: none;
-        border: none;
-        padding: 0.5rem 0;
-        font-size: 0.95rem;
-        color: #888;
-        cursor: pointer;
-        position: relative;
-    }
-
-    .tabs button.active {
-        color: #0e4c92;
-        font-weight: 700;
-    }
-
-    .tabs button.active::after {
-        content: '';
-        position: absolute;
-        bottom: -1px;
-        left: 0;
-        width: 100%;
-        height: 2px;
-        background: #0e4c92;
-    }
-
-    .color-picker {
-        display: flex;
-        gap: 1rem;
-    }
-
-    .color-circle {
-        width: 36px;
-        height: 36px;
-        border-radius: 50%;
-        border: 2px solid transparent;
-        cursor: pointer;
-        transition: transform 0.2s;
-    }
-
-    .color-circle:hover { transform: scale(1.1); }
-    .color-circle.selected { border-color: #0e4c92; box-shadow: 0 0 0 2px white inset; }
-
-    .btn-purchase {
-        width: 100%;
-        background: #0e4c92;
-        color: white;
-        border: none;
-        padding: 1rem;
-        border-radius: 8px;
-        font-size: 1rem;
-        font-weight: 700;
-        cursor: pointer;
-    }
-    .btn-purchase:hover { background: #0b3d75; }
-
-
-    /* 3. 우측 패널 (딜러샵) */
-    .right-section {
-        display: flex;
-        flex-direction: column;
-    }
-
-    .filters {
-        display: flex;
-        gap: 0.5rem;
-        margin-bottom: 1rem;
-    }
-
-    .custom-select {
-        flex: 1;
-        position: relative;
-    }
-
-    .select-button {
-        width: 100%;
-        padding: 0.5rem;
-        border: 1px solid #ddd;
-        border-radius: 6px;
-        font-size: 0.85rem;
-        color: #555;
-        background: white;
-        cursor: pointer;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        transition: border-color 0.2s;
-    }
-
-    .select-button:hover {
-        border-color: #0e4c92;
-    }
-
-    .arrow {
-        font-size: 0.7rem;
-        color: #888;
-    }
-
-    .select-dropdown {
-        position: absolute;
-        top: calc(100% + 4px);
-        left: 0;
-        right: 0;
-        background: white;
-        border: 1px solid #ddd;
-        border-radius: 6px;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        z-index: 100;
-        max-height: 200px;
-        overflow-y: auto;
-    }
-
-    .select-option {
-        padding: 0.5rem;
-        font-size: 0.85rem;
-        color: #555;
-        cursor: pointer;
-        transition: background-color 0.2s;
-    }
-
-    .select-option:hover {
-        background-color: #f3f4f6;
-    }
-
-    .select-option.selected {
-        background-color: #e5e7eb;
-        font-weight: 600;
-        color: #0e4c92;
-    }
-
-    .right-panel {
-        height: 100%;
-    }
-
-    .shop-item {
-        margin-bottom: 1.5rem;
-    }
-
-    .shop-img {
-        width: 100%;
-        aspect-ratio: 250 / 140;
-        background-size: cover;
-        background-position: center;
-        border-radius: 8px;
-        margin-bottom: 0.75rem;
-    }
-
-    .shop-info {
-        padding: 0;
-    }
-
-    .shop-row {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 0.25rem;
-    }
-
-    .shop-name { font-weight: 700; font-size: 0.8rem; }
-    .shop-price { font-weight: 700; font-size: 0.8rem; }
-    .shop-price.accent { color: #0e4c92; }
-
-    .shop-row.sub {
-        font-size: 0.8rem;
-        color: var(--color-text-gray);
-    }
-
-    .spec-card {
-        padding: 1.5rem;
-    }
-
-    .spec-grid {
+    .detail-panel {
         display: grid;
         grid-template-columns: 1fr 1fr;
-        gap: 2.5rem 2rem;
-        margin-bottom: 1.5rem;
+        gap: 2rem;
     }
+
+    .detail-img {
+        width: 100%;
+        aspect-ratio: 4/3;
+        background-size: cover;
+        background-position: center;
+        background-color: #f3f4f6;
+        border-radius: 10px;
+    }
+
+    .placeholder-img { background: linear-gradient(135deg, #e0e0e0 0%, #f5f5f5 100%); }
+
+    .detail-info { display: flex; flex-direction: column; gap: 1.25rem; }
+
+    .detail-title-row { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+    .detail-title-row h2 { font-size: 1.6rem; font-weight: 800; margin: 0; }
+
+    .brand-badge {
+        background: #ECF2FE;
+        color: var(--color-theme-1);
+        border-radius: 20px;
+        padding: 0.25rem 0.85rem;
+        font-size: 0.8rem;
+        font-weight: 600;
+    }
+
+    .spec-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
 
     .spec-item {
-        padding-bottom: 0.5rem;
-        border-bottom: 1px dotted #d1d5db;
-    }
-
-    .spec-item .label {
-        display: block;
-        font-size: 1rem;
-        color: #6b7280;
-        margin-bottom: 4px;
-    }
-
-    .spec-item strong {
-        font-size: 1rem;
-        font-weight: 700;
-        color: #111827;
-    }
-
-    .spec-item.horizontal {
         display: flex;
         justify-content: space-between;
         align-items: center;
@@ -595,33 +379,128 @@
         border-bottom: 1px dotted #d1d5db;
     }
 
-    .spec-item.horizontal .label {
-        font-size: 0.8rem;
-        color: #6b7280;
-    }
+    .spec-label { font-size: 0.85rem; color: #6b7280; }
+    .spec-item strong { font-size: 0.95rem; font-weight: 700; color: #111827; }
 
-    .spec-item.horizontal strong {
+    .btn-purchase {
+        background: var(--color-theme-1);
+        color: white;
+        border: none;
+        padding: 0.85rem 1rem;
+        border-radius: 8px;
         font-size: 1rem;
         font-weight: 700;
-        color: #111827;
+        cursor: pointer;
+        transition: background 0.15s;
+    }
+    .btn-purchase:hover { background: #0b3d75; }
+
+    .btn-sell {
+        background: var(--color-negative);
+        color: white;
+        border: none;
+        padding: 0.85rem 1rem;
+        border-radius: 8px;
+        font-size: 1rem;
+        font-weight: 700;
+        cursor: pointer;
+        transition: filter 0.15s;
+    }
+    .btn-sell:hover { filter: brightness(0.9); }
+
+    .catalog-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1.5rem;
     }
 
+    .catalog-card {
+        background: white;
+        border-radius: 12px;
+        border: 1px solid #e5e7eb;
+        overflow: hidden;
+        cursor: pointer;
+        text-align: left;
+        transition: transform 0.2s, box-shadow 0.2s;
+        padding: 0;
+    }
+    .catalog-card:hover { transform: translateY(-4px); box-shadow: 0 8px 24px rgba(0,0,0,0.08); }
 
-    /* 반응형 처리 */
-    @media (max-width: 1200px) {
-        .main-grid {
-            grid-template-columns: 1fr 1fr; /* 중간 사이즈에선 2열 */
-        }
-        .right-panel {
-            grid-column: span 2; /* 딜러샵을 아래로 내림 */
-        }
+    .catalog-img {
+        width: 100%;
+        aspect-ratio: 16/10;
+        background-size: cover;
+        background-position: center;
+        background-color: #f3f4f6;
     }
 
-    @media (max-width: 768px) {
-        .main-grid {
-            grid-template-columns: 1fr; /* 모바일 1열 */
-        }
-        .right-panel { grid-column: auto; }
-        .page-header { flex-direction: column; align-items: flex-start; gap: 1rem; }
+    .catalog-body { padding: 1.25rem; display: flex; flex-direction: column; gap: 0.5rem; }
+
+    .catalog-header { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+    .catalog-header h3 { font-weight: 700; font-size: 1rem; margin: 0; }
+
+    .catalog-price { color: var(--color-theme-1); font-weight: 700; font-size: 1.1rem; }
+
+    .catalog-meta { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+    .catalog-meta span { font-size: 0.78rem; color: #666; background: #f9fafb; padding: 0.2rem 0.5rem; border-radius: 4px; }
+
+    .empty-state {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: 50vh;
+        text-align: center;
+    }
+
+    .empty-icon {
+        width: 80px;
+        height: 80px;
+        background: #f3f4f6;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 1.5rem;
+    }
+
+    .empty-icon-text { font-size: 2rem; font-weight: 800; color: #9ca3af; }
+    .empty-title { font-size: 1.3rem; font-weight: 700; margin: 0 0 0.5rem 0; }
+    .empty-subtitle { color: #666; margin-bottom: 1.5rem; }
+
+    .btn-primary {
+        background: var(--color-theme-1);
+        color: white;
+        border: none;
+        padding: 0.75rem 2rem;
+        border-radius: 8px;
+        font-size: 1rem;
+        font-weight: 700;
+        cursor: pointer;
+    }
+    .btn-primary:hover { background: #0b3d75; }
+
+    .toast {
+        position: fixed;
+        bottom: 2rem;
+        left: 50%;
+        transform: translateX(-50%);
+        background: #1f2937;
+        color: white;
+        padding: 0.75rem 2rem;
+        border-radius: 8px;
+        font-size: 0.95rem;
+        font-weight: 600;
+        z-index: 1000;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+    .toast.toast-error { background: #dc2626; }
+
+    @media (max-width: 900px) {
+        .catalog-grid { grid-template-columns: repeat(2, 1fr); }
+        .detail-panel { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 600px) {
+        .catalog-grid { grid-template-columns: 1fr; }
     }
 </style>

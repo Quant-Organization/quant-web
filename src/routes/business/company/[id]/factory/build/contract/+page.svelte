@@ -1,48 +1,88 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
-
-  // --- Types ---
-  interface ContractData {
-    companyName: string;
-    clientName: string;
-    contractorName: string;
-    startDate: string;
-    endDate: string;
-    totalAmount: string;
-    breakdown: { label: string; value: string }[];
-    signDate: string;
-  }
-
-  // --- Data ---
-  const contractData: ContractData = {
-    companyName: "금성 공장 건설 계획서",
-    clientName: "PlayerName",
-    contractorName: "Quant 건설",
-    startDate: "2026년 01월 01일",
-    endDate: "2027년 01월 01일",
-    totalAmount: "$23,000,000,000 (USD)",
-    breakdown: [
-      { label: "기반 비용", value: "$2,000,000,000 (USD)" },
-      { label: "생산 라인", value: "$5,000,000,000 (USD)" },
-      { label: "시설 규모", value: "$11,000,000,000 (USD)" },
-      { label: "에너지 효율", value: "$3,000,000,000 (USD)" },
-      { label: "보안 시스템", value: "$2,000,000,000 (USD)" }
-    ],
-    signDate: "2026년 1월 1일"
-  };
+  import { estimateFactory, createFactory, type FactoryEstimate, type CreateFactoryRequest } from '$lib/api/factory';
+  import { getFactoryBuild, resetFactoryBuild, type FactoryBuildState } from '$lib/stores/factoryBuild';
+  import { auth } from '$lib/stores/auth';
 
   // --- State ---
+  let buildState: FactoryBuildState | null = $state(null);
+  let estimate: FactoryEstimate | null = $state(null);
+  let loading = $state(true);
+  let submitting = $state(false);
+  let error = $state('');
   let isSigned = $state(false);
+  let playerName = $state('Player');
+
+  function buildRequest(s: FactoryBuildState): CreateFactoryRequest {
+    return {
+      companyId: s.companyId,
+      name: s.name,
+      regionId: s.regionId,
+      grade: s.grade,
+      productionLineType: s.productionLineType,
+      landExpansionLevel: s.landExpansionLevel,
+      buildingExpansionLevel: s.buildingExpansionLevel,
+      loungeLevel: s.loungeLevel,
+      energyOption: s.energyOption,
+      securityOption: s.securityOption
+    };
+  }
+
+  function formatCurrency(val: number): string {
+    return `$${val.toLocaleString()} (USD)`;
+  }
+
+  function formatDate(dateStr: string): string {
+    if (!dateStr) return '-';
+    const d = new Date(dateStr);
+    return `${d.getFullYear()}년 ${String(d.getMonth() + 1).padStart(2, '0')}월 ${String(d.getDate()).padStart(2, '0')}일`;
+  }
+
+  const today = new Date();
+  const signDateStr = `${today.getFullYear()}년 ${today.getMonth() + 1}월 ${today.getDate()}일`;
+
+  onMount(async () => {
+    const state = getFactoryBuild();
+    if (!state.grade || !state.regionId || !state.productionLineType) {
+      goto(`/business/company/${$page.params.id}/factory/build`);
+      return;
+    }
+    buildState = state;
+
+    const unsub = auth.user.subscribe((u) => {
+      if (u?.playerName) playerName = u.playerName;
+      else if (u?.username) playerName = u.username;
+    });
+
+    try {
+      estimate = await estimateFactory(buildRequest(state));
+    } catch (e: any) {
+      error = e.message || '견적 조회에 실패했습니다.';
+    } finally {
+      loading = false;
+    }
+
+    return unsub;
+  });
 
   function handleSign() {
     isSigned = true;
   }
 
-  function submitContract() {
-    if (!isSigned) return;
-    alert("계약이 체결되었습니다! 공장 건설을 시작합니다.");
-    goto(`/business/company/${$page.params.id}/factory`);
+  async function submitContract() {
+    if (!isSigned || !buildState) return;
+    submitting = true;
+    try {
+      await createFactory(buildRequest(buildState));
+      resetFactoryBuild();
+      alert('계약이 체결되었습니다! 공장 건설을 시작합니다.');
+      goto(`/business/company/${$page.params.id}/factory`);
+    } catch (e: any) {
+      error = e.message || '계약 체결에 실패했습니다.';
+      submitting = false;
+    }
   }
 </script>
 
@@ -73,26 +113,30 @@
     </div>
   </div>
 
+  {#if loading}
+    <div class="loading-msg">견적을 조회하는 중...</div>
+  {:else if error && !estimate}
+    <div class="error-msg">{error}</div>
+  {:else if estimate && buildState}
   <div class="contract-wrapper">
 
     <div class="paper-card">
-      <h1 class="doc-title">{contractData.companyName}</h1>
+      <h1 class="doc-title">{buildState.name} 건설 계획서</h1>
       <div class="doc-divider"></div>
 
       <div class="article">
         <h4 class="article-title">제1조 [계약 당사자]</h4>
-        <p class="article-text">본 계약은 표준 공장 건설을 위하여 아래 당사자 간에 체결하며, 상호 신의와 성실을 원칙으로 계약을 이행한다.</p>
+        <p class="article-text">본 계약은 {buildState.gradeName} 공장 건설을 위하여 아래 당사자 간에 체결하며, 상호 신의와 성실을 원칙으로 계약을 이행한다.</p>
         <div class="sub-section">
           <p>1. 발주자 (갑)</p>
           <div class="indent">
-            <span>상호명 : 금성</span><br>
-            <span>대표자 : {contractData.clientName}</span>
+            <span>대표자 : {playerName}</span>
           </div>
         </div>
         <div class="sub-section">
           <p>2. 시공사 (을)</p>
           <div class="indent">
-            <span>상호명 : {contractData.contractorName}</span><br>
+            <span>상호명 : Quant 건설</span><br>
             <span>대표자 : Quant</span>
           </div>
         </div>
@@ -100,26 +144,48 @@
 
       <div class="article">
         <h4 class="article-title">제2조 [계약 목적]</h4>
-        <p class="article-text">본 계약은 '갑'이 계획하는 공장 건설 사업을 '을'이 수급하여, 약정된 설계와 사양에 따라 기한 내에 완공하는 것을 목적으로 한다.</p>
+        <p class="article-text">본 계약은 '갑'이 계획하는 {buildState.regionName} 지역 {buildState.gradeName} 공장 건설 사업을 '을'이 수급하여, 약정된 설계와 사양에 따라 기한 내에 완공하는 것을 목적으로 한다.</p>
       </div>
 
       <div class="article">
         <h4 class="article-title">제3조 [계약 기간 및 완공일]</h4>
-        <p class="article-text">{contractData.startDate}부터 {contractData.endDate}까지</p>
+        <p class="article-text">{signDateStr}부터 {formatDate(estimate.estimatedCompletionDate)}까지 (약 {estimate.estimatedDays}일)</p>
       </div>
 
       <div class="article">
         <h4 class="article-title">제4조 [총 계약 금액 및 지불 조건]</h4>
-        <p class="article-text highlight-text">계약금: {contractData.totalAmount}</p>
+        <p class="article-text highlight-text">계약금: {formatCurrency(estimate.totalCost)}</p>
         <div class="cost-breakdown">
           <p class="sub-title">세부 내역:</p>
-          {#each contractData.breakdown as item}
-            <div class="cost-row">
-              <span class="c-label">- {item.label}</span>
-              <div class="c-dots"></div>
-              <span class="c-value">{item.value}</span>
-            </div>
-          {/each}
+          <div class="cost-row">
+            <span class="c-label">- 기반 비용</span>
+            <div class="c-dots"></div>
+            <span class="c-value">{formatCurrency(estimate.baseCost)}</span>
+          </div>
+          <div class="cost-row">
+            <span class="c-label">- 옵션 비용</span>
+            <div class="c-dots"></div>
+            <span class="c-value">{formatCurrency(estimate.optionCost)}</span>
+          </div>
+          <div class="cost-row">
+            <span class="c-label">- 지역 비용 배율</span>
+            <div class="c-dots"></div>
+            <span class="c-value">x{estimate.regionCostMultiplier}</span>
+          </div>
+        </div>
+        <div class="estimate-info">
+          <div class="est-row">
+            <span>예상 월 생산량</span>
+            <span class="est-val">{estimate.monthlyProduction.toLocaleString()}</span>
+          </div>
+          <div class="est-row">
+            <span>직원 수</span>
+            <span class="est-val">{estimate.employeeCount.toLocaleString()}명</span>
+          </div>
+          <div class="est-row">
+            <span>창고 용량</span>
+            <span class="est-val">{estimate.warehouseCapacity.toLocaleString()}</span>
+          </div>
         </div>
       </div>
     </div>
@@ -144,7 +210,7 @@
       </div>
 
       <div class="signature-section">
-        <div class="sign-date">{contractData.signDate}</div>
+        <div class="sign-date">{signDateStr}</div>
 
         <div class="signer-block">
           <div class="signer-label">수급인 서명</div>
@@ -155,7 +221,7 @@
           <div class="signer-label">도급인 서명</div>
           <div class="signature-area">
             {#if isSigned}
-              <div class="signature-script fade-in">{contractData.clientName}</div>
+              <div class="signature-script fade-in">{playerName}</div>
             {:else}
               <button class="btn-sign-here" onclick={handleSign}>
                 서명하기
@@ -169,15 +235,19 @@
   </div>
 
   <div class="footer-actions">
+    {#if error}
+      <div class="error-inline">{error}</div>
+    {/if}
     <button
       class="btn-submit"
-      class:disabled={!isSigned}
+      class:disabled={!isSigned || submitting}
       onclick={submitContract}
-      disabled={!isSigned}
+      disabled={!isSigned || submitting}
     >
-      계약하기
+      {submitting ? '처리 중...' : '계약하기'}
     </button>
   </div>
+  {/if}
 
 </div>
 
@@ -321,6 +391,25 @@
   .btn-submit.disabled {
     background-color: var(--color-text-gray); cursor: not-allowed; opacity: 0.7;
   }
+
+  /* Loading/Error */
+  .loading-msg, .error-msg {
+    text-align: center; padding: 60px 20px; font-size: 16px;
+  }
+  .error-msg { color: #ef4444; }
+  .error-inline { color: #ef4444; font-size: 14px; margin-right: 16px; }
+
+  /* Estimate Info */
+  .estimate-info {
+    margin-top: 16px; padding: 12px 16px;
+    background: var(--color-bg-2); border-radius: 6px;
+  }
+  .est-row {
+    display: flex; justify-content: space-between; font-size: 13px;
+    margin-bottom: 6px;
+  }
+  .est-row:last-child { margin-bottom: 0; }
+  .est-val { font-weight: 600; }
 
   /* --- Responsive --- */
   @media (max-width: 900px) {

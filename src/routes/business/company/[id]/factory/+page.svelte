@@ -1,89 +1,105 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
+  import { onMount } from 'svelte';
+  import {
+    getCompanyFactories,
+    pauseFactory,
+    resumeFactory,
+    adjustProduction,
+    type FactoryResponse
+  } from '$lib/api/factory';
 
-  // --- Types ---
-  interface SummaryStat {
-    label: string;
-    value: string;
-    unit?: string;
-    change: string;
-  }
+  // --- State ---
+  let factories = $state<FactoryResponse[]>([]);
+  let loading = $state(true);
+  let error = $state<string | null>(null);
 
-  interface FactoryDetail {
-    id: number;
-    name: string;
-    location: string;
-    tags: string[];
-    type: string;
-    employees: string;
-    production: string;
-    efficiency: number;
-    revenue: string;
-    completionDate: string;
-  }
+  const companyId = $derived(Number($page.params.id));
 
-  interface FactoryCardData {
-    id: number;
-    name: string;
-    location: string;
-    production: string;
-    employees: string;
-    completionDate: string;
-    revenue: string;
-    efficiency: number;
-  }
+  // Selected factory for the detail panel
+  let selectedFactory = $state<FactoryResponse | null>(null);
 
-  // --- Data ---
+  // Filter state
+  const filters = ['모든 공장', '나라별 정렬', '높은 생산량 순 정렬', '높은 효율 순 정렬'];
+  let activeFilter = $state('모든 공장');
 
-  // 1. 상단 요약 지표
-  const summaryStats: SummaryStat[] = [
-    { label: "총 공장 수", value: "4", change: "+5.2%" },
-    { label: "총 생산량/매달", value: "1.8M", unit: "Units", change: "+14%" },
-    { label: "평균 효율", value: "91.2%", change: "+5%" }
-  ];
-
-  // 2. 지도 옆 선택된 공장 상세 정보
-  const selectedFactory: FactoryDetail = {
-    id: 1,
-    name: "금성전자 1공장 - 대구광역시",
-    location: "대구광역시",
-    tags: ["반도체", "기가팩토리", "대구광역시"],
-    type: "기가팩토리",
-    employees: "12,800명",
-    production: "900K Units",
-    efficiency: 94,
-    revenue: "300K",
-    completionDate: "2025.10.04"
-  };
-
-  // 3. 하단 공장 목록 데이터
-  const factoryList: FactoryCardData[] = [
+  // Summary stats derived from real data
+  let summaryStats = $derived([
+    { label: '총 공장 수', value: String(factories.length), unit: '' },
     {
-      id: 1,
-      name: "금성전자 1공장",
-      location: "대구광역시, 대한민국",
-      production: "900K",
-      employees: "12,800명",
-      completionDate: "2025.10.04",
-      revenue: "300K",
-      efficiency: 94
+      label: '총 생산량/매달',
+      value: formatShort(factories.reduce((s, f) => s + f.currentMonthlyProduction, 0)),
+      unit: 'Units'
     },
     {
-      id: 2,
-      name: "금성전자 2공장",
-      location: "대구광역시, 대한민국",
-      production: "400K",
-      employees: "4,800명",
-      completionDate: "2025.08.04",
-      revenue: "100K",
-      efficiency: 88
+      label: '평균 효율',
+      value: factories.length
+        ? (factories.reduce((s, f) => s + f.efficiency, 0) / factories.length).toFixed(1) + '%'
+        : '0%',
+      unit: ''
     }
-  ];
+  ]);
 
-  // 필터 버튼 목록
-  const filters = ["모든 공장", "나라별 정렬", "높은 생산량 순 정렬", "높은 효율 순 정렬"];
-  let activeFilter = "모든 공장";
+  let filteredFactories = $derived(() => {
+    let list = [...factories];
+    if (activeFilter === '높은 생산량 순 정렬') {
+      list.sort((a, b) => b.currentMonthlyProduction - a.currentMonthlyProduction);
+    } else if (activeFilter === '높은 효율 순 정렬') {
+      list.sort((a, b) => b.efficiency - a.efficiency);
+    }
+    return list;
+  });
+
+  function formatShort(n: number): string {
+    if (n >= 1_000_000_000) return (n / 1_000_000_000).toFixed(1) + 'B';
+    if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
+    if (n >= 1_000) return (n / 1_000).toFixed(1) + 'K';
+    return String(n);
+  }
+
+  function formatDate(dateStr: string | null): string {
+    if (!dateStr) return '-';
+    return dateStr.split('T')[0].replace(/-/g, '.');
+  }
+
+  onMount(async () => {
+    try {
+      const res = await getCompanyFactories(companyId);
+      factories = res;
+      if (factories.length > 0) selectedFactory = factories[0];
+    } catch (e) {
+      error = '공장 데이터를 불러오지 못했습니다.';
+    } finally {
+      loading = false;
+    }
+  });
+
+  async function handlePause(id: number) {
+    try {
+      await pauseFactory(id);
+      const res = await getCompanyFactories(companyId);
+      factories = res;
+      if (selectedFactory?.id === id) {
+        selectedFactory = factories.find(f => f.id === id) ?? null;
+      }
+    } catch {
+      // silently ignore
+    }
+  }
+
+  async function handleResume(id: number) {
+    try {
+      await resumeFactory(id);
+      const res = await getCompanyFactories(companyId);
+      factories = res;
+      if (selectedFactory?.id === id) {
+        selectedFactory = factories.find(f => f.id === id) ?? null;
+      }
+    } catch {
+      // silently ignore
+    }
+  }
 </script>
 
 <svelte:head>
@@ -93,154 +109,185 @@
 <div class="page-container">
 
   <header class="page-header">
-    <h1>금성전자 공장건설 및 관리</h1>
+    <h1>공장 건설 및 관리</h1>
   </header>
 
-  <div class="stats-grid">
-    {#each summaryStats as stat}
-      <div class="card stat-card">
-        <div class="stat-label">{stat.label}</div>
-        <div class="stat-content">
-          <span class="stat-value">
-            {stat.value}
-            {#if stat.unit}<span class="stat-unit">{stat.unit}</span>{/if}
-          </span>
-          <span class="stat-change text-green">{stat.change}</span>
-        </div>
-      </div>
-    {/each}
-  </div>
-
-  <div class="card location-card">
-    <div class="map-section-inner">
-      <iframe
-        src="https://www.google.com/maps/embed/v1/place?key=YOUR_API_KEY&q=대구광역시,대한민국&zoom=12"
-        width="100%"
-        height="100%"
-        style="border:0;"
-        allowfullscreen=""
-        loading="lazy"
-        referrerpolicy="no-referrer-when-downgrade"
-        title="공장 위치"
-      ></iframe>
-    </div>
-
-    <div class="detail-section">
-      <div class="detail-header">
-        <h2>{selectedFactory.name}</h2>
-        <div class="tags">
-          {#each selectedFactory.tags as tag}
-            <span class="tag">{tag}</span>
-          {/each}
-        </div>
-      </div>
-
-      <div class="info-table">
-        <div class="info-row">
-          <span class="label"><span class="icon">🏭</span> 공장 유형</span>
-          <span class="val">{selectedFactory.type}</span>
-        </div>
-        <div class="divider"></div>
-        <div class="info-row">
-          <span class="label"><span class="icon">👤</span> 직원 수</span>
-          <span class="val">{selectedFactory.employees}</span>
-        </div>
-        <div class="divider"></div>
-        <div class="info-row">
-          <span class="label"><span class="icon">📦</span> 총 생산량/매달</span>
-          <span class="val">{selectedFactory.production}</span>
-        </div>
-        <div class="divider"></div>
-        <div class="info-row">
-          <span class="label"><span class="icon">⚡</span> 평균 효율</span>
-          <span class="val">{selectedFactory.efficiency}%</span>
-        </div>
-        <div class="divider"></div>
-        <div class="info-row">
-          <span class="label"><span class="icon">💵</span> 분기별 수익</span>
-          <span class="val">{selectedFactory.revenue}</span>
-        </div>
-        <div class="divider"></div>
-        <div class="info-row">
-          <span class="label"><span class="icon">📅</span> 완공일</span>
-          <span class="val">{selectedFactory.completionDate}</span>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="list-section">
-    <div class="list-header">
-      <div class="header-left">
-        <h2>공장 목록</h2>
-        <div class="filter-group">
-          {#each filters as filter}
-            <button
-              class="filter-btn"
-              class:active={activeFilter === filter}
-              onclick={() => activeFilter = filter}
-            >
-              {filter}
-            </button>
-          {/each}
-        </div>
-      </div>
-      <button class="btn-primary" onclick={() => goto(`/business/company/${$page.params.id}/factory/build`)}>+ 새로운 공장 건설</button>
-    </div>
-
-    <div class="factory-grid">
-      {#each factoryList as factory}
-        <div class="card factory-card">
-          <div class="f-header">
-            <div class="f-icon">🏭</div>
-            <div>
-              <h3>{factory.name}</h3>
-              <p class="location-sub">🇰🇷 {factory.location}</p>
-            </div>
-          </div>
-
-          <div class="f-stats">
-            <div class="f-stat-item">
-              <span class="lbl">총 생산량/매달</span>
-              <span class="val">{factory.production}</span>
-            </div>
-            <div class="f-stat-item">
-              <span class="lbl">직원 수</span>
-              <span class="val">{factory.employees}</span>
-            </div>
-            <div class="f-stat-item">
-              <span class="lbl">완공일</span>
-              <span class="val">{factory.completionDate}</span>
-            </div>
-            <div class="f-stat-item">
-              <span class="lbl">분기별 수익</span>
-              <span class="val">{factory.revenue}</span>
-            </div>
-          </div>
-
-          <div class="efficiency-area">
-            <span class="lbl">평균 효율</span>
-            <div class="progress-bg">
-              <div class="progress-fill" style="width: {factory.efficiency}%;"></div>
-            </div>
-          </div>
-
-          <div class="card-actions">
-            <button onclick={() => goto(`/business/company/${$page.params.id}/factory/${factory.id}`)}>자세히보기</button>
-            <div class="v-divider"></div>
-            <button>생산량 조절</button>
-            <div class="v-divider"></div>
-            <button>업그레이드</button>
+  {#if loading}
+    <div class="loading-state">데이터를 불러오는 중...</div>
+  {:else if error}
+    <div class="error-state">{error}</div>
+  {:else}
+    <div class="stats-grid">
+      {#each summaryStats as stat}
+        <div class="card stat-card">
+          <div class="stat-label">{stat.label}</div>
+          <div class="stat-content">
+            <span class="stat-value">
+              {stat.value}
+              {#if stat.unit}<span class="stat-unit">{stat.unit}</span>{/if}
+            </span>
           </div>
         </div>
       {/each}
     </div>
-  </div>
+
+    {#if selectedFactory}
+      <div class="card location-card">
+        <div class="map-section-inner">
+          <div class="map-placeholder">
+            <span>📍 {selectedFactory.regionName}</span>
+          </div>
+        </div>
+
+        <div class="detail-section">
+          <div class="detail-header">
+            <h2>{selectedFactory.name}</h2>
+            <div class="tags">
+              <span class="tag">{selectedFactory.grade}</span>
+              <span class="tag">{selectedFactory.regionName}</span>
+              <span class="tag status-tag {selectedFactory.status === 'RUNNING' ? 'running' : 'paused'}">
+                {selectedFactory.status === 'RUNNING' ? '가동 중' : '일시정지'}
+              </span>
+            </div>
+          </div>
+
+          <div class="info-table">
+            <div class="info-row">
+              <span class="label"><span class="icon">🏭</span> 공장 등급</span>
+              <span class="val">{selectedFactory.grade}</span>
+            </div>
+            <div class="divider"></div>
+            <div class="info-row">
+              <span class="label"><span class="icon">👤</span> 직원 수</span>
+              <span class="val">{selectedFactory.employeeCount.toLocaleString()}명</span>
+            </div>
+            <div class="divider"></div>
+            <div class="info-row">
+              <span class="label"><span class="icon">📦</span> 총 생산량/매달</span>
+              <span class="val">{formatShort(selectedFactory.currentMonthlyProduction)} Units</span>
+            </div>
+            <div class="divider"></div>
+            <div class="info-row">
+              <span class="label"><span class="icon">⚡</span> 평균 효율</span>
+              <span class="val">{selectedFactory.efficiency.toFixed(1)}%</span>
+            </div>
+            <div class="divider"></div>
+            <div class="info-row">
+              <span class="label"><span class="icon">💵</span> 월 수익</span>
+              <span class="val">{formatShort(selectedFactory.monthlyRevenue)}</span>
+            </div>
+            <div class="divider"></div>
+            <div class="info-row">
+              <span class="label"><span class="icon">📅</span> 완공일</span>
+              <span class="val">{formatDate(selectedFactory.constructionEndDate)}</span>
+            </div>
+          </div>
+
+          <div class="detail-actions">
+            {#if selectedFactory.status === 'RUNNING'}
+              <button class="btn-pause" onclick={() => handlePause(selectedFactory!.id)}>일시정지</button>
+            {:else}
+              <button class="btn-resume" onclick={() => handleResume(selectedFactory!.id)}>재가동</button>
+            {/if}
+          </div>
+        </div>
+      </div>
+    {:else}
+      <div class="card no-factory-card">
+        <p>공장이 없습니다. 새로운 공장을 건설해보세요.</p>
+      </div>
+    {/if}
+
+    <div class="list-section">
+      <div class="list-header">
+        <div class="header-left">
+          <h2>공장 목록</h2>
+          <div class="filter-group">
+            {#each filters as filter}
+              <button
+                class="filter-btn"
+                class:active={activeFilter === filter}
+                onclick={() => activeFilter = filter}
+              >
+                {filter}
+              </button>
+            {/each}
+          </div>
+        </div>
+        <button class="btn-primary" onclick={() => goto(`/business/company/${$page.params.id}/factory/build`)}>+ 새로운 공장 건설</button>
+      </div>
+
+      {#if filteredFactories().length === 0}
+        <div class="empty-state">공장이 없습니다.</div>
+      {:else}
+        <div class="factory-grid">
+          {#each filteredFactories() as factory}
+            <div
+              class="card factory-card"
+              class:selected={selectedFactory?.id === factory.id}
+              onclick={() => selectedFactory = factory}
+              role="button"
+              tabindex="0"
+              onkeydown={(e) => e.key === 'Enter' && (selectedFactory = factory)}
+            >
+              <div class="f-header">
+                <div class="f-icon">🏭</div>
+                <div>
+                  <h3>{factory.name}</h3>
+                  <p class="location-sub">📍 {factory.regionName}</p>
+                </div>
+                <span class="status-badge {factory.status === 'RUNNING' ? 'running' : 'paused'}">
+                  {factory.status === 'RUNNING' ? '가동 중' : '일시정지'}
+                </span>
+              </div>
+
+              <div class="f-stats">
+                <div class="f-stat-item">
+                  <span class="lbl">총 생산량/매달</span>
+                  <span class="val">{formatShort(factory.currentMonthlyProduction)}</span>
+                </div>
+                <div class="f-stat-item">
+                  <span class="lbl">직원 수</span>
+                  <span class="val">{factory.employeeCount.toLocaleString()}명</span>
+                </div>
+                <div class="f-stat-item">
+                  <span class="lbl">완공일</span>
+                  <span class="val">{formatDate(factory.constructionEndDate)}</span>
+                </div>
+                <div class="f-stat-item">
+                  <span class="lbl">월 수익</span>
+                  <span class="val">{formatShort(factory.monthlyRevenue)}</span>
+                </div>
+              </div>
+
+              <div class="efficiency-area">
+                <span class="lbl">평균 효율</span>
+                <div class="progress-bg">
+                  <div class="progress-fill" style="width: {Math.min(factory.efficiency, 100)}%;"></div>
+                </div>
+              </div>
+
+              <div class="card-actions">
+                <button onclick={(e) => { e.stopPropagation(); goto(`/business/company/${$page.params.id}/factory/${factory.id}`); }}>자세히보기</button>
+                <div class="v-divider"></div>
+                {#if factory.status === 'RUNNING'}
+                  <button onclick={(e) => { e.stopPropagation(); handlePause(factory.id); }}>일시정지</button>
+                {:else}
+                  <button onclick={(e) => { e.stopPropagation(); handleResume(factory.id); }}>재가동</button>
+                {/if}
+                <div class="v-divider"></div>
+                <button onclick={(e) => e.stopPropagation()}>업그레이드</button>
+              </div>
+            </div>
+          {/each}
+        </div>
+      {/if}
+    </div>
+  {/if}
 
 </div>
 
 <style>
-  /* --- Global & Utilities --- */
   * { box-sizing: border-box; }
 
   .page-container {
@@ -250,9 +297,18 @@
     color: var(--color-text);
   }
 
+  .loading-state,
+  .error-state,
+  .empty-state {
+    text-align: center;
+    padding: 60px 0;
+    color: var(--color-text-gray);
+    font-size: 15px;
+  }
+  .error-state { color: var(--color-negative); }
+
   .text-green { color: #10b981; }
 
-  /* Common Card */
   .card {
     background: var(--color-bg-1);
     border: 1px solid var(--color-border);
@@ -260,11 +316,9 @@
     box-shadow: 0 1px 2px rgba(0,0,0,0.05);
   }
 
-  /* Page Header */
   .page-header { margin-bottom: 24px; }
   .page-header h1 { font-size: 26px; font-weight: 700; margin: 0; }
 
-  /* --- 1. Top Stats --- */
   .stats-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
@@ -277,9 +331,7 @@
   .stat-content { display: flex; align-items: baseline; gap: 0.5rem; }
   .stat-value { font-size: var(--stat-value-size); font-weight: var(--stat-value-weight); color: var(--color-text); }
   .stat-unit { font-size: 1rem; font-weight: var(--stat-change-weight); margin-left: 4px; }
-  .stat-change { font-size: var(--stat-change-size); font-weight: var(--stat-change-weight); }
 
-  /* --- 2. Location Card (Map + Detail Combined) --- */
   .location-card {
     display: grid;
     grid-template-columns: 1.5fr 1fr;
@@ -293,13 +345,24 @@
     background-color: var(--color-bg-2);
     border-radius: 12px;
     overflow: hidden;
-  }
-  .map-section-inner iframe {
-    width: 100%;
-    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
-  /* Detail Section */
+  .map-placeholder {
+    font-size: 18px;
+    color: var(--color-text-gray);
+    font-weight: 600;
+  }
+
+  .no-factory-card {
+    padding: 40px;
+    text-align: center;
+    color: var(--color-text-gray);
+    margin-bottom: 40px;
+  }
+
   .detail-section {
     display: flex;
     flex-direction: column;
@@ -320,6 +383,9 @@
     border: 1px solid #E3E9F1;
   }
 
+  .status-tag.running { background-color: #dcfce7; color: #16a34a; border-color: #bbf7d0; }
+  .status-tag.paused { background-color: #fef9c3; color: #a16207; border-color: #fef08a; }
+
   .info-table { display: flex; flex-direction: column; gap: 12px; }
   .info-row { display: flex; justify-content: space-between; align-items: center; font-size: 14px; }
   .info-row .label { color: var(--color-text-gray); display: flex; align-items: center; gap: 8px; }
@@ -327,7 +393,26 @@
   .info-row .val { font-weight: 600; color: var(--color-text); }
   .divider { height: 1px; background-color: var(--color-border); width: 100%; }
 
-  /* --- 3. Factory List Section --- */
+  .detail-actions {
+    margin-top: 20px;
+    display: flex;
+    gap: 12px;
+  }
+
+  .btn-pause, .btn-resume {
+    flex: 1;
+    padding: 10px;
+    border-radius: 6px;
+    border: none;
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  .btn-pause { background: #fef9c3; color: #a16207; }
+  .btn-pause:hover { background: #fef08a; }
+  .btn-resume { background: #dcfce7; color: #16a34a; }
+  .btn-resume:hover { background: #bbf7d0; }
+
   .list-header {
     display: flex; justify-content: space-between; align-items: center;
     margin-bottom: 20px;
@@ -351,14 +436,18 @@
   }
   .btn-primary:hover { opacity: 0.9; }
 
-  /* Factory Grid */
   .factory-grid {
     display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px;
   }
 
-  .factory-card { display: flex; flex-direction: column; overflow: hidden; }
+  .factory-card {
+    display: flex; flex-direction: column; overflow: hidden;
+    cursor: pointer;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .factory-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+  .factory-card.selected { border-color: var(--color-theme-1); box-shadow: 0 0 0 2px rgba(0, 82, 155, 0.15); }
 
-  /* Factory Card Header */
   .f-header {
     padding: 24px 24px 16px 24px;
     display: flex; gap: 16px; align-items: flex-start;
@@ -368,11 +457,22 @@
     display: flex; justify-content: center; align-items: center;
     font-size: 24px; background-color: var(--color-bg-2);
     border: 1px solid var(--color-border); border-radius: 8px;
+    flex-shrink: 0;
   }
   .f-header h3 { font-size: 18px; font-weight: 700; margin: 0 0 4px 0; }
   .location-sub { font-size: 13px; color: var(--color-text-gray); margin: 0; }
 
-  /* Factory Stats Grid */
+  .status-badge {
+    margin-left: auto;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 9999px;
+    flex-shrink: 0;
+  }
+  .status-badge.running { background: #dcfce7; color: #16a34a; }
+  .status-badge.paused { background: #fef9c3; color: #a16207; }
+
   .f-stats {
     padding: 0 24px;
     display: grid; grid-template-columns: 1fr 1fr; gap: 16px 32px;
@@ -382,7 +482,6 @@
   .f-stat-item .lbl { color: var(--color-text-gray); }
   .f-stat-item .val { font-weight: 600; color: var(--color-text); }
 
-  /* Efficiency Bar */
   .efficiency-area { padding: 0 24px 16px 24px; }
   .efficiency-area .lbl { display: block; font-size: 13px; color: var(--color-text-gray); margin-bottom: 6px; font-weight: 500; }
 
@@ -395,7 +494,6 @@
     border-radius: 4px;
   }
 
-  /* Card Actions */
   .card-actions {
     display: flex;
     margin: 0 24px 24px 24px;
@@ -414,7 +512,6 @@
 
   .v-divider { width: 1px; background-color: #000000; margin: 12px 0; }
 
-  /* --- Responsive --- */
   @media (max-width: 1024px) {
     .stats-grid { grid-template-columns: 1fr; }
     .location-card { grid-template-columns: 1fr; }

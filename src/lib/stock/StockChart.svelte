@@ -1,28 +1,68 @@
 <script lang="ts">
     import { onMount } from 'svelte';
     import Chart from 'chart.js/auto';
+    import { getHistory } from '$lib/api/market';
+    import type { CandleData } from '$lib/api/market';
 
-    let canvas: HTMLCanvasElement;
-    let chart: Chart;
-    let timeframe = '30m';
-
-    function makeData() {
-        let price = 68000;
-        return Array.from({ length: 60 }, (_, i) => {
-            price += (Math.random() - 0.48) * 1200;
-            return { x: i, y: price };
-        });
+    interface Props {
+        selectedCompanyId: string;
     }
 
-    function draw() {
+    let { selectedCompanyId }: Props = $props();
+
+    let canvas: HTMLCanvasElement;
+    let chart: Chart | undefined;
+    let timeframe = $state('30m');
+
+    const intervalMap: Record<string, number> = {
+        '10m': 10,
+        '30m': 30,
+        '1h': 60,
+        '4h': 240,
+        '1d': 1440,
+        '1w': 10080,
+    };
+
+    const limitMap: Record<string, number> = {
+        '10m': 60,
+        '30m': 60,
+        '1h': 60,
+        '4h': 60,
+        '1d': 60,
+        '1w': 52,
+    };
+
+    async function loadAndDraw() {
+        if (!selectedCompanyId || !canvas) return;
+
+        const interval = intervalMap[timeframe] ?? 30;
+        const limit = limitMap[timeframe] ?? 60;
+
+        let candles: CandleData[] = [];
+        try {
+            candles = await getHistory(selectedCompanyId, limit, interval);
+        } catch (e) {
+            console.error('차트 데이터 로드 실패:', e);
+        }
+
         chart?.destroy();
+
+        const labels = candles.map(c => {
+            const d = new Date(c.timestamp);
+            return d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+        });
+        const closes = candles.map(c => c.close);
+
+        const isUp = closes.length > 1 && closes[closes.length - 1] >= closes[0];
+        const lineColor = isUp ? '#22c55e' : '#ef4444';
 
         chart = new Chart(canvas, {
             type: 'line',
             data: {
+                labels,
                 datasets: [{
-                    data: makeData(),
-                    borderColor: '#22c55e',
+                    data: closes,
+                    borderColor: lineColor,
                     borderWidth: 2,
                     tension: 0.25,
                     pointRadius: 0,
@@ -34,24 +74,24 @@
                 maintainAspectRatio: false,
                 plugins: {
                     legend: { display: false },
-                    tooltip: { enabled: false }
+                    tooltip: {
+                        enabled: true,
+                        callbacks: {
+                            label: ctx => `₩${Number(ctx.raw).toLocaleString()}`
+                        }
+                    }
                 },
                 scales: {
                     x: {
-                        grid: {
-                            color: 'rgba(255,255,255,0.05)'
-                        },
-                        ticks: {
-                            color: '#e5e7eb'
-                        }
+                        grid: { color: 'rgba(255,255,255,0.05)' },
+                        ticks: { color: '#e5e7eb', maxTicksLimit: 8 }
                     },
                     y: {
                         position: 'right',
-                        grid: {
-                            color: 'rgba(255,255,255,0.06)'
-                        },
+                        grid: { color: 'rgba(255,255,255,0.06)' },
                         ticks: {
-                            color: '#e5e7eb'
+                            color: '#e5e7eb',
+                            callback: (val) => `₩${Number(val).toLocaleString()}`
                         }
                     }
                 }
@@ -59,17 +99,24 @@
         });
     }
 
-    onMount(draw);
-    $: timeframe, draw();
-</script>
+    onMount(() => {
+        loadAndDraw();
+    });
 
+    $effect(() => {
+        // re-fetch when company or timeframe changes
+        const _ = selectedCompanyId;
+        const __ = timeframe;
+        loadAndDraw();
+    });
+</script>
 
 <section class="card">
     <div class="toolbar">
         <div class="left-section">
             <div class="buttons">
                 {#each ['10m','30m','1h','4h','1d','1w'] as t}
-                    <button class:active={timeframe===t} on:click={() => timeframe=t}>{t}</button>
+                    <button class:active={timeframe===t} onclick={() => timeframe=t}>{t}</button>
                 {/each}
             </div>
             <span class="indicators">indicators</span>
@@ -149,5 +196,4 @@
         height: 22.5rem;
         background: #0a0a0a;
     }
-
 </style>

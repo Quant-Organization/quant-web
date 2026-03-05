@@ -4,22 +4,28 @@
     import { quintOut } from 'svelte/easing';
     import { selectedIndex } from '$lib/stores/sidebar';
     import {
-        ownedCars,
-        hasGarage,
         storageFacilities,
         storageTierConfigs,
         tierOrder,
         purchaseStorage,
-        purchaseVehicle,
         hasStorageFor,
         getRemainingCapacity,
-        balance,
         formatCurrency,
     } from '$lib/stores/asset';
-    import type { Vehicle, StorageTier, VehicleType } from '$lib/stores/asset';
+    import type { StorageTier, VehicleType } from '$lib/stores/asset';
+    import {
+        getVehicles,
+        getMyVehicles,
+        purchaseVehicle as apiPurchaseVehicle,
+        sellVehicle as apiSellVehicle,
+        getVehicleDetail,
+    } from '$lib/api/asset';
+    import type { VehicleItem } from '$lib/api/asset';
+    import { getSpringAccount } from '$lib/api/dashboard';
 
-    onMount(() => {
+    onMount(async () => {
         selectedIndex.set(1);
+        await Promise.all([loadMarketItems(), loadMyVehicles(), loadAccount()]);
     });
 
     const [send, receive] = crossfade({
@@ -38,70 +44,44 @@
 
     let activeTab: 'collection' | 'storage' | 'market' = $state('collection');
     let toastMsg = $state('');
+    let loading = $state(true);
 
+    // API data
+    let marketItems: VehicleItem[] = $state([]);
+    let ownedCars: VehicleItem[] = $state([]);
+    let cashBalance = $state(0);
+
+    async function loadMarketItems() {
+        try {
+            const res = await getVehicles();
+            marketItems = res.content;
+        } catch { /* ignore */ }
+    }
+
+    async function loadMyVehicles() {
+        try {
+            ownedCars = await getMyVehicles();
+        } catch { /* ignore */ }
+    }
+
+    async function loadAccount() {
+        try {
+            const acct = await getSpringAccount();
+            cashBalance = acct.cashBalance;
+        } catch { /* ignore */ }
+        loading = false;
+    }
+
+    // Storage (local store, unchanged)
     let garage = $derived($storageFacilities.find(f => f.type === 'garage'));
     let garageCapacity = $derived(garage?.capacity ?? 0);
-    let totalCarValue = $derived($ownedCars.reduce((sum, v) => sum + v.price, 0));
+    let totalCarValue = $derived(ownedCars.reduce((sum, v) => sum + v.price, 0));
     let tiers = storageTierConfigs.garage;
 
     const vehicleType: VehicleType = 'car';
     let hasStorage = $derived(hasStorageFor(vehicleType));
     let remaining = $derived(getRemainingCapacity(vehicleType));
-
-    const marketItems = [
-        {
-            name: '람보르기니 아벤타도르',
-            price: 135_000_000,
-            fame: 850,
-            maintenanceCost: 500_000,
-            img: 'https://images.unsplash.com/photo-1621135802920-133df287f89c?auto=format&fit=crop&w=600&q=80',
-            specs: { '최고 속도': '350km/h', '마력': '770HP', '엔진': 'V12' } as Record<string, string>
-        },
-        {
-            name: '페라리 SF90',
-            price: 250_000_000,
-            fame: 920,
-            maintenanceCost: 800_000,
-            img: 'https://images.unsplash.com/photo-1592198084033-aade902d1aae?auto=format&fit=crop&w=600&q=80',
-            specs: { '최고 속도': '340km/h', '마력': '986HP', '엔진': 'V8 하이브리드' } as Record<string, string>
-        },
-        {
-            name: '롤스로이스 팬텀',
-            price: 180_000_000,
-            fame: 780,
-            maintenanceCost: 600_000,
-            img: 'https://images.unsplash.com/photo-1563720223185-11003d516935?auto=format&fit=crop&w=600&q=80',
-            specs: { '최고 속도': '250km/h', '마력': '563HP', '엔진': 'V12' } as Record<string, string>
-        },
-        {
-            name: '부가티 시론',
-            price: 450_000_000,
-            fame: 990,
-            maintenanceCost: 1_200_000,
-            img: 'https://images.unsplash.com/photo-1600712242805-5f78671b24da?auto=format&fit=crop&w=600&q=80',
-            specs: { '최고 속도': '420km/h', '마력': '1500HP', '엔진': 'W16' } as Record<string, string>
-        },
-        {
-            name: '맥라렌 720S',
-            price: 120_000_000,
-            fame: 750,
-            maintenanceCost: 450_000,
-            img: 'https://images.unsplash.com/photo-1621993202323-eb4b4cbdf1dd?auto=format&fit=crop&w=600&q=80',
-            specs: { '최고 속도': '341km/h', '마력': '710HP', '엔진': 'V8 트윈터보' } as Record<string, string>
-        },
-        {
-            name: '포르쉐 918 스파이더',
-            price: 320_000_000,
-            fame: 880,
-            maintenanceCost: 900_000,
-            img: 'https://images.unsplash.com/photo-1614162692292-7ac56d7f7f1e?auto=format&fit=crop&w=600&q=80',
-            specs: { '최고 속도': '345km/h', '마력': '887HP', '엔진': 'V8 하이브리드' } as Record<string, string>
-        }
-    ];
-
-    function formatDate(iso: string): string {
-        return new Date(iso).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' });
-    }
+    let hasGarage = $derived(!!garage);
 
     function getTierState(tierIdx: number): 'owned' | 'upgrade' | 'purchase' {
         if (!garage) return 'purchase';
@@ -116,22 +96,42 @@
         setTimeout(() => { toastMsg = ''; }, 3000);
     }
 
-    function handleMarketPurchase(item: typeof marketItems[0]) {
-        const success = purchaseVehicle({
-            type: vehicleType,
-            name: item.name,
-            price: item.price,
-            img: item.img,
-            fame: item.fame,
-            maintenanceCost: item.maintenanceCost,
-            specs: item.specs
-        });
-        toastMsg = success ? `${item.name} 구매 완료!` : '잔고가 부족하거나 보관소가 가득 찼습니다.';
+    async function handleMarketPurchase(item: VehicleItem) {
+        try {
+            await apiPurchaseVehicle(item.id);
+            toastMsg = `${item.name} 구매 완료!`;
+            await Promise.all([loadMyVehicles(), loadAccount()]);
+        } catch {
+            toastMsg = '구매에 실패했습니다.';
+        }
+        selectedMarketItem = null;
         setTimeout(() => { toastMsg = ''; }, 3000);
     }
 
-    let selectedMarketItem: typeof marketItems[0] | null = $state(null);
-    let selectedCollectionItem: Vehicle | null = $state(null);
+    async function handleSell(item: VehicleItem) {
+        try {
+            await apiSellVehicle(item.id);
+            toastMsg = `${item.name} 판매 완료!`;
+            await Promise.all([loadMyVehicles(), loadAccount()]);
+        } catch {
+            toastMsg = '판매에 실패했습니다.';
+        }
+        selectedCollectionItem = null;
+        setTimeout(() => { toastMsg = ''; }, 3000);
+    }
+
+    let selectedMarketItem: VehicleItem | null = $state(null);
+    let selectedCollectionItem: VehicleItem | null = $state(null);
+
+    async function selectMarketItem(item: VehicleItem) {
+        selectedMarketItem = item;
+        try { selectedMarketItem = await getVehicleDetail(item.id); } catch { /* keep existing */ }
+    }
+
+    async function selectCollectionItem(item: VehicleItem) {
+        selectedCollectionItem = item;
+        try { selectedCollectionItem = await getVehicleDetail(item.id); } catch { /* keep existing */ }
+    }
 
     const dealershipOptions = ['럭셔리 딜러샵', '프리미엄 딜러샵', '클래식 딜러샵'];
     const brandOptions = ['모든 브랜드', '람보르기니', '페라리', '롤스로이스', '부가티', '맥라렌', '포르쉐'];
@@ -159,8 +159,8 @@
             </div>
             <div class="stats-cards">
                 <div class="stat-card">
-                    <span class="stat-label">차고 현황</span>
-                    <span class="stat-value">{$ownedCars.length} / {garageCapacity}</span>
+                    <span class="stat-label">보유 차량</span>
+                    <span class="stat-value">{ownedCars.length}대</span>
                 </div>
                 <div class="stat-card">
                     <span class="stat-label">총 자산 가치</span>
@@ -169,14 +169,9 @@
             </div>
         </header>
 
-        {#if !$hasGarage}
-            <div class="empty-state">
-                <div class="empty-icon"><span class="empty-icon-text">!</span></div>
-                <h2 class="empty-title">차고를 먼저 구매해야 합니다</h2>
-                <p class="empty-subtitle">차량을 보관하려면 차고가 필요합니다.</p>
-                <button class="btn-primary" onclick={() => activeTab = 'storage'}>차고 구매하러 가기</button>
-            </div>
-        {:else if $ownedCars.length === 0}
+        {#if loading}
+            <div class="empty-state"><p>불러오는 중...</p></div>
+        {:else if ownedCars.length === 0}
             <div class="empty-state">
                 <div class="empty-icon"><span class="empty-icon-text">0</span></div>
                 <h2 class="empty-title">보유한 차량이 없습니다</h2>
@@ -187,50 +182,60 @@
                 {@const cKey = selectedCollectionItem.id}
                 <button class="m-back-btn" in:fade={{delay: 300, duration: 200}} out:fade={{duration: 150}} onclick={() => { selectedCollectionItem = null; }}>← 목록으로</button>
                 <div class="panel detail-panel">
-                    <div class="detail-image" in:receive={{key: cKey}} out:send={{key: cKey}} style="background-image: url('{selectedCollectionItem.img}')"></div>
+                    <div class="detail-image" in:receive={{key: cKey}} out:send={{key: cKey}} style="background-image: url('{selectedCollectionItem.imageUrl}')"></div>
                     <div class="detail-info-fade" in:fade={{delay: 250, duration: 300}} out:fade={{duration: 200}}>
                         <div class="detail-header">
                             <h2>{selectedCollectionItem.name}</h2>
                             <div class="detail-meta">
                                 <span class="detail-price">{formatCurrency(selectedCollectionItem.price)}</span>
-                                <span class="fame-badge">명성 +{selectedCollectionItem.fame}</span>
+                                <span class="fame-badge">명성 +{selectedCollectionItem.fameBonus}</span>
                             </div>
                         </div>
                         <div class="spec-grid">
-                            {#each Object.entries(selectedCollectionItem.specs) as [key, value]}
-                                <div class="spec-item">
-                                    <span class="spec-label">{key}</span>
-                                    <strong>{value}</strong>
-                                </div>
-                            {/each}
+                            <div class="spec-item">
+                                <span class="spec-label">브랜드</span>
+                                <strong>{selectedCollectionItem.brand}</strong>
+                            </div>
+                            <div class="spec-item">
+                                <span class="spec-label">최고 속도</span>
+                                <strong>{selectedCollectionItem.maxSpeed}km/h</strong>
+                            </div>
+                            <div class="spec-item">
+                                <span class="spec-label">색상</span>
+                                <strong>{selectedCollectionItem.color}</strong>
+                            </div>
+                            <div class="spec-item">
+                                <span class="spec-label">인테리어</span>
+                                <strong>{selectedCollectionItem.interior}</strong>
+                            </div>
                             <div class="spec-item">
                                 <span class="spec-label">유지비/일</span>
-                                <strong>{formatCurrency(selectedCollectionItem.maintenanceCost)}</strong>
+                                <strong>{formatCurrency(selectedCollectionItem.maintenanceCostPerDay)}</strong>
                             </div>
                             <div class="spec-item">
-                                <span class="spec-label">구매일</span>
-                                <strong>{formatDate(selectedCollectionItem.purchasedAt)}</strong>
+                                <span class="spec-label">필요 레벨</span>
+                                <strong>Lv.{selectedCollectionItem.requiredLevel}</strong>
                             </div>
                         </div>
+                        <button class="m-btn-sell" onclick={() => selectedCollectionItem && handleSell(selectedCollectionItem)}>판매하기</button>
                     </div>
                 </div>
             {:else}
                 <div class="m-catalog-grid">
-                    {#each $ownedCars as vehicle (vehicle.id)}
-                        <button class="m-catalog-card" onclick={() => { selectedCollectionItem = vehicle; }}>
-                            <div class="m-catalog-img" in:receive={{key: vehicle.id}} out:send={{key: vehicle.id}} style="background-image: url('{vehicle.img}')"></div>
+                    {#each ownedCars as vehicle (vehicle.id)}
+                        <button class="m-catalog-card" onclick={() => selectCollectionItem(vehicle)}>
+                            <div class="m-catalog-img" in:receive={{key: vehicle.id}} out:send={{key: vehicle.id}} style="background-image: url('{vehicle.imageUrl}')"></div>
                             <div class="m-catalog-body">
                                 <div class="m-catalog-header">
                                     <h3>{vehicle.name}</h3>
-                                    <span class="fame-badge">명성 +{vehicle.fame}</span>
+                                    <span class="fame-badge">명성 +{vehicle.fameBonus}</span>
                                 </div>
                                 <span class="m-catalog-price">{formatCurrency(vehicle.price)}</span>
                                 <div class="m-catalog-specs">
-                                    {#each Object.entries(vehicle.specs) as [key, val]}
-                                        <span class="m-catalog-spec-tag">{key}: {val}</span>
-                                    {/each}
+                                    <span class="m-catalog-spec-tag">최고 속도: {vehicle.maxSpeed}km/h</span>
+                                    <span class="m-catalog-spec-tag">브랜드: {vehicle.brand}</span>
                                 </div>
-                                <span class="m-catalog-maintenance">유지비 {formatCurrency(vehicle.maintenanceCost)}/일</span>
+                                <span class="m-catalog-maintenance">유지비 {formatCurrency(vehicle.maintenanceCostPerDay)}/일</span>
                             </div>
                         </button>
                     {/each}
@@ -238,44 +243,34 @@
             {/if}
         {/if}
     {:else if activeTab === 'market'}
-        {#if !hasStorage}
-            <div class="empty-state">
-                <div class="empty-icon"><span class="empty-icon-text">!</span></div>
-                <h2 class="empty-title">차량을 구매하려면 차고가 필요합니다</h2>
-                <p class="empty-subtitle">차고를 먼저 구매하면 차량을 구매할 수 있습니다.</p>
-                <button class="btn-primary" onclick={() => activeTab = 'storage'}>차고 구매하러 가기</button>
+        <header class="page-header">
+            <div class="header-text">
+                <h1>차량 마켓</h1>
+                <p>최고급 차량을 관리하고 새로운 차량을 획득하세요.</p>
             </div>
-        {:else}
-            <header class="page-header">
-                <div class="header-text">
-                    <h1>차량 마켓</h1>
-                    <p>최고급 차량을 관리하고 새로운 차량을 획득하세요.</p>
+            <div class="stats-cards">
+                <div class="stat-card">
+                    <span class="stat-label">잔고</span>
+                    <span class="stat-value">{formatCurrency(cashBalance)}</span>
                 </div>
-                <div class="stats-cards">
-                    <div class="stat-card">
-                        <span class="stat-label">잔고</span>
-                        <span class="stat-value">{formatCurrency($balance)}</span>
-                    </div>
-                    <div class="stat-card">
-                        <span class="stat-label">차고 잔여</span>
-                        <span class="stat-value">{remaining}대</span>
-                    </div>
-                </div>
-            </header>
+            </div>
+        </header>
 
-            {#if selectedMarketItem}
+        {#if loading}
+            <div class="empty-state"><p>불러오는 중...</p></div>
+        {:else if selectedMarketItem}
             {@const mKey = selectedMarketItem.name}
             <button class="m-back-btn" in:fade={{delay: 300, duration: 200}} out:fade={{duration: 150}} onclick={() => { selectedMarketItem = null; }}>← 목록으로</button>
             <main class="market-main-grid">
                 <section class="m-left-section" in:fade={{delay: 200, duration: 300}} out:fade={{duration: 150}}>
                     <h3 class="section-title">보유 차량</h3>
                     <div class="panel m-left-panel">
-                        {#if $ownedCars.length === 0}
+                        {#if ownedCars.length === 0}
                             <p class="empty-list-text">보유한 차량이 없습니다.</p>
                         {:else}
-                            {#each $ownedCars as car}
+                            {#each ownedCars as car}
                                 <div class="m-list-item">
-                                    <img src={car.img} alt={car.name} class="thumb" />
+                                    <img src={car.imageUrl} alt={car.name} class="thumb" />
                                     <div class="m-item-info">
                                         <span class="m-item-name">{car.name}</span>
                                         <span class="m-item-price">{formatCurrency(car.price)}</span>
@@ -288,7 +283,7 @@
 
                 <section class="m-center-section">
                     <div class="panel m-center-top">
-                        <div class="m-preview-image" in:receive={{key: mKey}} out:send={{key: mKey}} style="background-image: url('{selectedMarketItem.img}')"></div>
+                        <div class="m-preview-image" in:receive={{key: mKey}} out:send={{key: mKey}} style="background-image: url('{selectedMarketItem.imageUrl}')"></div>
                         <div class="m-header-info" in:fade={{delay: 250, duration: 300}} out:fade={{duration: 150}}>
                             <h2>{selectedMarketItem.name}</h2>
                             <span class="m-current-price">가격: {formatCurrency(selectedMarketItem.price)}</span>
@@ -296,19 +291,29 @@
                     </div>
                     <div class="panel m-center-bottom" in:fade={{delay: 300, duration: 300}} out:fade={{duration: 150}}>
                         <div class="m-spec-grid">
-                            {#each Object.entries(selectedMarketItem.specs) as [key, val]}
-                                <div class="m-spec-item">
-                                    <span class="m-spec-label">{key}</span>
-                                    <strong>{val}</strong>
-                                </div>
-                            {/each}
+                            <div class="m-spec-item">
+                                <span class="m-spec-label">브랜드</span>
+                                <strong>{selectedMarketItem.brand}</strong>
+                            </div>
+                            <div class="m-spec-item">
+                                <span class="m-spec-label">최고 속도</span>
+                                <strong>{selectedMarketItem.maxSpeed}km/h</strong>
+                            </div>
+                            <div class="m-spec-item">
+                                <span class="m-spec-label">색상</span>
+                                <strong>{selectedMarketItem.color}</strong>
+                            </div>
+                            <div class="m-spec-item">
+                                <span class="m-spec-label">인테리어</span>
+                                <strong>{selectedMarketItem.interior}</strong>
+                            </div>
                             <div class="m-spec-item">
                                 <span class="m-spec-label">명성</span>
-                                <strong>+{selectedMarketItem.fame}</strong>
+                                <strong>+{selectedMarketItem.fameBonus}</strong>
                             </div>
                             <div class="m-spec-item">
                                 <span class="m-spec-label">유지비/일</span>
-                                <strong>{formatCurrency(selectedMarketItem.maintenanceCost)}</strong>
+                                <strong>{formatCurrency(selectedMarketItem.maintenanceCostPerDay)}</strong>
                             </div>
                         </div>
                         <button class="m-btn-purchase" onclick={() => selectedMarketItem && handleMarketPurchase(selectedMarketItem)}>구매하기</button>
@@ -347,15 +352,15 @@
                     </div>
                     <div class="panel m-right-panel">
                         {#each marketItems as item}
-                            <button class="m-shop-item" onclick={() => { selectedMarketItem = item; }}>
-                                <div class="m-shop-img" style="background-image: url('{item.img}')"></div>
+                            <button class="m-shop-item" onclick={() => selectMarketItem(item)}>
+                                <div class="m-shop-img" style="background-image: url('{item.imageUrl}')"></div>
                                 <div class="m-shop-info">
                                     <div class="m-shop-row">
                                         <span class="m-shop-name">{item.name}</span>
                                         <span class="m-shop-price">{formatCurrency(item.price)}</span>
                                     </div>
                                     <div class="m-shop-row sub">
-                                        <span>명성 +{item.fame}</span>
+                                        <span>명성 +{item.fameBonus}</span>
                                     </div>
                                 </div>
                             </button>
@@ -363,28 +368,26 @@
                     </div>
                 </section>
             </main>
-            {:else}
+        {:else}
             <div class="m-catalog-grid">
-                {#each marketItems as item (item.name)}
-                    <button class="m-catalog-card" onclick={() => { selectedMarketItem = item; }}>
-                        <div class="m-catalog-img" in:receive={{key: item.name}} out:send={{key: item.name}} style="background-image: url('{item.img}')"></div>
+                {#each marketItems as item (item.id)}
+                    <button class="m-catalog-card" onclick={() => selectMarketItem(item)}>
+                        <div class="m-catalog-img" in:receive={{key: item.id}} out:send={{key: item.id}} style="background-image: url('{item.imageUrl}')"></div>
                         <div class="m-catalog-body">
                             <div class="m-catalog-header">
                                 <h3>{item.name}</h3>
-                                <span class="fame-badge">명성 +{item.fame}</span>
+                                <span class="fame-badge">명성 +{item.fameBonus}</span>
                             </div>
                             <span class="m-catalog-price">{formatCurrency(item.price)}</span>
                             <div class="m-catalog-specs">
-                                {#each Object.entries(item.specs) as [key, val]}
-                                    <span class="m-catalog-spec-tag">{key}: {val}</span>
-                                {/each}
+                                <span class="m-catalog-spec-tag">최고 속도: {item.maxSpeed}km/h</span>
+                                <span class="m-catalog-spec-tag">브랜드: {item.brand}</span>
                             </div>
-                            <span class="m-catalog-maintenance">유지비 {formatCurrency(item.maintenanceCost)}/일</span>
+                            <span class="m-catalog-maintenance">유지비 {formatCurrency(item.maintenanceCostPerDay)}/일</span>
                         </div>
                     </button>
                 {/each}
             </div>
-            {/if}
         {/if}
     {:else}
         <section class="storage-section">
@@ -396,7 +399,7 @@
                 <div class="stats-cards">
                     <div class="stat-card">
                         <span class="stat-label">잔고</span>
-                        <span class="stat-value">{formatCurrency($balance)}</span>
+                        <span class="stat-value">{formatCurrency(cashBalance)}</span>
                     </div>
                 </div>
             </header>
@@ -434,7 +437,7 @@
                 {/each}
             </div>
 
-            {#if $hasGarage && garage}
+            {#if hasGarage && garage}
                 <div class="my-storage-section">
                     <h2>내 차고</h2>
                     <div class="card my-storage-card">
@@ -835,6 +838,8 @@
 
     .m-btn-purchase { width: 100%; background: #0e4c92; color: white; border: none; padding: 1rem; border-radius: 8px; font-size: 1rem; font-weight: 700; cursor: pointer; }
     .m-btn-purchase:hover { background: #0b3d75; }
+    .m-btn-sell { width: 100%; background: #ef4444; color: white; border: none; padding: 1rem; border-radius: 8px; font-size: 1rem; font-weight: 700; cursor: pointer; margin-top: 1.5rem; }
+    .m-btn-sell:hover { background: #dc2626; }
 
     .m-center-placeholder { display: flex; align-items: center; justify-content: center; min-height: 400px; color: #9ca3af; font-size: 1rem; }
 

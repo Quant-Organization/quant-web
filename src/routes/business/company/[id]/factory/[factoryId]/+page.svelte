@@ -1,71 +1,50 @@
 <script lang="ts">
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
+  import { onMount } from 'svelte';
+  import {
+    getFactoryDetail,
+    pauseFactory,
+    resumeFactory,
+    adjustProduction,
+    deleteFactory,
+    type FactoryResponse
+  } from '$lib/api/factory';
+  import {
+    getFactoryProduction,
+    setFactoryProduction,
+    removeFactoryProduction,
+    getProductsByCategory,
+    getAvailableProducts,
+    type FactoryProductResponse,
+    type ProductResponse
+  } from '$lib/api/product';
 
-  // --- Types ---
-  interface RndEffect {
-    id: string;
-    name: string;
-    level: number;
-    description: string;
-    icon: string;
-  }
+  // --- State ---
+  let factory = $state<FactoryResponse | null>(null);
+  let loading = $state(true);
+  let error = $state('');
+  let actionLoading = $state(false);
 
-  // --- Data & State ---
+  // Production state
+  let factoryProductions = $state<FactoryProductResponse[]>([]);
+  let availableProducts = $state<ProductResponse[]>([]);
+  let selectedProductId = $state<number | null>(null);
+  let newMonthlyProduction = $state(1000);
+  let productionLoading = $state(false);
+  let productCategories = $state<string[]>([]);
+  let selectedProductCategory = $state<string | null>(null);
+  let filteredProducts = $state<ProductResponse[]>([]);
 
-  // 공장 기본 정보
-  const factoryMeta = {
-    name: "금성전자 1공장",
-    region: "대한민국, 대구광역시",
-    detail: "완공일: 2025.10.04 · 크기: 기가팩토리 · 면적: 2,000,000m²",
-    type: "기가팩토리",
-    initialEmployees: 12800,
-    productionPerMonth: 900000, // 900K Units
-    salesPerMonth: 800000, // 800K Units
-    efficiency: "94%",
-    quarterRevenue: "300K",
-    completionDate: "2025.10.04",
-    originalCost: 23000000000 // $23B 원가
-  };
+  const companyId = $derived($page.params.id);
+  const factoryId = $derived(Number($page.params.factoryId));
 
-  // 인력 관리 상태
-  let employeeCount = $state(12800);
-  const minEmployees = 6400;
-  const maxEmployees = 19200;
-  const wagePerPerson = 3500;
-  const productionPerPerson = 52;
-
-  // 반응형 계산
-  let totalLaborCost = $derived(employeeCount * wagePerPerson);
-  let sliderPercent = $derived(((employeeCount - minEmployees) / (maxEmployees - minEmployees)) * 100);
-
-  // 재고량 계산 (생산량 - 판매량)
-  let inventory = $derived(factoryMeta.productionPerMonth - factoryMeta.salesPerMonth);
-
-  // 매각 금액 (원가의 50%)
-  let salePrice = $derived(factoryMeta.originalCost * 0.5);
-
-  // R&D 효과 데이터
-  const rndEffects: RndEffect[] = [
-    { id: '1', name: '자동화 조립 라인', level: 3, description: '-12% 필요 인력', icon: '🤖' },
-    { id: '2', name: '조립 라인 업그레이드', level: 3, description: '+12% 생산량', icon: '⚙️' },
-    { id: '3', name: '물류창고 증설', level: 2, description: '+8% 창고 크기', icon: '📦' },
-    { id: '4', name: '품질 관리 시스템', level: 1, description: '+4% 평균 효율', icon: '📋' },
-  ];
-
-  // 재무 상태 데이터
-  const financials = {
-    material: 2500000,
-    electric: 1500000,
-    revenue: 12000000,
-    opex: -7000000
-  };
-
-  let totalOpex = $derived(totalLaborCost + financials.material + financials.electric);
-  let netProfit = $derived(financials.revenue - totalOpex);
+  // 생산량 조절 슬라이더 (50% ~ 150%)
+  let productionPercent = $state(100);
+  let sliderPercent = $derived(((productionPercent - 50) / 100) * 100);
 
   // 숫자 포맷팅 유틸
-  const fmtMoney = (n: number) => `${n.toLocaleString()}`;
+  const fmtMoney = (n: number) => `$${n.toLocaleString()}`;
   const fmtSimple = (n: number) => n.toLocaleString();
   const fmtUnit = (n: number) => {
     if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`;
@@ -73,33 +52,148 @@
     return n.toString();
   };
 
-  // 공장 매각 핸들러
-  function handleSellFactory() {
-    const confirmed = confirm(`정말로 공장을 매각하시겠습니까?\n매각 금액: $${fmtMoney(salePrice)}`);
-    if (confirmed) {
-      alert(`공장이 $${fmtMoney(salePrice)}에 매각되었습니다.`);
-      goto(`/business/company/${$page.params.id}/factory`);
+  const gradeNames: Record<string, string> = {
+    workshop: '공방', small: '소형 공장', medium: '중형 공장', large: '대형 공장',
+    complex: '산업 단지', mega: '메가 팩토리', giga: '기가 팩토리'
+  };
+
+  let isRunning = $derived(factory?.status === 'RUNNING' || factory?.status === 'ACTIVE');
+
+  let totalOpex = $derived(factory
+    ? factory.monthlyLaborCost + factory.monthlyMaterialCost + factory.monthlyElectricityCost
+    : 0);
+
+  onMount(async () => {
+    try {
+      [factory] = await Promise.all([
+        getFactoryDetail(factoryId),
+      ]);
+      await Promise.all([
+        loadFactoryProductions(),
+        getAvailableProducts('MANUFACTURING').then(p => {
+          availableProducts = p;
+          filteredProducts = p;
+          productCategories = [...new Set(p.map(prod => prod.category || 'ALL'))];
+        }).catch(() => {}),
+      ]);
+    } catch (e: any) {
+      error = e.message || '공장 데이터를 불러오지 못했습니다.';
+    } finally {
+      loading = false;
+    }
+  });
+
+  async function loadFactoryProductions() {
+    try { factoryProductions = await getFactoryProduction(factoryId); } catch { /* ignore */ }
+  }
+
+  async function selectCategory(cat: string | null) {
+    selectedProductCategory = cat;
+    if (cat === null) {
+      filteredProducts = availableProducts;
+    } else {
+      try {
+        filteredProducts = await getProductsByCategory(cat);
+      } catch {
+        filteredProducts = availableProducts.filter(p => p.category === cat);
+      }
     }
   }
 
-  // 일시중지 핸들러
-  function handlePauseFactory() {
-    alert('공장 가동이 일시중지되었습니다.');
+  async function handleSetProduction() {
+    if (!selectedProductId || productionLoading) return;
+    productionLoading = true;
+    try {
+      await setFactoryProduction(factoryId, { productId: selectedProductId, monthlyProduction: newMonthlyProduction });
+      await loadFactoryProductions();
+    } catch (e: any) {
+      alert(e.message || '생산 설정에 실패했습니다.');
+    } finally {
+      productionLoading = false;
+    }
+  }
+
+  async function handleRemoveProduction(productId: number) {
+    if (productionLoading) return;
+    productionLoading = true;
+    try {
+      await removeFactoryProduction(factoryId, productId);
+      await loadFactoryProductions();
+    } catch (e: any) {
+      alert(e.message || '제거에 실패했습니다.');
+    } finally {
+      productionLoading = false;
+    }
+  }
+
+  async function handleTogglePause() {
+    if (!factory || actionLoading) return;
+    actionLoading = true;
+    try {
+      if (isRunning) {
+        await pauseFactory(factory.id);
+      } else {
+        await resumeFactory(factory.id);
+      }
+      factory = await getFactoryDetail(factoryId);
+    } catch (e: any) {
+      alert(e.message || '작업에 실패했습니다.');
+    } finally {
+      actionLoading = false;
+    }
+  }
+
+  async function handleAdjustProduction() {
+    if (!factory || actionLoading) return;
+    actionLoading = true;
+    try {
+      await adjustProduction(factory.id, productionPercent);
+      factory = await getFactoryDetail(factoryId);
+    } catch (e: any) {
+      alert(e.message || '생산량 조절에 실패했습니다.');
+    } finally {
+      actionLoading = false;
+    }
+  }
+
+  async function handleDeleteFactory() {
+    if (!factory) return;
+    const salePrice = factory.constructionCost * 0.5;
+    const confirmed = confirm(`정말로 공장을 매각하시겠습니까?\n예상 매각 금액: ${fmtMoney(salePrice)}`);
+    if (!confirmed) return;
+    actionLoading = true;
+    try {
+      await deleteFactory(factory.id);
+      alert('공장이 매각되었습니다.');
+      goto(`/business/company/${companyId}/factory`);
+    } catch (e: any) {
+      alert(e.message || '매각에 실패했습니다.');
+      actionLoading = false;
+    }
   }
 </script>
 
 <svelte:head>
-  <title>{factoryMeta.name} - 상세 정보</title>
+  <title>{factory?.name ?? '공장'} - 상세 정보</title>
 </svelte:head>
 
 <div class="page-container">
 
+  {#if loading}
+    <div class="loading-msg">공장 데이터를 불러오는 중...</div>
+  {:else if error}
+    <div class="error-msg">{error}</div>
+  {:else if factory}
+
   <div class="page-header">
     <div class="header-icon">🏭</div>
     <div class="header-text">
-      <h1>{factoryMeta.name}</h1>
-      <p class="sub-text">{factoryMeta.region}</p>
-      <p class="meta-text">{factoryMeta.detail}</p>
+      <h1>{factory.name}</h1>
+      <p class="sub-text">{factory.regionName}</p>
+      <p class="meta-text">완공일: {factory.constructionEndDate ?? '-'} · 등급: {gradeNames[factory.grade] ?? factory.grade}</p>
+    </div>
+    <div class="status-badge" class:running={isRunning} class:paused={!isRunning}>
+      {isRunning ? '가동중' : '일시정지'}
     </div>
   </div>
 
@@ -107,50 +201,43 @@
 
     <div class="card location-card">
       <div class="map-section">
-        <iframe
-          src="https://www.google.com/maps/embed/v1/place?key=YOUR_API_KEY&q=대구광역시,대한민국&zoom=12"
-          width="100%"
-          height="100%"
-          style="border:0;"
-          allowfullscreen=""
-          loading="lazy"
-          referrerpolicy="no-referrer-when-downgrade"
-          title="공장 위치"
-        ></iframe>
+        <div class="map-placeholder">
+          <span>📍 {factory.regionName}</span>
+        </div>
       </div>
       <div class="summary-section">
         <div class="card-header">
-          <h3>{factoryMeta.name} - 대구광역시</h3>
+          <h3>{factory.name} - {factory.regionName}</h3>
           <div class="tags">
-            <span class="tag">반도체</span>
-            <span class="tag">기가팩토리</span>
-            <span class="tag">대구광역시</span>
+            <span class="tag">{factory.companyName}</span>
+            <span class="tag">{gradeNames[factory.grade] ?? factory.grade}</span>
+            <span class="tag">{factory.regionName}</span>
           </div>
         </div>
         <div class="info-list">
           <div class="info-row">
-            <span class="lbl">🏭 공장 유형</span>
-            <span class="val">{factoryMeta.type}</span>
+            <span class="lbl">🏭 공장 등급</span>
+            <span class="val">{gradeNames[factory.grade] ?? factory.grade}</span>
           </div>
           <div class="info-row">
             <span class="lbl">👤 직원 수</span>
-            <span class="val">{fmtSimple(employeeCount)}명</span>
+            <span class="val">{fmtSimple(factory.employeeCount)}명</span>
           </div>
           <div class="info-row">
-            <span class="lbl">📦 총 생산량/매달</span>
-            <span class="val">{fmtUnit(factoryMeta.productionPerMonth)} Units</span>
+            <span class="lbl">📦 월 생산량</span>
+            <span class="val">{fmtUnit(factory.currentMonthlyProduction)} Units</span>
           </div>
           <div class="info-row">
-            <span class="lbl">⚡ 평균 효율</span>
-            <span class="val">{factoryMeta.efficiency}</span>
+            <span class="lbl">⚡ 효율</span>
+            <span class="val">{(factory.efficiency * 100).toFixed(1)}%</span>
           </div>
           <div class="info-row">
-            <span class="lbl">💵 분기별 수익</span>
-            <span class="val">{factoryMeta.quarterRevenue}</span>
+            <span class="lbl">📦 재고 / 창고</span>
+            <span class="val">{fmtUnit(factory.currentInventory)} / {fmtUnit(factory.warehouseCapacity)}</span>
           </div>
           <div class="info-row">
             <span class="lbl">📅 완공일</span>
-            <span class="val">{factoryMeta.completionDate}</span>
+            <span class="val">{factory.constructionEndDate ?? '-'}</span>
           </div>
         </div>
       </div>
@@ -160,21 +247,20 @@
       <h3>공장 현황</h3>
       <div class="chart-stats">
         <div class="stat-item">
-          <span class="s-lbl">총 생산량/매달</span>
-          <span class="s-val">{fmtUnit(factoryMeta.productionPerMonth)}</span>
+          <span class="s-lbl">기본 생산량</span>
+          <span class="s-val">{fmtUnit(factory.baseMonthlyProduction)}</span>
         </div>
         <div class="stat-item">
-          <span class="s-lbl">평균 효율</span>
-          <span class="s-val text-green">91.2%</span>
-          <span class="s-sub">(R&D Bonus Incl.)</span>
+          <span class="s-lbl">현재 생산량</span>
+          <span class="s-val text-green">{fmtUnit(factory.currentMonthlyProduction)}</span>
         </div>
         <div class="stat-item">
-          <span class="s-lbl">총 판매량/매달</span>
-          <span class="s-val">{fmtUnit(factoryMeta.salesPerMonth)}</span>
+          <span class="s-lbl">효율</span>
+          <span class="s-val">{(factory.efficiency * 100).toFixed(1)}%</span>
         </div>
         <div class="stat-item">
-          <span class="s-lbl">총 재고량</span>
-          <span class="s-val">{fmtUnit(inventory)}</span>
+          <span class="s-lbl">재고량</span>
+          <span class="s-val">{fmtUnit(factory.currentInventory)}</span>
         </div>
       </div>
 
@@ -194,7 +280,7 @@
           />
         </svg>
         <div class="chart-labels">
-          <span>2025년 3월</span><span>4월</span><span>5월</span><span>6월</span><span>7월</span><span>8월</span>
+          <span>생산 추이</span>
         </div>
         <div class="legend">
           <span class="dot blue"></span> 생산량
@@ -204,54 +290,79 @@
     </div>
 
     <div class="card control-card">
-      <h3>인력 관리</h3>
-      <p class="card-desc">직원 수를 조절하여 생산량과 인건비를 관리하세요.</p>
+      <h3>생산량 조절</h3>
+      <p class="card-desc">생산 비율을 조절하여 생산량과 운영비를 관리하세요.</p>
 
       <div class="slider-wrapper">
         <div class="slider-labels">
-          <span>{fmtSimple(minEmployees)}명</span>
-          <span>{fmtSimple(maxEmployees)}명</span>
+          <span>50%</span>
+          <span>150%</span>
         </div>
         <input
           type="range"
-          min={minEmployees}
-          max={maxEmployees}
-          step="100"
-          bind:value={employeeCount}
+          min={50}
+          max={150}
+          step="5"
+          bind:value={productionPercent}
           style="background: linear-gradient(to right, #0f4c81 0%, #0f4c81 {sliderPercent}%, var(--color-border) {sliderPercent}%, var(--color-border) 100%);"
         />
       </div>
 
       <div class="stats-grid">
         <div class="s-box">
-          <span class="l">생산성/인당</span>
-          <span class="v">{productionPerPerson} <span class="unit">Units/월</span></span>
+          <span class="l">현재 비율</span>
+          <span class="v">{productionPercent}%</span>
         </div>
         <div class="s-box">
-          <span class="l">평균 임금</span>
-          <span class="v">$3,500 <span class="unit">/월</span></span>
+          <span class="l">직원 수</span>
+          <span class="v">{fmtSimple(factory.employeeCount)} <span class="unit">명</span></span>
         </div>
         <div class="s-box">
-          <span class="l">총 인건비</span>
-          <span class="v large">${(totalLaborCost/1000000).toFixed(1)}M <span class="unit">단위/월</span></span>
+          <button class="btn-adjust" onclick={handleAdjustProduction} disabled={actionLoading}>
+            {actionLoading ? '처리중...' : '적용'}
+          </button>
         </div>
       </div>
     </div>
 
     <div class="card rnd-card">
-      <h3>적용된 R&D 효과</h3>
+      <h3>공장 옵션 정보</h3>
       <div class="rnd-list">
-        {#each rndEffects as effect}
-          <div class="rnd-item">
-            <div class="rnd-icon">{effect.icon}</div>
-            <div class="rnd-info">
-              <div class="rnd-head">
-                <span class="rnd-name">{effect.name} Lv.{effect.level}</span>
-              </div>
-              <div class="rnd-desc text-green">{effect.description}</div>
-            </div>
+        <div class="rnd-item">
+          <div class="rnd-icon">⚙️</div>
+          <div class="rnd-info">
+            <div class="rnd-head"><span class="rnd-name">생산 라인</span></div>
+            <div class="rnd-desc text-green">{factory.productionLineType}</div>
           </div>
-        {/each}
+        </div>
+        <div class="rnd-item">
+          <div class="rnd-icon">🏗️</div>
+          <div class="rnd-info">
+            <div class="rnd-head"><span class="rnd-name">부지 확장</span></div>
+            <div class="rnd-desc text-green">Lv.{factory.landExpansionLevel}</div>
+          </div>
+        </div>
+        <div class="rnd-item">
+          <div class="rnd-icon">🏢</div>
+          <div class="rnd-info">
+            <div class="rnd-head"><span class="rnd-name">건축 확장</span></div>
+            <div class="rnd-desc text-green">Lv.{factory.buildingExpansionLevel}</div>
+          </div>
+        </div>
+        <div class="rnd-item">
+          <div class="rnd-icon">🔋</div>
+          <div class="rnd-info">
+            <div class="rnd-head"><span class="rnd-name">에너지</span></div>
+            <div class="rnd-desc text-green">{factory.energyOption}</div>
+          </div>
+        </div>
+        <div class="rnd-item">
+          <div class="rnd-icon">🔒</div>
+          <div class="rnd-info">
+            <div class="rnd-head"><span class="rnd-name">보안</span></div>
+            <div class="rnd-desc text-green">{factory.securityOption}</div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -263,13 +374,13 @@
           <div class="f-col">
             <h4>월 운영비 상세</h4>
             <div class="f-item">
-              <span>인건비</span> <span>{fmtMoney(totalLaborCost)}</span>
+              <span>인건비</span> <span>{fmtMoney(factory.monthlyLaborCost)}</span>
             </div>
             <div class="f-item">
-              <span>자재비</span> <span>{fmtMoney(financials.material)}</span>
+              <span>자재비</span> <span>{fmtMoney(factory.monthlyMaterialCost)}</span>
             </div>
             <div class="f-item">
-              <span>전기세</span> <span>{fmtMoney(financials.electric)}</span>
+              <span>전기세</span> <span>{fmtMoney(factory.monthlyElectricityCost)}</span>
             </div>
             <div class="f-divider"></div>
             <div class="f-item total">
@@ -280,14 +391,17 @@
           <div class="f-col">
             <h4>수익성 지표</h4>
             <div class="f-item">
-              <span>월 매출</span> <span>{fmtMoney(financials.revenue)}</span>
+              <span>월 매출</span> <span>{fmtMoney(factory.monthlyRevenue)}</span>
             </div>
             <div class="f-item">
               <span>운영비</span> <span class="text-red">-{fmtMoney(totalOpex)}</span>
             </div>
             <div class="f-divider"></div>
             <div class="f-item total">
-              <span>월 순수익</span> <span class="text-profit">{netProfit >= 0 ? '+' : ''}{fmtMoney(netProfit)}</span>
+              <span>월 순수익</span>
+              <span class="text-profit">
+                {factory.monthlyNetIncome >= 0 ? '+' : ''}{fmtMoney(factory.monthlyNetIncome)}
+              </span>
             </div>
           </div>
 
@@ -295,12 +409,83 @@
       </div>
 
       <div class="action-buttons">
-        <button class="btn btn-yellow" onclick={handlePauseFactory}>일시중지</button>
-        <button class="btn btn-red" onclick={handleSellFactory}>공장 매각</button>
+        <button class="btn btn-yellow" onclick={handleTogglePause} disabled={actionLoading}>
+          {isRunning ? '일시중지' : '재가동'}
+        </button>
+        <button class="btn btn-red" onclick={handleDeleteFactory} disabled={actionLoading}>공장 매각</button>
       </div>
     </div>
 
+  <!-- 제품 생산 설정 -->
+  <div class="card production-card">
+    <h3>제품 생산 설정</h3>
+    {#if factoryProductions.length > 0}
+    <div class="prod-list">
+    {#each factoryProductions as fp}
+        <div class="prod-item">
+            {#if fp.product.imageUrl}
+              <img src={fp.product.imageUrl} alt={fp.product.name} class="prod-thumb" />
+            {/if}
+            <div class="prod-info">
+              <span class="prod-name">{fp.product.name}</span>
+              <span class="prod-cat">{fp.product.category}</span>
+            </div>
+            <span class="prod-qty">{fmtUnit(fp.currentMonthlyProduction)}/월</span>
+            <span class="prod-inv">재고: {fmtUnit(fp.currentInventory)}</span>
+            <span class="prod-grade">{fp.baseQualityGrade}</span>
+            <button class="btn-prod-remove" onclick={() => handleRemoveProduction(fp.product.id)} disabled={productionLoading}>제거</button>
+        </div>
+        {/each}
+    </div>
+    {:else}
+    <p class="prod-empty">설정된 제품이 없습니다.</p>
+    {/if}
+    <div class="prod-add">
+        <h4>제품 추가</h4>
+        {#if productCategories.length > 0}
+          <div class="cat-filters">
+            <button class:active={selectedProductCategory === null} onclick={() => selectCategory(null)}>전체</button>
+            {#each productCategories as cat}
+              <button class:active={selectedProductCategory === cat} onclick={() => selectCategory(cat)}>{cat}</button>
+            {/each}
+          </div>
+        {/if}
+        <div class="prod-add-row">
+            <select class="prod-select" onchange={(e) => selectedProductId = Number((e.target as HTMLSelectElement).value)}>
+                <option value="">제품 선택</option>
+                {#each filteredProducts as p}
+                <option value={p.id}>{p.name} ({p.category})</option>
+                {/each}
+            </select>
+            <input class="prod-input" type="number" min="100" step="100" bind:value={newMonthlyProduction} placeholder="월 생산량" />
+            <button class="btn-prod-add" onclick={handleSetProduction} disabled={productionLoading || !selectedProductId}>
+                {productionLoading ? '처리 중...' : '설정'}
+            </button>
+        </div>
+        {#if selectedProductId}
+          {@const selProd = filteredProducts.find(p => p.id === selectedProductId)}
+          {#if selProd}
+          <div class="prod-detail-panel">
+            {#if selProd.imageUrl}
+              <img src={selProd.imageUrl} alt={selProd.name} class="prod-detail-img" />
+            {/if}
+            <div class="prod-detail-info">
+              <p class="prod-detail-name">{selProd.name}</p>
+              {#if selProd.description}<p class="prod-detail-desc">{selProd.description}</p>{/if}
+              <div class="prod-detail-stats">
+                <span>기본 단가: <strong>${selProd.baseUnitPrice.toLocaleString()}</strong></span>
+                <span>생산 단가: <strong>${selProd.productionCostPerUnit.toLocaleString()}</strong></span>
+                {#if selProd.requiredLevel > 0}<span>필요 레벨: <strong>Lv.{selProd.requiredLevel}</strong></span>{/if}
+              </div>
+            </div>
+          </div>
+          {/if}
+        {/if}
+    </div>
   </div>
+
+  </div>
+  {/if}
 </div>
 
 <style>
@@ -313,8 +498,18 @@
     color: var(--color-text);
   }
 
+  .loading-msg, .error-msg { text-align: center; padding: 60px 20px; font-size: 16px; }
+  .error-msg { color: #ef4444; }
+
   /* --- Header --- */
-  .page-header { display: flex; gap: 16px; margin-bottom: 24px; }
+  .page-header { display: flex; gap: 16px; margin-bottom: 24px; align-items: flex-start; }
+
+  .status-badge {
+    margin-left: auto; padding: 6px 16px; border-radius: 20px;
+    font-size: 13px; font-weight: 600; white-space: nowrap;
+  }
+  .status-badge.running { background: #dcfce7; color: #166534; }
+  .status-badge.paused { background: #fef3c7; color: #92400e; }
   .header-icon {
     width: 64px; height: 64px; background: var(--color-bg-2); border-radius: 8px;
     font-size: 32px; display: flex; align-items: center; justify-content: center;
@@ -350,9 +545,13 @@
     border-radius: 12px;
     overflow: hidden;
   }
-  .map-section iframe {
+  .map-section iframe, .map-placeholder {
     width: 100%;
     height: 100%;
+  }
+  .map-placeholder {
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; color: var(--color-text-gray); background: var(--color-bg-2);
   }
   .summary-section {
     display: flex;
@@ -468,6 +667,15 @@
   .btn-yellow:hover { background-color: #fde68a; }
   .btn-red { background-color: #fee2e2; color: #991b1b; }
   .btn-red:hover { background-color: #fecaca; }
+  .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+  .btn-adjust {
+    padding: 8px 24px; background: var(--color-theme-1); color: white;
+    border: none; border-radius: 6px; font-weight: 600; font-size: 14px;
+    cursor: pointer; transition: 0.2s;
+  }
+  .btn-adjust:hover { background: #0c3b66; }
+  .btn-adjust:disabled { opacity: 0.6; cursor: not-allowed; }
 
   /* --- Responsive --- */
   @media (max-width: 1024px) {
@@ -480,4 +688,31 @@
     .finance-row { flex-direction: column; gap: 24px; }
     .stats-grid { flex-direction: column; gap: 12px; }
   }
+
+  .production-card { grid-column: 1 / -1; margin-top: 1.5rem; }
+  .prod-list { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1rem; }
+  .prod-item { display: grid; grid-template-columns: 2rem 1fr 1fr 1fr 1fr auto; gap: 0.75rem; align-items: center; padding: 0.5rem 0.75rem; background: #f9fafb; border-radius: 8px; font-size: 0.875rem; }
+  .prod-thumb { width: 2rem; height: 2rem; object-fit: cover; border-radius: 4px; background: #e5e7eb; }
+  .prod-info { display: flex; flex-direction: column; gap: 2px; }
+  .prod-name { font-weight: 600; }
+  .prod-cat { font-size: 0.75rem; color: var(--color-text-gray); }
+  .prod-grade { color: #6b7280; font-size: 0.8rem; }
+  .btn-prod-remove { padding: 0.25rem 0.6rem; background: #fee2e2; color: #dc2626; border: none; border-radius: 6px; cursor: pointer; font-size: 0.8rem; }
+  .prod-empty { color: #9ca3af; font-size: 0.875rem; margin: 0.5rem 0; }
+  .prod-add h4 { font-size: 0.9rem; font-weight: 600; margin: 0 0 0.5rem; }
+  .prod-add-row { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+  .prod-select { flex: 2; padding: 0.4rem 0.6rem; border: 1px solid var(--color-border); border-radius: 6px; font-size: 0.875rem; }
+  .prod-input { width: 8rem; padding: 0.4rem 0.6rem; border: 1px solid var(--color-border); border-radius: 6px; font-size: 0.875rem; }
+  .btn-prod-add { padding: 0.4rem 1rem; background: var(--color-theme-1); color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 0.875rem; }
+  .btn-prod-add:disabled { opacity: 0.6; cursor: not-allowed; }
+  .cat-filters { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 0.5rem; }
+  .cat-filters button { padding: 3px 10px; border: 1px solid var(--color-border); border-radius: 12px; font-size: 11px; font-weight: 600; cursor: pointer; background: var(--color-bg-1); color: var(--color-text-gray); }
+  .cat-filters button.active { background: var(--color-theme-1); color: white; border-color: var(--color-theme-1); }
+  .prod-detail-panel { display: flex; gap: 0.75rem; align-items: flex-start; margin-top: 0.75rem; padding: 0.75rem; background: #f0f4ff; border-radius: 8px; border: 1px solid var(--color-border); }
+  .prod-detail-img { width: 3.5rem; height: 3.5rem; object-fit: cover; border-radius: 6px; flex-shrink: 0; background: #e5e7eb; }
+  .prod-detail-info { flex: 1; min-width: 0; }
+  .prod-detail-name { font-weight: 700; font-size: 0.9rem; margin: 0 0 4px; }
+  .prod-detail-desc { font-size: 0.8rem; color: var(--color-text-gray); margin: 0 0 6px; }
+  .prod-detail-stats { display: flex; flex-wrap: wrap; gap: 0.75rem; font-size: 0.8rem; color: var(--color-text-gray); }
+  .prod-detail-stats strong { color: var(--color-text); }
 </style>

@@ -5,61 +5,218 @@
     import arrow from '$lib/images/arrow.svg';
     import bankIcon from '$lib/images/bank.svg';
 
-    // --- 상태 (표준 Svelte 변수/리액티브 사용) ---
-    let selectedBank: any = null;
-    let currentBalance = 15000000;
-    let applyAmount = 50000000;
-    let applyTerm = 36;
-    let repaymentMethod = 'equal_principal_interest';
+    import { getSpringAccount } from '$lib/api/dashboard';
+    import { getLoanProducts, getLoanProductsByTier, getLoanDetail, estimateLoan, applyLoan, getActiveLoans, repayLoan, repayFullLoan, getLoanSchedule, type LoanProductResponse, type LoanEstimateResponse, type UserLoanResponse, type PaymentScheduleItem } from '$lib/api/loan';
 
-    const MIN_AMOUNT = 1_000_000;
-    const MAX_AMOUNT = 150_000_000;
+    let currentBalance = $state(0);
+    let loanProducts = $state<LoanProductResponse[]>([]);
+    let activeLoans = $state<UserLoanResponse[]>([]);
+    let selectedProduct = $state<LoanProductResponse | null>(null);
+    let applyAmount = $state(50000000);
+    let applyTerm = $state(36);
+    let repaymentMethod = $state('EQUAL_PRINCIPAL_INTEREST');
+    let estimate = $state<LoanEstimateResponse | null>(null);
+    let estimating = $state(false);
+    let applying = $state(false);
+    let applyError = $state('');
+    let applySuccess = $state('');
 
-    // 예상 월 상환금 (원리금균등 기준)
-    $: estimatedMonthlyPayment = (() => {
-        if (!selectedBank) return 0;
-        const rate = selectedBank.rate / 100 / 12;
-        const n = applyTerm;
-        const payment = (applyAmount * rate * Math.pow(1 + rate, n)) / (Math.pow(1 + rate, n) - 1);
-        return Math.floor(payment);
-    })();
+    // Tier filter state
+    let selectedTier = $state(0); // 0 = all
 
-    // 슬라이더 퍼센트 (버블 위치 계산용)
-    $: sliderPercent = ((applyAmount - MIN_AMOUNT) / (MAX_AMOUNT - MIN_AMOUNT)) * 100;
-    // 슬라이더의 그라디언트 스타일
-    $: sliderStyle = `background: linear-gradient(to right, #1e5a8e 0%, #1e5a8e ${sliderPercent}%, #e5e7eb ${sliderPercent}%, #e5e7eb 100%);`;
+    // Repayment state
+    let repayingId = $state<number | null>(null);
+    let expandedLoanId = $state<number | null>(null);
+    let scheduleMap = $state<Record<number, PaymentScheduleItem[]>>({});
 
-    onMount(() => {
-        const bankParam = $page.url.searchParams.get('bank');
-        if (bankParam) {
-            try {
-                selectedBank = JSON.parse(decodeURIComponent(bankParam));
-            } catch (e) {
-                console.error('Failed to parse bank data:', e);
+    // Loan detail state
+    let detailLoanId = $state<number | null>(null);
+    let loanDetail = $state<UserLoanResponse | null>(null);
+    let loadingDetail = $state(false);
+
+    // URL params for pre-selecting bank
+    let bankId = $state<number | null>(null);
+    let bankName = $state('');
+    let bankRate = $state(0);
+    let bankTier = $state(0);
+
+    let MIN_AMOUNT = $derived(selectedProduct?.minAmount ?? 1_000_000);
+    let MAX_AMOUNT = $derived(selectedProduct?.maxAmount ?? 150_000_000);
+
+    let sliderPercent = $derived(((applyAmount - MIN_AMOUNT) / (MAX_AMOUNT - MIN_AMOUNT)) * 100);
+    let sliderStyle = $derived(`background: linear-gradient(to right, #1e5a8e 0%, #1e5a8e ${sliderPercent}%, #e5e7eb ${sliderPercent}%, #e5e7eb 100%);`);
+
+    onMount(async () => {
+        try {
+            const account = await getSpringAccount();
+            currentBalance = account.cashBalance;
+        } catch { /* fallback */ }
+
+        // URL에서 은행 정보 파싱
+        const bankIdParam = $page.url.searchParams.get('bankId');
+        const bankNameParam = $page.url.searchParams.get('bankName');
+        const rateParam = $page.url.searchParams.get('rate');
+        const tierParam = $page.url.searchParams.get('tier');
+
+        if (bankIdParam) bankId = Number(bankIdParam);
+        if (bankNameParam) bankName = decodeURIComponent(bankNameParam);
+        if (rateParam) bankRate = Number(rateParam);
+        if (tierParam) bankTier = Number(tierParam);
+
+        // 대출 상품 로드
+        try {
+            const [products, loans] = await Promise.all([
+                getLoanProducts(),
+                getActiveLoans().catch(() => [] as UserLoanResponse[])
+            ]);
+            loanProducts = products;
+            activeLoans = loans;
+            // bankId에 맞는 상품 선택
+            if (bankId) {
+                const found = products.find(p => p.bank.id === bankId);
+                if (found) {
+                    selectedProduct = found;
+                    applyAmount = Math.max(MIN_AMOUNT, Math.min(MAX_AMOUNT, applyAmount));
+                } else if (products.length > 0) {
+                    selectedProduct = products[0];
+                }
+            } else if (products.length > 0) {
+                selectedProduct = products[0];
                 goto('/dashboard/bank');
+                return;
             }
-        } else {
-            goto('/dashboard/bank');
+        } catch (e) {
+            console.error('대출 상품 로드 실패:', e);
         }
     });
 
-    function handleFinalLoan() {
-        if (!selectedBank) return;
-        alert(`${selectedBank.name}에서 ${applyAmount.toLocaleString()}원 대출 신청이 완료되었습니다.`);
-        goto('/dashboard/bank');
+    async function updateEstimate() {
+        if (!selectedProduct) return;
+        estimating = true;
+        try {
+            estimate = await estimateLoan({
+                loanProductId: selectedProduct.id,
+                amount: applyAmount,
+                termMonths: applyTerm,
+                repaymentType: repaymentMethod
+            });
+        } catch {
+            estimate = null;
+        } finally {
+            estimating = false;
+        }
+    }
+
+    async function handleFinalLoan() {
+        if (!selectedProduct) return;
+        applying = true;
+        applyError = '';
+        applySuccess = '';
+        try {
+            await applyLoan({
+                loanProductId: selectedProduct.id,
+                amount: applyAmount,
+                termMonths: applyTerm,
+                repaymentType: repaymentMethod
+            });
+            applySuccess = `${selectedProduct.bank.name}에서 ${applyAmount.toLocaleString()}원 대출 신청이 완료되었습니다!`;
+            activeLoans = await getActiveLoans();
+        } catch (e: unknown) {
+            applyError = e instanceof Error ? e.message : '대출 신청에 실패했습니다.';
+        } finally {
+            applying = false;
+        }
     }
 
     function goBack() {
         goto('/dashboard/bank');
     }
+
+    async function handleRepay(loanId: number) {
+        repayingId = loanId;
+        try {
+            await repayLoan(loanId);
+            activeLoans = await getActiveLoans();
+            applySuccess = '상환 완료되었습니다.';
+        } catch {
+            applyError = '상환에 실패했습니다.';
+        } finally {
+            repayingId = null;
+            setTimeout(() => { applySuccess = ''; applyError = ''; }, 3000);
+        }
+    }
+
+    async function handleRepayFull(loanId: number) {
+        repayingId = loanId;
+        try {
+            await repayFullLoan(loanId);
+            activeLoans = await getActiveLoans();
+            applySuccess = '전액 상환 완료되었습니다.';
+        } catch {
+            applyError = '전액 상환에 실패했습니다.';
+        } finally {
+            repayingId = null;
+            setTimeout(() => { applySuccess = ''; applyError = ''; }, 3000);
+        }
+    }
+
+    async function toggleSchedule(loanId: number) {
+        if (expandedLoanId === loanId) {
+            expandedLoanId = null;
+            return;
+        }
+        expandedLoanId = loanId;
+        if (!scheduleMap[loanId]) {
+            try {
+                scheduleMap[loanId] = await getLoanSchedule(loanId);
+            } catch { scheduleMap[loanId] = []; }
+        }
+    }
+
+    async function handleTierFilter(tier: number) {
+        selectedTier = tier;
+        try {
+            loanProducts = tier === 0 ? await getLoanProducts() : await getLoanProductsByTier(tier);
+            if (loanProducts.length > 0 && !loanProducts.find(p => p.id === selectedProduct?.id)) {
+                selectedProduct = loanProducts[0];
+            }
+        } catch (e) {
+            console.error('대출 상품 필터 실패:', e);
+        }
+    }
+
+    async function handleShowDetail(loanId: number) {
+        if (detailLoanId === loanId) {
+            detailLoanId = null;
+            loanDetail = null;
+            return;
+        }
+        detailLoanId = loanId;
+        loadingDetail = true;
+        loanDetail = null;
+        try {
+            loanDetail = await getLoanDetail(loanId);
+        } catch {
+            loanDetail = null;
+        } finally {
+            loadingDetail = false;
+        }
+    }
+
+    // amount/term 변경 시 자동 견적
+    $effect(() => {
+        if (selectedProduct && applyAmount && applyTerm && repaymentMethod) {
+            updateEstimate();
+        }
+    });
 </script>
 
-{#if selectedBank}
+{#if selectedProduct}
     <div class="bank-container">
         <div class="hero-section">
             <div class="top-bar">
                 <div class="top-bar-left">
-                    <button class="back-button" on:click={goBack}>
+                    <button class="back-button" onclick={goBack}>
                         <img src={arrow} alt="뒤로가기" class="back-arrow"/>
                     </button>
                     <h1 class="page-title">QUANT 은행 대출</h1>
@@ -84,43 +241,57 @@
                 <div class="loan-header">
                     <h2>대출 신청</h2>
                     <div class="loan-bank-badge">
-                        <img src={selectedBank.icon} alt="bank"/>
-                        <span>{selectedBank.name}</span>
+                        {#if selectedProduct.bank.logoUrl}
+                            <img src={selectedProduct.bank.logoUrl} alt="bank"/>
+                        {:else}
+                            <span>🏦</span>
+                        {/if}
+                        <span>{selectedProduct.bank.name}</span>
                     </div>
                 </div>
 
                 <div class="loan-content-grid">
-                    <!-- 왼쪽 폼 (배경 제거됨) -->
+                    <!-- 왼쪽 폼 -->
                     <div class="loan-form-card">
+                        <div class="tier-filter-row">
+                            {#each [{ label: '전체', value: 0 }, { label: '1등급', value: 1 }, { label: '2등급', value: 2 }, { label: '3등급', value: 3 }] as tier}
+                                <button
+                                    class="tier-btn"
+                                    class:active={selectedTier === tier.value}
+                                    onclick={() => handleTierFilter(tier.value)}
+                                >{tier.label}</button>
+                            {/each}
+                        </div>
                         <div class="form-row two-col">
                             <div class="input-group">
-                                <label for="loan-type">대출 신청</label>
-                                <select id="loan-type" class="custom-select">
-                                    <option>신용 대출</option>
-                                    <option>담보 대출</option>
+                                <label for="loan-product">대출 상품</label>
+                                <select id="loan-product" class="custom-select"
+                                    onchange={(e) => {
+                                        const found = loanProducts.find(p => p.id === Number((e.target as HTMLSelectElement).value));
+                                        if (found) selectedProduct = found;
+                                    }}>
+                                    {#each loanProducts as product}
+                                        <option value={product.id} selected={product.id === selectedProduct.id}>
+                                            {product.bank.name} - {product.name}
+                                        </option>
+                                    {/each}
                                 </select>
                             </div>
                             <div class="input-group">
                                 <label for="loan-term">대출 기간</label>
                                 <select id="loan-term" class="custom-select" bind:value={applyTerm}>
-                                    <option value={12}>12개월</option>
-                                    <option value={24}>24개월</option>
-                                    <option value={36}>36개월</option>
-                                    <option value={48}>48개월</option>
-                                    <option value={60}>60개월</option>
+                                    {#each [12, 24, 36, 48, 60].filter(m => m >= selectedProduct!.minTermMonths && m <= selectedProduct!.maxTermMonths) as months}
+                                        <option value={months}>{months}개월</option>
+                                    {/each}
                                 </select>
                             </div>
                         </div>
 
                         <div class="form-row">
                             <div class="section-wrapper">
-                                <!-- 🔴 카드 바깥쪽 타이틀 -->
                                 <h2 class="section-outer-title">대출액</h2>
-
                                 <div class="amount-card">
-                                    <!-- 🔴 카드 안쪽 타이틀 (기존 스타일 유지) -->
                                     <div class="amount-card-header">대출액</div>
-
                                     <div class="slider-wrapper">
                                         <div
                                                 class="amount-bubble"
@@ -128,7 +299,6 @@
                                         >
                                             {applyAmount.toLocaleString()}원
                                         </div>
-
                                         <input
                                                 id="amount"
                                                 type="range"
@@ -142,32 +312,29 @@
                                     </div>
                                 </div>
                             </div>
-
-
                         </div>
 
-                        <!-- 상환 방식 카드를 하나로 묶음 -->
                         <div class="section-wrapper">
                             <h2 class="section-outer-title">상환 방식</h2>
                             <div class="form-row">
                                 <div class="repayment-card">
                                     <div class="radio-group">
                                         <label class="radio-item"
-                                               class:selected={repaymentMethod === 'equal_principal_interest'}>
-                                            <input type="radio" name="method" value="equal_principal_interest"
+                                               class:selected={repaymentMethod === 'EQUAL_PRINCIPAL_INTEREST'}>
+                                            <input type="radio" name="method" value="EQUAL_PRINCIPAL_INTEREST"
                                                    bind:group={repaymentMethod}>
                                             <span class="radio-circle" aria-hidden="true"></span>
                                             <span>원리금균등상환</span>
                                         </label>
-                                        <label class="radio-item" class:selected={repaymentMethod === 'bullet'}>
-                                            <input type="radio" name="method" value="bullet"
+                                        <label class="radio-item" class:selected={repaymentMethod === 'BULLET'}>
+                                            <input type="radio" name="method" value="BULLET"
                                                    bind:group={repaymentMethod}>
                                             <span class="radio-circle" aria-hidden="true"></span>
                                             <span>만기일시상환</span>
                                         </label>
                                         <label class="radio-item"
-                                               class:selected={repaymentMethod === 'equal_principal'}>
-                                            <input type="radio" name="method" value="equal_principal"
+                                               class:selected={repaymentMethod === 'EQUAL_PRINCIPAL'}>
+                                            <input type="radio" name="method" value="EQUAL_PRINCIPAL"
                                                    bind:group={repaymentMethod}>
                                             <span class="radio-circle" aria-hidden="true"></span>
                                             <span>원금균등상환</span>
@@ -176,31 +343,102 @@
                                 </div>
                             </div>
                         </div>
+
+                        <!-- 현재 대출 목록 -->
+                        {#if activeLoans.length > 0}
+                        <div class="section-wrapper">
+                            <h2 class="section-outer-title">진행 중인 대출</h2>
+                            <div class="active-loans-list">
+                                {#each activeLoans as loan}
+                                    <div class="active-loan-item">
+                                        <div class="loan-info-row">
+                                            <span class="loan-bank">{loan.bank.name}</span>
+                                            <span class="loan-amount">{loan.remainingPrincipal.toLocaleString()}원 남음</span>
+                                            <span class="loan-rate">{loan.interestRate}%</span>
+                                            <span class="loan-status">{loan.statusName}</span>
+                                        </div>
+                                        <div class="loan-action-row">
+                                            <button class="btn-schedule" onclick={() => toggleSchedule(loan.id)}>
+                                                {expandedLoanId === loan.id ? '일정 닫기' : '상환 일정'}
+                                            </button>
+                                            <button class="btn-detail" onclick={() => handleShowDetail(loan.id)}>
+                                                {detailLoanId === loan.id ? '닫기' : '상세 보기'}
+                                            </button>
+                                            <button class="btn-repay" onclick={() => handleRepay(loan.id)} disabled={repayingId === loan.id}>
+                                                {repayingId === loan.id ? '처리 중...' : '월 상환'}
+                                            </button>
+                                            <button class="btn-repay-full" onclick={() => handleRepayFull(loan.id)} disabled={repayingId === loan.id}>
+                                                전액 상환
+                                            </button>
+                                        </div>
+                                        {#if detailLoanId === loan.id}
+                                            <div class="loan-detail-panel">
+                                                {#if loadingDetail}
+                                                    <p class="detail-loading">상세 정보 불러오는 중...</p>
+                                                {:else if loanDetail}
+                                                    <div class="detail-grid">
+                                                        <div class="detail-row"><span class="d-label">대출 시작일</span><span class="d-val">{loanDetail.startDate}</span></div>
+                                                        <div class="detail-row"><span class="d-label">만기일</span><span class="d-val">{loanDetail.maturityDate}</span></div>
+                                                        <div class="detail-row"><span class="d-label">대출 원금</span><span class="d-val">{loanDetail.principalAmount.toLocaleString()}원</span></div>
+                                                        <div class="detail-row"><span class="d-label">잔여 원금</span><span class="d-val">{loanDetail.remainingPrincipal.toLocaleString()}원</span></div>
+                                                        <div class="detail-row"><span class="d-label">총 납부액</span><span class="d-val">{(loanDetail.totalInterestPaid + loanDetail.principalAmount - loanDetail.remainingPrincipal).toLocaleString()}원</span></div>
+                                                        <div class="detail-row"><span class="d-label">다음 납부일</span><span class="d-val">{loanDetail.nextPaymentDate}</span></div>
+                                                        <div class="detail-row"><span class="d-label">다음 납부액</span><span class="d-val">{loanDetail.monthlyPayment.toLocaleString()}원</span></div>
+                                                        <div class="detail-row"><span class="d-label">상태</span><span class="d-val">{loanDetail.statusName}</span></div>
+                                                    </div>
+                                                {/if}
+                                            </div>
+                                        {/if}
+                                        {#if expandedLoanId === loan.id && scheduleMap[loan.id]}
+                                            <div class="schedule-table-wrap">
+                                                <table class="schedule-table">
+                                                    <thead><tr><th>회차</th><th>원금</th><th>이자</th><th>월납부액</th><th>잔여원금</th></tr></thead>
+                                                    <tbody>
+                                                        {#each scheduleMap[loan.id] as row}
+                                                            <tr>
+                                                                <td>{row.month}</td>
+                                                                <td>{row.principal.toLocaleString()}원</td>
+                                                                <td>{row.interest.toLocaleString()}원</td>
+                                                                <td>{row.totalPayment.toLocaleString()}원</td>
+                                                                <td>{row.remainingPrincipal.toLocaleString()}원</td>
+                                                            </tr>
+                                                        {/each}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        {/if}
+                                    </div>
+                                {/each}
+                            </div>
+                        </div>
+                        {/if}
                     </div>
 
                     <!-- 오른쪽 요약 사이드바 -->
                     <div class="loan-summary-sidebar">
                         <div class="estimated-card">
-                            <!-- 카드 상단 중앙에 위치하는 두 원 (크기별) -->
                             <div class="estimated-bg-circle large"></div>
                             <div class="estimated-bg-circle small"></div>
-
                             <div class="estimated-content">
                                 <div class="est-label">예상 월 상환금</div>
-                                <div class="est-amount">₩{estimatedMonthlyPayment.toLocaleString()}</div>
+                                <div class="est-amount">
+                                    {estimating ? '계산 중...' : estimate ? `₩${estimate.monthlyPayment.toLocaleString()}` : `₩0`}
+                                </div>
                             </div>
                         </div>
 
                         <div class="summary-details-card">
                             <h3>신청 요약</h3>
+                            {#if applyError}<p class="error-text">{applyError}</p>{/if}
+                            {#if applySuccess}<p class="success-text">{applySuccess}</p>{/if}
                             <div class="detail-list">
                                 <div class="detail-item">
                                     <span class="label">대출 은행</span>
-                                    <span class="value">{selectedBank.name}</span>
+                                    <span class="value">{selectedProduct.bank.name}</span>
                                 </div>
                                 <div class="detail-item">
                                     <span class="label">대출 상품</span>
-                                    <span class="value">신용 대출</span>
+                                    <span class="value">{selectedProduct.name}</span>
                                 </div>
                                 <div class="detail-item">
                                     <span class="label">대출 원금</span>
@@ -212,18 +450,32 @@
                                 </div>
                                 <div class="detail-item highlight">
                                     <span class="label">예상 금리</span>
-                                    <span class="value">연 {selectedBank.rate}%</span>
+                                    <span class="value">연 {selectedProduct.baseInterestRate}%</span>
                                 </div>
+                                {#if estimate}
+                                <div class="detail-item">
+                                    <span class="label">총 납부액</span>
+                                    <span class="value">{estimate.totalPayment.toLocaleString()}원</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="label">총 이자</span>
+                                    <span class="value">{estimate.totalInterest.toLocaleString()}원</span>
+                                </div>
+                                {/if}
                             </div>
                         </div>
 
-                        <button class="final-apply-btn" on:click={handleFinalLoan}>
-                            대출 받기
+                        <button class="final-apply-btn" onclick={handleFinalLoan} disabled={applying}>
+                            {applying ? '신청 중...' : '대출 받기'}
                         </button>
                     </div>
                 </div>
             </div>
         </div>
+    </div>
+{:else}
+    <div class="loading-state">
+        <p>대출 상품을 불러오는 중...</p>
     </div>
 {/if}
 
@@ -654,6 +906,73 @@
 
     .final-apply-btn:hover {
         background: #003f7f;
+    }
+
+    .final-apply-btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+
+    .error-text {
+        color: #ef4444;
+        font-size: 0.875rem;
+        margin-bottom: 0.75rem;
+    }
+
+    .success-text {
+        color: #10b981;
+        font-size: 0.875rem;
+        margin-bottom: 0.75rem;
+    }
+
+    .active-loans-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .active-loan-item {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        padding: 0.75rem 1rem;
+        background: white;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        font-size: 0.9rem;
+    }
+    .loan-info-row { display: grid; grid-template-columns: 2fr 2fr 1fr 1fr; gap: 0.5rem; }
+    .loan-action-row { display: flex; gap: 0.5rem; }
+    .btn-schedule { padding: 0.3rem 0.75rem; border: 1px solid #d1d5db; border-radius: 6px; background: white; cursor: pointer; font-size: 0.8rem; }
+    .btn-detail { padding: 0.3rem 0.75rem; border: 1px solid var(--color-theme-1); border-radius: 6px; background: white; color: var(--color-theme-1); cursor: pointer; font-size: 0.8rem; }
+    .btn-repay { padding: 0.3rem 0.75rem; border: none; border-radius: 6px; background: var(--color-theme-1); color: white; cursor: pointer; font-size: 0.8rem; }
+    .btn-repay-full { padding: 0.3rem 0.75rem; border: none; border-radius: 6px; background: #ef4444; color: white; cursor: pointer; font-size: 0.8rem; }
+    .btn-repay:disabled, .btn-repay-full:disabled { opacity: 0.6; cursor: not-allowed; }
+    .schedule-table-wrap { overflow-x: auto; margin-top: 0.5rem; max-height: 200px; overflow-y: auto; }
+    .schedule-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+    .schedule-table th, .schedule-table td { padding: 0.3rem 0.5rem; border: 1px solid #e5e7eb; text-align: right; }
+    .schedule-table th { background: #f9fafb; font-weight: 600; }
+    .loan-detail-panel { margin-top: 0.75rem; padding: 0.75rem; background: #f8faff; border: 1px solid var(--color-border); border-radius: 8px; }
+    .detail-loading { font-size: 0.85rem; color: #6b7280; margin: 0; }
+    .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem 1rem; }
+    .detail-row { display: flex; justify-content: space-between; font-size: 0.8rem; }
+    .d-label { color: #6b7280; }
+    .d-val { font-weight: 600; color: #1a1a1a; }
+    .tier-filter-row { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
+    .tier-btn { padding: 0.3rem 0.85rem; border: 1px solid var(--color-border); border-radius: 20px; background: white; color: #6b7280; cursor: pointer; font-size: 0.8rem; font-weight: 600; transition: all 0.15s; }
+    .tier-btn.active { background: var(--color-theme-1); color: white; border-color: var(--color-theme-1); }
+
+    .loan-bank { font-weight: 600; color: var(--color-theme-1); }
+    .loan-amount { color: #1a1a1a; }
+    .loan-rate { color: #6b7280; }
+    .loan-status { color: #10b981; font-weight: 600; }
+
+    .loading-state {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 300px;
+        color: #6b7280;
     }
 
     .back-button {
