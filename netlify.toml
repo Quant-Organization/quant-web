@@ -1,3 +1,15 @@
 [build]
   command = "npm run build"
   publish = "build"
+
+[[redirects]]
+  from = "/api/*"
+  to = "http://52.79.105.249/api/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/fastapi/*"
+  to = "http://52.79.105.249:8000/:splat"
+  status = 200
+  force = true

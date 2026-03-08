@@ -1,6 +1,5 @@
-// API Base URLs
-const isDev = typeof window !== 'undefined' && window.location.hostname === 'localhost';
-export const FASTAPI_BASE = isDev ? '/fastapi' : (import.meta.env.VITE_FASTAPI_URL || '');
+// API Base URLs — uses Netlify proxy redirects in production
+export const FASTAPI_BASE = '/fastapi';
 export const SPRING_BASE = import.meta.env.VITE_SPRING_API_URL || '';
 
 function getSpringToken(): string | null {
