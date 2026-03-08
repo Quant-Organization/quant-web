@@ -22,6 +22,7 @@
   import { getResearchEffects, type CompletedResearchResponse } from '$lib/api/research';
   import SkeletonTable from '$lib/components/SkeletonTable.svelte';
   import { toast } from 'svelte-sonner';
+  import factoryIcon from '$lib/images/factory_icon.svg';
 
   const regionCenters: Record<string, [number, number]> = {
     '서울특별시': [37.5665, 126.978], '부산광역시': [35.1796, 129.0756],
@@ -250,7 +251,7 @@
   {:else if factory}
 
   <div class="page-header">
-    <div class="header-icon">🏭</div>
+    <div class="header-icon"><img src={factoryIcon} alt="공장" class="header-icon-img" /></div>
     <div class="header-text">
       <h1>{factory.name}</h1>
       <p class="sub-text">{factory.regionName}</p>
@@ -276,7 +277,7 @@
         </div>
         <div class="info-list">
           <div class="info-row">
-            <span class="lbl">🏭 공장 등급</span>
+            <span class="lbl"><img src={factoryIcon} alt="공장" class="lbl-icon" /> 공장 등급</span>
             <span class="val">{gradeNames[factory.grade] ?? factory.grade}</span>
           </div>
           <div class="info-row">
@@ -491,6 +492,8 @@
     width: 64px; height: 64px; background: var(--color-bg-2); border-radius: 8px;
     font-size: 32px; display: flex; align-items: center; justify-content: center;
   }
+  .header-icon-img { width: 2rem; height: 2rem; }
+  .lbl-icon { width: 1rem; height: 1rem; vertical-align: middle; }
   .header-text h1 { margin: 0 0 4px 0; font-size: 24px; font-weight: 700; }
   .sub-text { margin: 0 0 4px 0; font-size: 14px; color: var(--color-text-gray); }
   .meta-text { margin: 0; font-size: 13px; color: var(--color-text-gray); }

@@ -5,6 +5,9 @@
     import arrow from '$lib/images/arrow.svg';
     import graph_yellow from '$lib/images/graph_yellow.svg';
     import bankIcon from '$lib/images/bank.svg';
+    import loanPrincipalIcon from '$lib/images/dashboard_bank/loan-principal.svg';
+    import repaymentAmountIcon from '$lib/images/dashboard_bank/repayment-amount.svg';
+    import interestDateIcon from '$lib/images/dashboard_bank/interest-payment-date.svg';
 
     import { onMount } from 'svelte';
     import { getSpringAccount } from '$lib/api/dashboard';
@@ -169,17 +172,17 @@
 
                             <div class="bank-details">
                                 <div class="detail-row">
-                                    <span class="detail-icon">💰</span>
+                                    <img src={loanPrincipalIcon} alt="대출 원금" class="detail-icon-img" />
                                     <span class="detail-label">총 대출 잔액</span>
                                     <span class="detail-value">{(loanSummary?.totalRemainingPrincipal ?? 0).toLocaleString()}원</span>
                                 </div>
                                 <div class="detail-row">
-                                    <span class="detail-icon">💵</span>
+                                    <img src={repaymentAmountIcon} alt="상환 금액" class="detail-icon-img" />
                                     <span class="detail-label">다음 상환액</span>
                                     <span class="detail-value">{(loanSummary?.nextPaymentAmount ?? 0).toLocaleString()}원</span>
                                 </div>
                                 <div class="detail-row">
-                                    <span class="detail-icon">📅</span>
+                                    <img src={interestDateIcon} alt="이자 납입일" class="detail-icon-img" />
                                     <span class="detail-label">이자 납입일</span>
                                     <span class="detail-value">{loanSummary?.nextPaymentDate ? new Date(loanSummary.nextPaymentDate).toLocaleDateString('ko-KR') : '-'}</span>
                                 </div>
@@ -358,6 +361,7 @@
     .bank-details { display: flex; flex-direction: column; gap: 0.75rem; padding-top: 1rem; }
     .detail-row { display: flex; align-items: center; gap: 0.5rem; font-size: 0.95rem; }
     .detail-icon { font-size: 1rem; width: 1.5rem; text-align: center; }
+    .detail-icon-img { width: 1.5rem; height: 1.5rem; flex-shrink: 0; }
     .detail-label { color: #6b7280; flex: 1; font-weight: 500; }
     .detail-value { font-weight: 600; color: #1a1a1a; }
 

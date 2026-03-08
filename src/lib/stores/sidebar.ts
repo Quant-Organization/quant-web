@@ -6,6 +6,26 @@ import graph from '$lib/images/graph.svg'
 import quest from '$lib/images/quest.svg'
 import document from '$lib/images/document.svg'
 
+import dashTotal from '$lib/images/dashboard_sidebar/total.svg'
+import dashBank from '$lib/images/dashboard_sidebar/bank.svg'
+import dashStock from '$lib/images/dashboard_sidebar/stock.svg'
+import dashCoin from '$lib/images/dashboard_sidebar/coin.svg'
+import dashBond from '$lib/images/dashboard_sidebar/bond.svg'
+import dashEtf from '$lib/images/dashboard_sidebar/etf.svg'
+
+import assetTotal from '$lib/images/asset_sidebar/total.svg'
+import assetCar from '$lib/images/asset_sidebar/car.svg'
+import assetPlane from '$lib/images/asset_sidebar/plane.svg'
+import assetYacht from '$lib/images/asset_sidebar/yacht.svg'
+import assetEstate from '$lib/images/asset_sidebar/estate.svg'
+import assetLuxury from '$lib/images/asset_sidebar/luxury.svg'
+
+import globalIcon from '$lib/images/global.svg'
+
+import bizStatus from '$lib/images/business_sidebar/company-status.svg'
+import bizFactory from '$lib/images/business_sidebar/factory.svg'
+import bizRnd from '$lib/images/business_sidebar/rnd.svg'
+
 export type SidebarItem = {
     name: string;
     img: string;
@@ -14,23 +34,24 @@ export type SidebarItem = {
 
 export const sidebarConfigs = {
     dashboard: [
-        { name: "통합 현황", img: graph_support, link: "/dashboard/overview" },
-        { name: "은행", img: ver_graph, link: "/dashboard/bank" },
-        { name: "주식", img: graph, link: "/dashboard/stock" },
-        { name: "코인", img: document, link: "/dashboard/coin" },
-        { name: "ETF", img: bell, link: "/dashboard/etf" }
+        { name: "통합 현황", img: dashTotal, link: "/dashboard/overview" },
+        { name: "은행", img: dashBank, link: "/dashboard/bank" },
+        { name: "주식", img: dashStock, link: "/dashboard/stock" },
+        { name: "채권", img: dashBond, link: "/dashboard/bond" },
+        { name: "코인", img: dashCoin, link: "/dashboard/coin" },
+        { name: "ETF", img: dashEtf, link: "/dashboard/etf" }
     ],
     asset: [
-        { name: "전체 자산 개요", img: bell, link: "/asset/overview" },
-        { name: "고급 차량", img: bell, link: "/asset/vehicles" },
-        { name: "전용기", img: bell, link: "/asset/jet" },
-        { name: "요트", img: bell, link: "/asset/yacht" },
-        { name: "개인 부동산", img: bell, link: "/asset/realestate" },
-        { name: "럭셔리 컬렉션", img: bell, link: "/asset/luxury" }
+        { name: "전체 자산 개요", img: assetTotal, link: "/asset/overview" },
+        { name: "고급 차량", img: assetCar, link: "/asset/vehicles" },
+        { name: "전용기", img: assetPlane, link: "/asset/jet" },
+        { name: "요트", img: assetYacht, link: "/asset/yacht" },
+        { name: "개인 부동산", img: assetEstate, link: "/asset/realestate" },
+        { name: "럭셔리 컬렉션", img: assetLuxury, link: "/asset/luxury" }
     ],
     business: [
-        { name: "대시보드", img: bell, link: "/business/dashboard" },
-        { name: "국제 정세", img: bell, link: "/business/world" }
+        { name: "대시보드", img: assetTotal, link: "/business/dashboard" },
+        { name: "국제 정세", img: globalIcon, link: "/business/world" }
     ],
     leaderboard: [
         { name: "내 프로필", img: graph_support, link: "/leaderboard/profile" },
@@ -77,9 +98,9 @@ export function setCompanySidebar(companyId: string, companyName: string) {
     currentCompanyId.set(companyId);
     currentSection.set('business');
     sidebarItems.set([
-        { name: "기업 현황", img: graph_support, link: `/business/company/${companyId}/overview` },
-        { name: "공장 관리", img: ver_graph, link: `/business/company/${companyId}/factory` },
-        { name: "R&D센터", img: graph, link: `/business/company/${companyId}/rnd` },
-        { name: "유통 및 판매", img: document, link: `/business/company/${companyId}/distribution` }
+        { name: "기업 현황", img: bizStatus, link: `/business/company/${companyId}/overview` },
+        { name: "공장 관리", img: bizFactory, link: `/business/company/${companyId}/factory` },
+        { name: "R&D센터", img: bizRnd, link: `/business/company/${companyId}/rnd` },
+        { name: "유통 및 판매", img: globalIcon, link: `/business/company/${companyId}/distribution` }
     ]);
 }

@@ -4,6 +4,7 @@
   import { getMyCompanies, type CompanyResponse } from '$lib/api/company';
   import { getRegions, type Region } from '$lib/api/region';
   import SkeletonTable from '$lib/components/SkeletonTable.svelte';
+  import chipIcon from '$lib/images/chip.svg';
 
   // --- State ---
   let companies = $state<CompanyResponse[]>([]);
@@ -144,7 +145,7 @@
 
               <div class="biz-info-row">
                 <div class="info-item">
-                  <span class="icon-chip">⚙️</span> <span>메인 제품 : {biz.mainProduct}</span>
+                  <img src={chipIcon} alt="메인 제품" class="icon-chip-img" /> <span>메인 제품 : {biz.mainProduct}</span>
                 </div>
                 <div class="country-info">
                   <span>📍 {biz.headquartersRegionName}</span>
@@ -378,6 +379,12 @@
 
   .icon-chip {
     color: var(--color-theme-1);
+  }
+
+  .icon-chip-img {
+    width: 1.1rem;
+    height: 1.1rem;
+    vertical-align: middle;
   }
 
   .country-info {

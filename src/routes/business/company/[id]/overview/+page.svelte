@@ -7,6 +7,7 @@
   import { getCompanyFactories, type FactoryResponse } from '$lib/api/factory';
   import { getMarketEvents, type MarketEvent } from '$lib/api/macro';
   import SkeletonTable from '$lib/components/SkeletonTable.svelte';
+  import factoryIcon from '$lib/images/factory_icon.svg';
 
   // --- State ---
   let company = $state<CompanyResponse | null>(null);
@@ -240,7 +241,7 @@
           </div>
           <div class="divider"></div>
           <div class="info-row">
-            <span class="label">🏭 공장 수</span>
+            <span class="label"><img src={factoryIcon} alt="공장" class="label-icon" /> 공장 수</span>
             <span class="val">{factories.length}개</span>
           </div>
           <div class="divider"></div>
@@ -426,6 +427,7 @@
   .info-list { display: flex; flex-direction: column; gap: 12px; }
   .info-row { display: flex; justify-content: space-between; align-items: center; font-size: 14px; }
   .info-row .label { color: var(--color-text-gray); display: flex; align-items: center; gap: 6px; }
+  .label-icon { width: 1rem; height: 1rem; vertical-align: middle; }
   .info-row .val { font-weight: 600; color: var(--color-text); text-align: right; }
   .divider { height: 1px; background-color: var(--color-border); width: 100%; }
 

@@ -11,6 +11,7 @@
   } from '$lib/api/factory';
   import SkeletonTable from '$lib/components/SkeletonTable.svelte';
   import { toast } from 'svelte-sonner';
+  import factoryIcon from '$lib/images/factory_icon.svg';
 
   const regionCenters: Record<string, [number, number]> = {
     '서울특별시': [37.5665, 126.978], '부산광역시': [35.1796, 129.0756],
@@ -221,7 +222,7 @@
 
           <div class="info-table">
             <div class="info-row">
-              <span class="label"><span class="icon">🏭</span> 공장 등급</span>
+              <span class="label"><img src={factoryIcon} alt="공장" class="icon-img" /> 공장 등급</span>
               <span class="val">{selectedFactory.grade}</span>
             </div>
             <div class="divider"></div>
@@ -299,7 +300,7 @@
               onkeydown={(e) => e.key === 'Enter' && (selectedFactory = factory)}
             >
               <div class="f-header">
-                <div class="f-icon">🏭</div>
+                <div class="f-icon"><img src={factoryIcon} alt="공장" class="f-icon-img" /></div>
                 <div>
                   <h3>{factory.name}</h3>
                   <p class="location-sub">📍 {factory.regionName}</p>
@@ -455,6 +456,8 @@
   .info-row { display: flex; justify-content: space-between; align-items: center; font-size: 14px; }
   .info-row .label { color: var(--color-text-gray); display: flex; align-items: center; gap: 8px; }
   .info-row .icon { font-size: 14px; width: 16px; text-align: center; }
+  .icon-img { width: 1rem; height: 1rem; vertical-align: middle; }
+  .f-icon-img { width: 1.5rem; height: 1.5rem; }
   .info-row .val { font-weight: 600; color: var(--color-text); }
   .divider { height: 1px; background-color: var(--color-border); width: 100%; }
 
