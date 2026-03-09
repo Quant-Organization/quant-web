@@ -61,7 +61,7 @@ export function getCompanyStats() {
 }
 
 export function createCompany(req: CreateCompanyRequest) {
-	return fetchSpring('/api/companies', { method: 'POST', body: JSON.stringify(req) });
+	return fetchSpring<CompanyResponse>('/api/companies', { method: 'POST', body: JSON.stringify(req) });
 }
 
 export function updateCompany(id: number, data: { name?: string; ceoName?: string; mainProduct?: string }) {

@@ -11,6 +11,7 @@ export interface Mission {
 	rewardItem: string;
 	rewardTitle: string;
 	difficulty: string;
+	rewardExperience: number;
 }
 
 export interface UserMission {

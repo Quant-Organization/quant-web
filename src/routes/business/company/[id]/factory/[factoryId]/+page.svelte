@@ -23,18 +23,9 @@
   import SkeletonTable from '$lib/components/SkeletonTable.svelte';
   import { toast } from 'svelte-sonner';
   import factoryIcon from '$lib/images/factory_icon.svg';
+  import { REGION_CENTERS } from '$lib/constants';
 
-  const regionCenters: Record<string, [number, number]> = {
-    '서울특별시': [37.5665, 126.978], '부산광역시': [35.1796, 129.0756],
-    '대구광역시': [35.8714, 128.6014], '인천광역시': [37.4563, 126.7052],
-    '광주광역시': [35.1595, 126.8526], '대전광역시': [36.3504, 127.3845],
-    '울산광역시': [35.5384, 129.3114], '세종특별자치시': [36.48, 127.2599],
-    '경기도': [37.4138, 127.5183], '강원특별자치도': [37.8228, 128.1555],
-    '충청북도': [36.6357, 127.4917], '충청남도': [36.5184, 126.8],
-    '전라북도': [35.7175, 127.153], '전라남도': [34.8679, 126.991],
-    '경상북도': [36.4919, 128.8889], '경상남도': [35.4606, 128.2132],
-    '제주특별자치도': [33.4996, 126.5312]
-  };
+  const regionCenters = REGION_CENTERS;
 
   let mapContainer = $state<HTMLDivElement>(null!);
   let mapInitialized = $state(false);
@@ -102,15 +93,15 @@
   };
 
   const gradeNames: Record<string, string> = {
-    workshop: '공방', small: '소형 공장', medium: '중형 공장', large: '대형 공장',
-    complex: '산업 단지', mega: '메가 팩토리', giga: '기가 팩토리'
+    WORKSHOP: '공방', SMALL: '소형 공장', MEDIUM: '중형 공장', LARGE: '대형 공장',
+    INDUSTRIAL: '산업 단지', MEGA: '메가 팩토리', GIGA: '기가 팩토리'
   };
 
   let isRunning = $derived(factory?.status === 'RUNNING' || factory?.status === 'ACTIVE' || factory?.status === 'OPERATING');
 
   let chartMetrics = $derived(factory ? [
     { label: '생산 가동률', value: factory.baseMonthlyProduction > 0 ? Math.min((factory.currentMonthlyProduction / factory.baseMonthlyProduction) * 100, 100) : 0, color: '#00529B', display: `${fmtUnit(factory.currentMonthlyProduction)} / ${fmtUnit(factory.baseMonthlyProduction)}` },
-    { label: '효율', value: Math.min((factory.efficiency ?? 0) * 100, 100), color: '#10b981', display: `${((factory.efficiency ?? 0) * 100).toFixed(1)}%` },
+    { label: '효율', value: Math.min(factory.efficiency ?? 0, 100), color: '#10b981', display: `${(factory.efficiency ?? 0).toFixed(1)}%` },
     { label: '창고 사용률', value: factory.warehouseCapacity > 0 ? Math.min((factory.currentInventory / factory.warehouseCapacity) * 100, 100) : 0, color: '#f59e0b', display: `${fmtUnit(factory.currentInventory)} / ${fmtUnit(factory.warehouseCapacity)}` },
     { label: '월 수익률', value: factory.monthlyRevenue > 0 ? Math.min(Math.abs(factory.monthlyNetIncome / factory.monthlyRevenue) * 100, 100) : 0, color: factory.monthlyNetIncome >= 0 ? '#10b981' : '#ef4444', display: `${factory.monthlyNetIncome >= 0 ? '+' : ''}${fmtMoney(factory.monthlyNetIncome)}` }
   ] : []);
@@ -290,7 +281,7 @@
           </div>
           <div class="info-row">
             <span class="lbl">⚡ 효율</span>
-            <span class="val">{((factory.efficiency ?? 0) * 100).toFixed(1)}%</span>
+            <span class="val">{(factory.efficiency ?? 0).toFixed(1)}%</span>
           </div>
           <div class="info-row">
             <span class="lbl">📦 재고 / 창고</span>
@@ -317,7 +308,7 @@
         </div>
         <div class="stat-item">
           <span class="s-lbl">효율</span>
-          <span class="s-val">{((factory.efficiency ?? 0) * 100).toFixed(1)}%</span>
+          <span class="s-val">{(factory.efficiency ?? 0).toFixed(1)}%</span>
         </div>
         <div class="stat-item">
           <span class="s-lbl">재고량</span>

@@ -16,8 +16,9 @@
 
     const difficultyConfig: Record<string, { color: string; bg: string; order: number }> = {
         EASY: { color: '#059669', bg: '#ecfdf5', order: 0 },
-        MEDIUM: { color: '#d97706', bg: '#fffbeb', order: 1 },
-        HARD: { color: '#dc2626', bg: '#fef2f2', order: 2 },
+        NORMAL: { color: '#2563eb', bg: '#eff6ff', order: 1 },
+        MEDIUM: { color: '#d97706', bg: '#fffbeb', order: 2 },
+        HARD: { color: '#dc2626', bg: '#fef2f2', order: 3 },
     };
 
     const statusLabel: Record<string, string> = {
@@ -61,10 +62,11 @@
         }
     }
 
-    function formatReward(cash: number, fame: number): string {
+    function formatReward(cash: number, fame: number, exp?: number): string {
         const parts: string[] = [];
         if (cash > 0) parts.push('$' + cash.toLocaleString());
         if (fame > 0) parts.push('명성 +' + fame);
+        if (exp && exp > 0) parts.push('경험치 +' + exp);
         return parts.join(' · ');
     }
 
@@ -168,7 +170,7 @@
                         <div class="card-bottom">
                             <div class="reward-row">
                                 <span class="reward-label">보상</span>
-                                <span class="reward-value">{formatReward(m.rewardCash, m.rewardFame)}</span>
+                                <span class="reward-value">{formatReward(m.rewardCash, m.rewardFame, m.rewardExperience)}</span>
                                 {#if m.rewardItem}<span class="reward-item-badge">{m.rewardItem}</span>{/if}
                                 {#if m.rewardTitle}<span class="reward-title-badge">{m.rewardTitle}</span>{/if}
                             </div>
@@ -221,7 +223,7 @@
                     <div class="card-bottom">
                         <div class="reward-row">
                             <span class="reward-label">보상</span>
-                            <span class="reward-value">{formatReward(um.mission.rewardCash, um.mission.rewardFame)}</span>
+                            <span class="reward-value">{formatReward(um.mission.rewardCash, um.mission.rewardFame, um.mission.rewardExperience)}</span>
                             {#if um.mission.rewardItem}
                                 <span class="reward-item-badge">{um.mission.rewardItem}</span>
                             {/if}

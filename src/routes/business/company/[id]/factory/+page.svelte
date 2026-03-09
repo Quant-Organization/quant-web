@@ -12,18 +12,9 @@
   import SkeletonTable from '$lib/components/SkeletonTable.svelte';
   import { toast } from 'svelte-sonner';
   import factoryIcon from '$lib/images/factory_icon.svg';
+  import { REGION_CENTERS } from '$lib/constants';
 
-  const regionCenters: Record<string, [number, number]> = {
-    '서울특별시': [37.5665, 126.978], '부산광역시': [35.1796, 129.0756],
-    '대구광역시': [35.8714, 128.6014], '인천광역시': [37.4563, 126.7052],
-    '광주광역시': [35.1595, 126.8526], '대전광역시': [36.3504, 127.3845],
-    '울산광역시': [35.5384, 129.3114], '세종특별자치시': [36.48, 127.2599],
-    '경기도': [37.4138, 127.5183], '강원특별자치도': [37.8228, 128.1555],
-    '충청북도': [36.6357, 127.4917], '충청남도': [36.5184, 126.8],
-    '전라북도': [35.7175, 127.153], '전라남도': [34.8679, 126.991],
-    '경상북도': [36.4919, 128.8889], '경상남도': [35.4606, 128.2132],
-    '제주특별자치도': [33.4996, 126.5312]
-  };
+  const regionCenters = REGION_CENTERS;
 
   let mapContainer = $state<HTMLDivElement>(null!);
   let leafletMap: any;

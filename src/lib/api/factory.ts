@@ -88,7 +88,7 @@ export function getAvailableFactoryGrades() {
 }
 
 export function createFactory(req: CreateFactoryRequest) {
-	return fetchSpring('/api/factories', { method: 'POST', body: JSON.stringify(req) });
+	return fetchSpring<FactoryResponse>('/api/factories', { method: 'POST', body: JSON.stringify(req) });
 }
 
 export function estimateFactory(req: CreateFactoryRequest) {
