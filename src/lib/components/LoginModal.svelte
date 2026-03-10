@@ -76,9 +76,13 @@
                     title: springRes.title
                 });
             }
+            const currentPath = page.url.pathname;
             resetForm();
-            if (page.url.pathname === '/login') {
+            if (currentPath === '/login') {
                 goto('/dashboard/overview');
+            } else {
+                // 이미 마운트된 페이지의 데이터를 갱신하기 위해 리로드
+                location.reload();
             }
         } catch (e: unknown) {
             error = e instanceof Error ? e.message : '오류가 발생했습니다.';

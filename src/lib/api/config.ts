@@ -164,7 +164,7 @@ export async function fetchFastAPI<T = unknown>(path: string, options?: FetchOpt
 		const status = (e as Error & { status?: number })?.status;
 		if ((status === 401 || (status === 403 && token)) && typeof window !== 'undefined' && !options?.suppressAuth) {
 			localStorage.removeItem('fastapi_token');
-			window.dispatchEvent(new CustomEvent('quant:auth-required'));
+			window.dispatchEvent(new CustomEvent('quant:fastapi-auth-required'));
 		}
 		throw e;
 	}

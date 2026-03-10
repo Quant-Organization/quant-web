@@ -30,8 +30,18 @@
 			loginModalAuthRequired.set(true);
 			showLoginModal.set(true);
 		};
+
+		const onFastAPIAuthRequired = () => {
+			// FastAPI 토큰만 만료 — Spring 세션은 유지하고 재로그인 유도
+			showLoginModal.set(true);
+		};
+
 		window.addEventListener('quant:auth-required', onAuthRequired);
-		return () => window.removeEventListener('quant:auth-required', onAuthRequired);
+		window.addEventListener('quant:fastapi-auth-required', onFastAPIAuthRequired);
+		return () => {
+			window.removeEventListener('quant:auth-required', onAuthRequired);
+			window.removeEventListener('quant:fastapi-auth-required', onFastAPIAuthRequired);
+		};
 	});
 </script>
 
