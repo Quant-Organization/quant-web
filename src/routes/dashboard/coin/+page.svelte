@@ -4,13 +4,14 @@
     import { page } from '$app/stores';
     import { get } from 'svelte/store';
     import { getCryptoList, getCryptoHoldings, getCryptoDetail, getCryptoEvents, buyCrypto, sellCrypto } from '$lib/api/crypto';
-    import type { CryptoInfo, CryptoHolding, CryptoDetail, CryptoEvent } from '$lib/api/crypto';
+    import type { CryptoInfo, CryptoHolding, CryptoDetail, CryptoEvent, CryptoHoldingsResponse } from '$lib/api/crypto';
     import CryptoChart from '$lib/components/CryptoChart.svelte';
     import OrderPanel from '$lib/components/OrderPanel.svelte';
     import SkeletonDashboard from '$lib/components/SkeletonDashboard.svelte';
 
     let cryptos: CryptoInfo[] = $state([]);
     let holdings: CryptoHolding[] = $state([]);
+    let cashBalance = $state(0);
     let selectedCryptoId = $state('');
     let loading = $state(true);
     let error = $state('');
@@ -23,11 +24,12 @@
         try {
             const [listRes, holdRes, eventsRes] = await Promise.all([
                 getCryptoList(),
-                getCryptoHoldings({ suppressAuth: true }).catch(() => [] as CryptoHolding[]),
+                getCryptoHoldings({ suppressAuth: true }).catch(() => ({ holdings: [], total_crypto_value: 0, cash_balance: 0 }) as CryptoHoldingsResponse),
                 getCryptoEvents().catch(() => ({ delisting_events: [] as CryptoEvent[], listing_events: [] as CryptoEvent[] }))
             ]);
             cryptos = listRes.crypto;
-            holdings = holdRes;
+            holdings = holdRes.holdings;
+            cashBalance = holdRes.cash_balance;
             cryptoEvents = [...(eventsRes.delisting_events ?? []), ...(eventsRes.listing_events ?? [])];
             const queryCoin = get(page).url.searchParams.get('coin');
             if (queryCoin && cryptos.some(c => c.crypto_id === queryCoin)) {
@@ -76,7 +78,11 @@
     }
 
     async function refreshHoldings() {
-        try { holdings = await getCryptoHoldings(); } catch {}
+        try {
+            const res = await getCryptoHoldings();
+            holdings = res.holdings;
+            cashBalance = res.cash_balance;
+        } catch {}
     }
 
     async function handleCryptoBuy(qty: number) {
@@ -203,7 +209,7 @@
             <div class="right">
                 <OrderPanel
                     {currentPrice}
-                    balance={0}
+                    balance={cashBalance}
                     maxSellQty={cryptoMaxSellQty}
                     onBuy={handleCryptoBuy}
                     onSell={handleCryptoSell}

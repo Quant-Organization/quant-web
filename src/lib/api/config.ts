@@ -162,17 +162,6 @@ export async function fetchFastAPI<T = unknown>(path: string, options?: FetchOpt
 		);
 	} catch (e) {
 		const status = (e as Error & { status?: number })?.status;
-		// FastAPI 서버가 만료/손상된 토큰에 500을 반환하는 경우 토큰 제거 후 재시도
-		if (status === 500 && token && typeof window !== 'undefined') {
-			localStorage.removeItem('fastapi_token');
-			return requestWithSmartCache<T>(
-				FASTAPI_BASE,
-				path,
-				null,
-				options,
-				(err, retryStatus) => String(err.detail || err.message || `FastAPI Error ${retryStatus}`)
-			);
-		}
 		if ((status === 401 || (status === 403 && token)) && typeof window !== 'undefined' && !options?.suppressAuth) {
 			localStorage.removeItem('fastapi_token');
 			window.dispatchEvent(new CustomEvent('quant:auth-required'));

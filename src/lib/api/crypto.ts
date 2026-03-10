@@ -73,7 +73,17 @@ export function sellCrypto(crypto_id: string, quantity: number) {
 	});
 }
 
-export async function getCryptoHoldings(opts?: { suppressAuth?: boolean }) {
-	const data = await fetchFastAPI<{ holdings: CryptoHolding[]; total_crypto_value: number }>('/api/crypto/holdings', opts?.suppressAuth ? { suppressAuth: true } : undefined);
-	return data.holdings ?? [];
+export type CryptoHoldingsResponse = {
+	holdings: CryptoHolding[];
+	total_crypto_value: number;
+	cash_balance: number;
+};
+
+export async function getCryptoHoldings(opts?: { suppressAuth?: boolean }): Promise<CryptoHoldingsResponse> {
+	const data = await fetchFastAPI<CryptoHoldingsResponse>('/api/crypto/holdings', opts?.suppressAuth ? { suppressAuth: true } : undefined);
+	return {
+		holdings: data.holdings ?? [],
+		total_crypto_value: data.total_crypto_value ?? 0,
+		cash_balance: data.cash_balance ?? 0,
+	};
 }

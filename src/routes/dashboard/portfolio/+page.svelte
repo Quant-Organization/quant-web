@@ -168,7 +168,7 @@
         if (results[0].status === 'fulfilled') portfolio = results[0].value;
         else toast.error('주식 포트폴리오를 불러오지 못했습니다.');
 
-        if (results[1].status === 'fulfilled') cryptoHoldings = results[1].value;
+        if (results[1].status === 'fulfilled') cryptoHoldings = results[1].value.holdings;
         if (results[2].status === 'fulfilled') profile = results[2].value;
 
         loading = false;
