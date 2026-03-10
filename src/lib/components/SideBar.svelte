@@ -4,7 +4,7 @@
     import { balance, formatCurrency, refreshBalance } from '$lib/stores/asset';
     import { fly } from 'svelte/transition';
     import { quintOut } from 'svelte/easing';
-    import { onMount } from 'svelte';
+    import { onMount, onDestroy } from 'svelte';
     import setting from '$lib/images/setting.svg'
 
     let selectedIndex = 0;
@@ -15,8 +15,12 @@
 
     $: items = $sidebarItems;
 
-    storeSelectedIndex.subscribe(val => {
+    const unsubIndex = storeSelectedIndex.subscribe(val => {
         selectedIndex = val;
+    });
+
+    onDestroy(() => {
+        unsubIndex();
     });
 
     function handleClick(index: number, link: string) {

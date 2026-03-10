@@ -51,8 +51,8 @@ export function getCryptoDetail(cryptoId: string) {
 }
 
 export async function getCryptoHistory(cryptoId: string, limit = 500, interval = 5) {
-	const data = await fetchFastAPI<{ crypto_id: string; candles: CryptoCandle[] }>(`/api/crypto/history/${cryptoId}?limit=${limit}&interval=${interval}`);
-	return data.candles ?? [];
+	const data = await fetchFastAPI<{ crypto_id: string; candles: CryptoCandle[] } | null>(`/api/crypto/history/${cryptoId}?limit=${limit}&interval=${interval}`);
+	return data?.candles ?? [];
 }
 
 export function getCryptoEvents() {
@@ -80,10 +80,10 @@ export type CryptoHoldingsResponse = {
 };
 
 export async function getCryptoHoldings(opts?: { suppressAuth?: boolean }): Promise<CryptoHoldingsResponse> {
-	const data = await fetchFastAPI<CryptoHoldingsResponse>('/api/crypto/holdings', opts?.suppressAuth ? { suppressAuth: true } : undefined);
+	const data = await fetchFastAPI<CryptoHoldingsResponse | null>('/api/crypto/holdings', opts?.suppressAuth ? { suppressAuth: true } : undefined);
 	return {
-		holdings: data.holdings ?? [],
-		total_crypto_value: data.total_crypto_value ?? 0,
-		cash_balance: data.cash_balance ?? 0,
+		holdings: data?.holdings ?? [],
+		total_crypto_value: data?.total_crypto_value ?? 0,
+		cash_balance: data?.cash_balance ?? 0,
 	};
 }

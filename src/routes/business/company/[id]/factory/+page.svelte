@@ -1,7 +1,7 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import {
     getCompanyFactories,
     pauseFactory,
@@ -95,7 +95,7 @@
     }
   ]);
 
-  let filteredFactories = $derived(() => {
+  let filteredFactories = $derived.by(() => {
     let list = [...factories];
     if (activeFilter === '높은 생산량 순 정렬') {
       list.sort((a, b) => b.currentMonthlyProduction - a.currentMonthlyProduction);
@@ -164,6 +164,10 @@
       // silently ignore
     }
   }
+
+  onDestroy(() => {
+    leafletMap?.remove();
+  });
 </script>
 
 <svelte:head>
@@ -277,11 +281,11 @@
         <button class="btn-primary" onclick={() => goto(`/business/company/${$page.params.id}/factory/build`)}>+ 새로운 공장 건설</button>
       </div>
 
-      {#if filteredFactories().length === 0}
+      {#if filteredFactories.length === 0}
         <div class="empty-state">공장이 없습니다.</div>
       {:else}
         <div class="factory-grid">
-          {#each filteredFactories() as factory}
+          {#each filteredFactories as factory}
             <div
               class="card factory-card"
               class:selected={selectedFactory?.id === factory.id}

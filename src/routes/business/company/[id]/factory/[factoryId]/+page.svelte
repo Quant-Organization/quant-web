@@ -1,7 +1,7 @@
 <script lang="ts">
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import {
     getFactoryDetail,
     pauseFactory,
@@ -29,6 +29,7 @@
 
   let mapContainer = $state<HTMLDivElement>(null!);
   let mapInitialized = $state(false);
+  let leafletMap: any;
 
   async function initMap(regionName: string) {
     const leafletModule = await import('leaflet');
@@ -37,26 +38,26 @@
 
     const center = regionCenters[regionName] ?? [36.0, 127.5];
 
-    const map = L.map(mapContainer, {
+    leafletMap = L.map(mapContainer, {
       center: center as [number, number],
       zoom: 10,
       zoomControl: false,
       attributionControl: false
     });
 
-    L.control.zoom({ position: 'bottomright' }).addTo(map);
+    L.control.zoom({ position: 'bottomright' }).addTo(leafletMap);
 
     L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
       subdomains: 'abcd',
       maxZoom: 19
-    }).addTo(map);
+    }).addTo(leafletMap);
 
     L.circleMarker(center, {
       radius: 12, fillColor: '#00529B', fillOpacity: 0.8, color: '#fff', weight: 2
-    }).addTo(map).bindTooltip(regionName, { permanent: true, className: 'region-tooltip', direction: 'top' });
+    }).addTo(leafletMap).bindTooltip(regionName, { permanent: true, className: 'region-tooltip', direction: 'top' });
 
     mapInitialized = true;
-    setTimeout(() => map.invalidateSize(), 200);
+    setTimeout(() => leafletMap.invalidateSize(), 200);
   }
 
   // --- State ---
@@ -227,6 +228,10 @@
       actionLoading = false;
     }
   }
+
+  onDestroy(() => {
+    leafletMap?.remove();
+  });
 </script>
 
 <svelte:head>

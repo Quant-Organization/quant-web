@@ -11,6 +11,7 @@
     import type { ClickInfo } from '$lib/api/click';
     import type { GlobalEvent } from '$lib/api/macro';
     import Skeleton from '$lib/components/Skeleton.svelte';
+    import SplineScene from '$lib/components/SplineScene.svelte';
     import { toast } from 'svelte-sonner';
 
     let dashboardData = $state<DashboardData | null>(null);
@@ -24,6 +25,7 @@
     let incomeAmount = $state(0);
     let isMouseDown = $state(false);
     let upgradeLoading = $state(false);
+    let popupTimerId: ReturnType<typeof setTimeout> | null = null;
 
     // Batch click — 로컬 즉시 반영, 서버에는 3초마다 배치 전송
     let pendingClicks = 0;
@@ -99,7 +101,8 @@
         incomeAmount = earned;
         showIncomePopup = true;
         if (!isReceiptClicked) isReceiptClicked = true;
-        setTimeout(() => { showIncomePopup = false; }, 1500);
+        if (popupTimerId) clearTimeout(popupTimerId);
+        popupTimerId = setTimeout(() => { showIncomePopup = false; }, 1500);
 
         pendingClicks++;
         scheduleFlush();
@@ -156,11 +159,45 @@
 
     onDestroy(() => {
         if (flushTimer) { clearTimeout(flushTimer); flushTimer = null; }
-        if (pendingClicks > 0) flushClicks();
+        if (popupTimerId) { clearTimeout(popupTimerId); popupTimerId = null; }
+        if (pendingClicks > 0) {
+            clickBatch(pendingClicks).catch(() => {});
+        }
     });
 </script>
 
 <div class="dashboard-body">
+    <div class="hero-3d-banner">
+        <SplineScene
+            url="https://prod.spline.design/6Wq1Q7YGyM-iab9i/scene.splinecode"
+            class="hero-spline"
+        />
+        <div class="hero-overlay">
+            <div class="hero-content">
+                <h1 class="hero-title">QUANT Dashboard</h1>
+                <p class="hero-subtitle">실시간 자산 관리 & 투자 시뮬레이션</p>
+                <div class="hero-stats">
+                    {#if !isLoading && dashboardData}
+                        <div class="hero-stat">
+                            <span class="hero-stat-value">${formatNumber(dashboardData.assets.totalAssetValue)}</span>
+                            <span class="hero-stat-label">총 자산</span>
+                        </div>
+                        <div class="hero-stat-divider"></div>
+                        <div class="hero-stat">
+                            <span class="hero-stat-value">#{formatNumber(dashboardData.rank.rank)}</span>
+                            <span class="hero-stat-label">랭킹</span>
+                        </div>
+                        <div class="hero-stat-divider"></div>
+                        <div class="hero-stat">
+                            <span class="hero-stat-value">{dashboardData.business.companyCount}개</span>
+                            <span class="hero-stat-label">비즈니스</span>
+                        </div>
+                    {/if}
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="layout-wrapper">
         <div class="left-section">
             <div class="small-cards-row">
@@ -392,6 +429,83 @@
 </div>
 
 <style>
+    .hero-3d-banner {
+        position: relative;
+        width: 100%;
+        height: 14rem;
+        border-radius: 1rem;
+        overflow: hidden;
+        margin-bottom: 2rem;
+        background: linear-gradient(135deg, #0a1628 0%, #0f2847 50%, #0a1628 100%);
+    }
+
+    .hero-overlay {
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(
+            135deg,
+            rgba(10, 22, 40, 0.75) 0%,
+            rgba(15, 40, 71, 0.4) 50%,
+            rgba(10, 22, 40, 0.6) 100%
+        );
+        display: flex;
+        align-items: center;
+        padding: 0 3rem;
+        z-index: 2;
+    }
+
+    .hero-content {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .hero-title {
+        font-size: 2rem;
+        font-weight: 800;
+        color: white;
+        letter-spacing: -0.5px;
+        margin: 0;
+    }
+
+    .hero-subtitle {
+        font-size: 1rem;
+        color: rgba(255, 255, 255, 0.6);
+        margin: 0;
+    }
+
+    .hero-stats {
+        display: flex;
+        align-items: center;
+        gap: 1.5rem;
+        margin-top: 0.75rem;
+    }
+
+    .hero-stat {
+        display: flex;
+        flex-direction: column;
+        gap: 0.15rem;
+    }
+
+    .hero-stat-value {
+        font-size: 1.3rem;
+        font-weight: 700;
+        color: white;
+    }
+
+    .hero-stat-label {
+        font-size: 0.75rem;
+        color: rgba(255, 255, 255, 0.5);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .hero-stat-divider {
+        width: 1px;
+        height: 2.5rem;
+        background: rgba(255, 255, 255, 0.15);
+    }
+
     .layout-wrapper {
         display: grid;
         grid-template-columns: calc(66.666% + 1rem) calc(33.333% - 1rem);
@@ -840,11 +954,35 @@
         .small-cards-row {
             grid-template-columns: 1fr 1fr;
         }
+        .hero-3d-banner {
+            height: 12rem;
+        }
+        .hero-title {
+            font-size: 1.6rem;
+        }
     }
 
     @media (max-width: 768px) {
         .dashboard-body {
             padding: 16px;
+        }
+        .hero-3d-banner {
+            height: 10rem;
+        }
+        .hero-overlay {
+            padding: 0 1.5rem;
+        }
+        .hero-title {
+            font-size: 1.3rem;
+        }
+        .hero-subtitle {
+            font-size: 0.85rem;
+        }
+        .hero-stats {
+            gap: 1rem;
+        }
+        .hero-stat-value {
+            font-size: 1rem;
         }
     }
 </style>

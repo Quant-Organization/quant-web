@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { onMount } from 'svelte';
+    import { onMount, onDestroy } from 'svelte';
     import { toast } from 'svelte-sonner';
     import { goto } from '$app/navigation';
     import Chart from 'chart.js/auto';
@@ -181,6 +181,11 @@
         // re-build when any data source changes
         allocationCategories;
         if (allocationCanvas) buildAllocationChart();
+    });
+
+    onDestroy(() => {
+        allocationChart?.destroy();
+        allocationChart = null;
     });
 </script>
 

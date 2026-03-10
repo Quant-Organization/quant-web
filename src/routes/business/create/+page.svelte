@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { goto } from '$app/navigation';
   import { toast } from 'svelte-sonner';
   import { getCompanyTypes, createCompany, type CompanyType } from '$lib/api/company';
@@ -208,6 +208,10 @@ function selectRegionOnMap(regionId: number) {
       creating = false;
     }
   }
+
+  onDestroy(() => {
+    leafletMap?.remove();
+  });
 </script>
 
 <svelte:head>

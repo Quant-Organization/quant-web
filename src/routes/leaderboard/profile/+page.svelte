@@ -63,7 +63,7 @@
   ] : []);
 
   // 실제 프로필 데이터 기반 자산 구성
-  let chartData = $derived(() => {
+  let chartData = $derived.by(() => {
     if (!profile) return [];
     const items = [
       { label: '비즈니스', color: '#EF4444', value: profile.businessValue },
@@ -79,8 +79,8 @@
       .map(i => ({ ...i, percent: total > 0 ? Math.round((i.value / total) * 100) + '%' : '0%' }));
   });
 
-  let conicGradient = $derived(() => {
-    const data = chartData();
+  let conicGradient = $derived.by(() => {
+    const data = chartData;
     if (data.length === 0) return 'conic-gradient(var(--color-border) 0% 100%)';
     let cumulative = 0;
     const stops = data.map(d => {
@@ -272,11 +272,11 @@
 
     <section class="card chart-card bottom-section">
       <h3>자산 구성</h3>
-      {#if chartData().length > 0}
+      {#if chartData.length > 0}
         <div class="chart-content">
-          <div class="donut-chart" style="background: {conicGradient()}"></div>
+          <div class="donut-chart" style="background: {conicGradient}"></div>
           <div class="legend">
-            {#each chartData() as data}
+            {#each chartData as data}
               <div class="legend-item">
                 <span class="dot" style="background-color: {data.color}"></span>
                 <span class="legend-label">{data.label}</span>

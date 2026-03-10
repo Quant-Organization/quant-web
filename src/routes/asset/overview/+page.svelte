@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { onMount } from 'svelte';
+    import { onMount, onDestroy } from 'svelte';
     import { goto } from '$app/navigation';
     import { getDashboard, getProfileStats } from '$lib/api/dashboard';
     import type { DashboardData, ProfileStats } from '$lib/api/dashboard';
@@ -18,7 +18,11 @@
     let activeAuction = $state<AuctionResponse | null>(null);
 
     let currentUser = $state<{ fame?: number } | null>(null);
-    auth.user.subscribe((u) => { currentUser = u; });
+    const unsubUser = auth.user.subscribe((u) => { currentUser = u; });
+
+    onDestroy(() => {
+        unsubUser();
+    });
 
     function formatTimeRemaining(endTime: string): string {
         const end = new Date(endTime);
@@ -63,7 +67,7 @@
     }
 
     // 컬렉션 완성도: 자산 카테고리 중 보유한 것의 비율
-    let collectionPercent = $derived(() => {
+    let collectionPercent = $derived.by(() => {
         if (!dashboard) return 0;
         const { vehicleCount, jetCount, yachtCount, realEstateCount, luxuryCount } = dashboard.assets;
         const total = vehicleCount + jetCount + yachtCount + realEstateCount + luxuryCount;
@@ -72,7 +76,7 @@
         return Math.min(Math.round((total / max) * 100), 100);
     });
 
-    let assets = $derived(() => [
+    let assets = $derived.by(() => [
         {
             type: '고급 차량',
             count: `${dashboard?.assets.vehicleCount ?? 0}대`,
@@ -144,9 +148,9 @@
                 {#if loading}
                     <span class="metric-value">--</span>
                 {:else}
-                    <span class="metric-value">{collectionPercent()}%</span>
+                    <span class="metric-value">{collectionPercent}%</span>
                     <div class="progress-container">
-                        <div class="progress-bar" style="width: {collectionPercent()}%"></div>
+                        <div class="progress-bar" style="width: {collectionPercent}%"></div>
                     </div>
                 {/if}
             </div>
@@ -156,7 +160,7 @@
     <section class="assets-section">
         <h2 class="section-title">보유 자산 요약</h2>
         <div class="assets-grid">
-            {#each assets() as asset}
+            {#each assets as asset}
                 <a href={asset.link} class="asset-card" style="background-image: url('{asset.image}')">
                     <div class="asset-overlay">
                         <h3>{asset.type}</h3>

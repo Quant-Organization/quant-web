@@ -59,12 +59,24 @@
     );
 
     async function handleStockBuy(qty: number) {
-        await buyStock(selectedCompanyId, qty);
-        onAccountRefresh();
+        try {
+            await buyStock(selectedCompanyId, qty);
+            toast.success('매수 주문이 체결되었습니다.');
+            onAccountRefresh();
+        } catch (e) {
+            console.error('매수 실패:', e);
+            toast.error((e as Error).message || '매수 주문에 실패했습니다.');
+        }
     }
     async function handleStockSell(qty: number) {
-        await sellStock(selectedCompanyId, qty);
-        onAccountRefresh();
+        try {
+            await sellStock(selectedCompanyId, qty);
+            toast.success('매도 주문이 체결되었습니다.');
+            onAccountRefresh();
+        } catch (e) {
+            console.error('매도 실패:', e);
+            toast.error((e as Error).message || '매도 주문에 실패했습니다.');
+        }
     }
 </script>
 

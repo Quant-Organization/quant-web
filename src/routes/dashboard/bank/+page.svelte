@@ -23,7 +23,7 @@
     let allBanks = $state<BankResponse[]>([]);
 
     // tier별 은행 그룹
-    let banksByTier = $derived(() => {
+    let banksByTier = $derived.by(() => {
         const result: Record<number, BankResponse[]> = { 1: [], 2: [], 3: [] };
         for (const b of allBanks) {
             if (result[b.tier]) result[b.tier].push(b);
@@ -287,7 +287,7 @@
         <div class="dropdown-header">
             <h4>{tierTitles[openDropdown]}</h4>
         </div>
-        {#each (banksByTier()[openDropdown] ?? []) as bank}
+        {#each (banksByTier[openDropdown] ?? []) as bank}
             <button class="dropdown-item" onclick={() => selectBank(openDropdown!, bank)}>
                 {#if bank.logoUrl}
                     <img src={bank.logoUrl} alt={bank.name} class="dropdown-item-logo"/>

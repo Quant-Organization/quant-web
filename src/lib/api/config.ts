@@ -54,7 +54,7 @@ function defaultTtlMs(path: string): number {
 
 async function parseJsonSafe<T>(res: Response): Promise<T> {
 	const text = await res.text();
-	if (!text) return null as T;
+	if (!text) throw new Error('Empty response body');
 	try {
 		return JSON.parse(text) as T;
 	} catch {

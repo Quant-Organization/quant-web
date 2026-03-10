@@ -43,7 +43,7 @@
     let isUp = $derived(changePct >= 0);
 
     // 시가총액 추정: 게임 내 발행주식수 1,000만 주 가정
-    let marketCap = $derived(() => {
+    let marketCap = $derived.by(() => {
         if (currentPrice <= 0) return 0;
         return currentPrice * 10_000_000;
     });
@@ -90,7 +90,7 @@
     <div class="stats">
         <div class="stat">
             <span class="stat-label">시가총액</span>
-            <strong>{marketCap() > 0 ? formatLargeNumber(marketCap()) : '-'}</strong>
+            <strong>{marketCap > 0 ? formatLargeNumber(marketCap) : '-'}</strong>
         </div>
 
         <div class="divider"></div>

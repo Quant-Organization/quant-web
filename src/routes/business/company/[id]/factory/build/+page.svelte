@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
   import { getAvailableFactoryGrades, type FactoryGrade } from '$lib/api/factory';
@@ -49,7 +49,7 @@
   let selectedGradeData = $derived(grades.find(g => g.grade === selectedGrade));
   let selectedRegion = $derived(regions.find(r => r.id === selectedRegionId));
 
-  let regionBonus = $derived(() => {
+  let regionBonus = $derived.by(() => {
     if (!selectedRegion) return '';
     const speed = selectedRegion.constructionSpeedMultiplier;
     if (speed > 1) return `건설 속도 +${Math.round((speed - 1) * 100)}%`;
@@ -168,6 +168,10 @@
     });
     goto(`/business/company/${$page.params.id}/factory/build/settings`);
   }
+
+  onDestroy(() => {
+    leafletMap?.remove();
+  });
 </script>
 
 <svelte:head>
@@ -289,7 +293,7 @@
         </div>
         <div class="sum-row">
           <span class="lbl">지역 보너스</span>
-          <span class="val text-green">{regionBonus()}</span>
+          <span class="val text-green">{regionBonus}</span>
         </div>
 
         <div class="divider-dashed"></div>

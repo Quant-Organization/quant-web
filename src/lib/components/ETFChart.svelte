@@ -144,7 +144,6 @@
 
     onMount(() => {
         initChart();
-        loadData().then(startRefresh);
         window.addEventListener('resize', handleResize);
     });
 
@@ -156,14 +155,8 @@
 
     $effect(() => {
         const _id = selectedETFId;
-        if (chart) {
-            loadData().then(startRefresh);
-        }
-    });
-
-    $effect(() => {
         const _tf = timeframe;
-        if (chart && selectedETFId) {
+        if (chart) {
             loadData().then(startRefresh);
         }
     });

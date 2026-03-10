@@ -14,7 +14,7 @@
   let searchText = $state('');
 
   // --- Derived summary stats ---
-  let avgMarginRate = $derived(() => {
+  let avgMarginRate = $derived.by(() => {
     if (!companies.length) return '0%';
     const validCompanies = companies.filter(c => c.totalRevenue > 0);
     if (!validCompanies.length) return '0%';
@@ -31,7 +31,7 @@
     },
     {
       label: '평균 이익률',
-      value: avgMarginRate(),
+      value: avgMarginRate,
       unit: ''
     },
     {

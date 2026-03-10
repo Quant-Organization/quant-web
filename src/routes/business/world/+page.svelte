@@ -118,7 +118,7 @@
         return `${n.toFixed(n >= 10 ? 1 : 2)}T`;
     }
 
-    let gdpChart = $derived(() => {
+    let gdpChart = $derived.by(() => {
         const series = selectedGDPSeries.length >= 2
             ? selectedGDPSeries
             : [{ year: 2023, gdp: 1 }, { year: 2024, gdp: 1.1 }];
@@ -201,7 +201,7 @@
         return `${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`;
     }
 
-    let commodityChart = $derived(() => {
+    let commodityChart = $derived.by(() => {
         if (commodityChartData.length < 2 || !selectedCommodity) return null;
 
         const validData = commodityChartData.filter((p) => Number.isFinite(p.close));
@@ -324,8 +324,8 @@
                             <div class="stat-box"><span class="label">인플레이션</span><span class="val">{selectedCountry.inflation}</span></div>
                         </div>
                         <div class="chart-area">
-                            {#if gdpChart()}
-                                {@const chart = gdpChart()}
+                            {#if gdpChart}
+                                {@const chart = gdpChart}
                                 <svg viewBox={`0 0 ${chart.width} ${chart.height}`} class="line-chart" role="img" aria-label={`${selectedCountry.nameKr} GDP 추이`}>
                                     {#each chart.yTicks as tick}
                                         <line
@@ -387,7 +387,7 @@
                         </div>
 
                         {#if selectedCommodity}
-                            {@const chart = commodityChart()}
+                            {@const chart = commodityChart}
                             {#if chart}
                                 <div class="commodity-chart-section">
                                     <h4 class="chart-label">{selectedCommodity.name} 가격 추이</h4>

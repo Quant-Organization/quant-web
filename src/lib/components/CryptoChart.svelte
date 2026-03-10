@@ -149,7 +149,6 @@
 
     onMount(() => {
         initChart();
-        loadData().then(startRefresh);
         window.addEventListener('resize', handleResize);
     });
 
