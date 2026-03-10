@@ -41,7 +41,7 @@
                 getBanks().catch(() => [] as BankResponse[]),
                 getLoanSummary().catch(() => null)
             ]);
-            if (account) currentBalance = account.cashBalance;
+            if (account) currentBalance = account.cashBalance ?? 0;
             allBanks = banks;
             // 각 tier에서 첫 번째 은행을 기본 선택
             for (const tier of [1, 2, 3]) {

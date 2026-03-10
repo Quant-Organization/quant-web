@@ -8,8 +8,8 @@ export const balance = writable<number>(0);
 export async function refreshBalance(): Promise<number> {
     try {
         const acct = await getSpringAccount();
-        balance.set(acct.cashBalance);
-        return acct.cashBalance;
+        balance.set(acct.cashBalance ?? 0);
+        return acct.cashBalance ?? 0;
     } catch {
         return 0;
     }

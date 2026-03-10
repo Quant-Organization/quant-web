@@ -52,7 +52,7 @@
     onMount(async () => {
         try {
             const account = await getSpringAccount();
-            currentBalance = account.cashBalance;
+            currentBalance = account.cashBalance ?? 0;
         } catch { /* fallback */ }
 
         // URL에서 은행 정보 파싱

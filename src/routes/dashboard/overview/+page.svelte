@@ -140,7 +140,7 @@
 
             if (dashboard.status === 'fulfilled') {
                 dashboardData = dashboard.value;
-                balance = dashboard.value.account.cashBalance;
+                balance = dashboard.value.account?.cashBalance ?? 0;
             } else {
                 toast.error('대시보드 정보를 불러오지 못했습니다.');
             }
