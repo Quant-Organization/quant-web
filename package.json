@@ -30,7 +30,6 @@
 	"dependencies": {
 		"@b1nd/dds-web": "^0.2.8",
 		"@fontsource/inter": "^5.2.8",
-		"@splinetool/runtime": "^1.12.68",
 		"chart.js": "^4.5.1",
 		"clsx": "^2.1.1",
 		"leaflet": "^1.9.4",
