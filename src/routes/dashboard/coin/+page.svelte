@@ -1,6 +1,8 @@
 <script lang="ts">
     import { onMount } from 'svelte';
     import { toast } from 'svelte-sonner';
+    import { page } from '$app/stores';
+    import { get } from 'svelte/store';
     import { getCryptoList, getCryptoHoldings, getCryptoDetail, getCryptoEvents, buyCrypto, sellCrypto } from '$lib/api/crypto';
     import type { CryptoInfo, CryptoHolding, CryptoDetail, CryptoEvent } from '$lib/api/crypto';
     import CryptoChart from '$lib/components/CryptoChart.svelte';
@@ -27,7 +29,10 @@
             cryptos = listRes.crypto;
             holdings = holdRes;
             cryptoEvents = [...(eventsRes.delisting_events ?? []), ...(eventsRes.listing_events ?? [])];
-            if (cryptos.length > 0) {
+            const queryCoin = get(page).url.searchParams.get('coin');
+            if (queryCoin && cryptos.some(c => c.crypto_id === queryCoin)) {
+                selectedCryptoId = queryCoin;
+            } else if (cryptos.length > 0) {
                 selectedCryptoId = cryptos[0].crypto_id;
             }
         } catch {

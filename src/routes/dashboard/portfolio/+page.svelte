@@ -104,8 +104,8 @@
     }
 
     function goToHolding(h: UnifiedHolding) {
-        if (h.type === 'stock') goto('/dashboard/stock');
-        else goto('/dashboard/coin');
+        if (h.type === 'stock') goto(`/dashboard/stock?company=${h.id}`);
+        else goto(`/dashboard/coin?coin=${h.id}`);
     }
 
     let allocationCategories = $derived.by(() => {

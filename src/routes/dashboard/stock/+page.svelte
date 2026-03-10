@@ -1,6 +1,7 @@
 <script lang="ts">
     import { onMount, onDestroy } from 'svelte';
     import { toast } from 'svelte-sonner';
+    import { page } from '$app/stores';
     import StockHeader from '../../../lib/stock/StockHeader.svelte';
     import StockChart from '../../../lib/stock/StockChart.svelte';
     import NewsSection from '../../../lib/stock/NewsSection.svelte';
@@ -11,6 +12,7 @@
     import type { Company } from '$lib/api/market';
     import type { PortfolioDashboard } from '$lib/api/trade';
     import SkeletonDashboard from '$lib/components/SkeletonDashboard.svelte';
+    import { get } from 'svelte/store';
 
     let companies = $state<Company[]>([]);
     let selectedCompanyId = $state<string>('');
@@ -29,7 +31,10 @@
     onMount(async () => {
         try {
             companies = await getCompanies();
-            if (companies.length > 0) {
+            const queryCompany = get(page).url.searchParams.get('company');
+            if (queryCompany && companies.some(c => c.company_id === queryCompany)) {
+                selectedCompanyId = queryCompany;
+            } else if (companies.length > 0) {
                 selectedCompanyId = companies[0].company_id;
             }
         } catch (e) {
