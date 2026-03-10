@@ -1,15 +1,15 @@
 <script lang="ts">
     import { getValuation, getFinancials } from '$lib/api/market';
     import type { Valuation, FinancialReport } from '$lib/api/market';
-    import type { AccountResponse } from '$lib/api/trade';
+    import type { PortfolioDashboard } from '$lib/api/trade';
 
     interface Props {
         selectedCompanyId: string;
         currentPrice: number;
-        account: AccountResponse | null;
+        dashboard: PortfolioDashboard | null;
     }
 
-    let { selectedCompanyId, currentPrice, account }: Props = $props();
+    let { selectedCompanyId, currentPrice, dashboard }: Props = $props();
 
     let valuation = $state<Valuation | null>(null);
     let financials = $state<FinancialReport | null>(null);
@@ -29,7 +29,7 @@
     });
 
     let holding = $derived(
-        account?.holdings.find(h => h.company_id === selectedCompanyId) ?? null
+        dashboard?.holdings.find(h => h.company_id === selectedCompanyId) ?? null
     );
 
     let stats = $derived([
@@ -46,9 +46,12 @@
         holding
             ? [
                 { label: '보유 수량', value: `${holding.quantity}주` },
-                { label: '평균 단가', value: `₩${holding.avg_price.toLocaleString()}` },
+                { label: '평균 단가', value: `₩${Math.round(holding.avg_price).toLocaleString()}` },
+                { label: '투자금', value: `₩${holding.total_invested.toLocaleString()}` },
+                { label: '평가액', value: `₩${holding.current_value.toLocaleString()}` },
                 { label: '평가 손익', value: `₩${holding.profit_loss.toLocaleString()}` },
                 { label: '수익률', value: `${holding.profit_loss_pct.toFixed(2)}%` },
+                { label: '비중', value: `${holding.weight_pct.toFixed(1)}%` },
               ]
             : []
     );
@@ -61,7 +64,7 @@
         <div class="header">
             <div class="title-row">
                 <div class="icon">₩</div>
-                <strong class="code">{selectedCompanyId || '-'}</strong>
+                <strong class="code">{holding?.company_name ?? (selectedCompanyId || '-')}</strong>
             </div>
         </div>
 
@@ -149,11 +152,21 @@
 
         <div class="account-row">
             <span class="stat-label">가용 현금</span>
-            <span class="stat-value">₩{(account?.cash ?? 0).toLocaleString()}</span>
+            <span class="stat-value">₩{(dashboard?.summary.cash ?? 0).toLocaleString()}</span>
         </div>
         <div class="account-row">
-            <span class="stat-label">총 평가액</span>
-            <span class="stat-value">₩{(account?.total_value ?? 0).toLocaleString()}</span>
+            <span class="stat-label">주식 평가액</span>
+            <span class="stat-value">₩{(dashboard?.summary.stock_value ?? 0).toLocaleString()}</span>
+        </div>
+        <div class="account-row">
+            <span class="stat-label">총 자산</span>
+            <span class="stat-value">₩{(dashboard?.summary.total_assets ?? 0).toLocaleString()}</span>
+        </div>
+        <div class="account-row">
+            <span class="stat-label">총 손익</span>
+            <span class="stat-value" style="color: {(dashboard?.summary.total_profit_loss ?? 0) >= 0 ? '#16a34a' : '#dc2626'}">
+                {(dashboard?.summary.total_profit_loss ?? 0) >= 0 ? '+' : ''}₩{(dashboard?.summary.total_profit_loss ?? 0).toLocaleString()} ({(dashboard?.summary.total_profit_loss_pct ?? 0).toFixed(2)}%)
+            </span>
         </div>
     </div>
 

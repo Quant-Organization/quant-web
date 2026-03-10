@@ -38,6 +38,10 @@ function createAuthStore() {
 	function logout() {
 		token.set(null);
 		user.set(null);
+		if (typeof window !== 'undefined') {
+			localStorage.removeItem('spring_token');
+			localStorage.removeItem('fastapi_token');
+		}
 	}
 
 	const isLoggedIn = derived(token, ($token) => !!$token);

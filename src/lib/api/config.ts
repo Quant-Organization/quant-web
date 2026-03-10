@@ -174,6 +174,7 @@ export async function fetchFastAPI<T = unknown>(path: string, options?: FetchOpt
 			);
 		}
 		if ((status === 401 || (status === 403 && token)) && typeof window !== 'undefined' && !options?.suppressAuth) {
+			localStorage.removeItem('fastapi_token');
 			window.dispatchEvent(new CustomEvent('quant:auth-required'));
 		}
 		throw e;
@@ -208,6 +209,8 @@ export async function fetchSpring<T = unknown>(path: string, options?: FetchOpti
 	} catch (e) {
 		const status = (e as Error & { status?: number })?.status;
 		if ((status === 401 || (status === 403 && token)) && typeof window !== 'undefined' && !options?.suppressAuth) {
+			localStorage.removeItem('spring_token');
+			localStorage.removeItem('auth_token');
 			window.dispatchEvent(new CustomEvent('quant:auth-required'));
 		}
 		throw e;

@@ -7,28 +7,23 @@
     import OrderPanel from '$lib/components/OrderPanel.svelte';
     import Summary from '$lib/stock/Summary.svelte';
     import { getCompanies } from '$lib/api/market';
-    import { getAccount, getOrders, buyStock, sellStock } from '$lib/api/trade';
+    import { getPortfolioDashboard, buyStock, sellStock } from '$lib/api/trade';
     import type { Company } from '$lib/api/market';
-    import type { AccountResponse, OrderResponse } from '$lib/api/trade';
+    import type { PortfolioDashboard } from '$lib/api/trade';
     import SkeletonDashboard from '$lib/components/SkeletonDashboard.svelte';
 
     let companies = $state<Company[]>([]);
     let selectedCompanyId = $state<string>('');
     let currentPrice = $state(0);
-    let account = $state<AccountResponse | null>(null);
-    let orders = $state<OrderResponse[]>([]);
+    let dashboard = $state<PortfolioDashboard | null>(null);
 
-    async function loadAccount() {
+    async function loadDashboard() {
         try {
-            account = await getAccount();
+            dashboard = await getPortfolioDashboard();
         } catch (e) {
-            console.error('계좌 로드 실패:', e);
-            toast.error('계좌 정보를 불러오지 못했습니다.');
+            console.error('포트폴리오 로드 실패:', e);
+            toast.error('포트폴리오 정보를 불러오지 못했습니다.');
         }
-    }
-
-    async function loadOrders() {
-        try { orders = await getOrders(20); } catch { /* ignore */ }
     }
 
     onMount(async () => {
@@ -42,21 +37,20 @@
             toast.error('종목 정보를 불러오지 못했습니다.');
         }
 
-        await Promise.all([loadAccount(), loadOrders()]);
+        await loadDashboard();
     });
 
     function onAccountRefresh() {
-        loadAccount();
-        loadOrders();
+        loadDashboard();
     }
 
     function handlePriceUpdate(price: number) {
         currentPrice = price;
     }
 
-    let stockBalance = $derived(account?.cash ?? 0);
+    let stockBalance = $derived(dashboard?.summary.cash ?? 0);
     let stockMaxSellQty = $derived(
-        account?.holdings.find(h => h.company_id === selectedCompanyId)?.quantity ?? 0
+        dashboard?.holdings.find(h => h.company_id === selectedCompanyId)?.quantity ?? 0
     );
 
     async function handleStockBuy(qty: number) {
@@ -94,18 +88,18 @@
         <Summary
             {selectedCompanyId}
             {currentPrice}
-            {account}
+            {dashboard}
         />
-        {#if orders.length > 0}
+        {#if dashboard && dashboard.recent_trades.length > 0}
         <div class="orders-panel">
-            <h3 class="orders-title">최근 주문 내역</h3>
+            <h3 class="orders-title">최근 거래 내역</h3>
             <div class="orders-list">
-                {#each orders as ord}
-                    <div class="order-row" class:buy={ord.order_type === 'buy'} class:sell={ord.order_type === 'sell'}>
-                        <span class="order-type">{ord.order_type === 'buy' ? '매수' : '매도'}</span>
-                        <span class="order-company">{ord.company_id}</span>
-                        <span class="order-qty">{ord.quantity}주</span>
-                        <span class="order-price">{ord.total_amount.toLocaleString()}원</span>
+                {#each dashboard.recent_trades as trade}
+                    <div class="order-row" class:buy={trade.type === 'BUY'} class:sell={trade.type === 'SELL'}>
+                        <span class="order-type">{trade.type === 'BUY' ? '매수' : '매도'}</span>
+                        <span class="order-company">{trade.company_name}</span>
+                        <span class="order-qty">{trade.quantity}주</span>
+                        <span class="order-price">{trade.total_amount.toLocaleString()}원</span>
                     </div>
                 {/each}
             </div>
