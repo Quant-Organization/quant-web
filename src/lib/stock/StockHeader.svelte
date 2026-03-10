@@ -59,7 +59,7 @@
 <section class="card">
     <div class="left">
         <div class="title-row">
-            <span class="pill">NASDAQ</span>
+            <span class="pill">QUANT</span>
             {#if companies.length > 0}
                 <select
                     class="company-select"

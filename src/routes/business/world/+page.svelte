@@ -651,7 +651,7 @@
     }
 
     .stat-box .label { display: block; font-size: var(--stat-label-size, 0.8rem); color: var(--stat-label-color, var(--color-text-gray)); margin-bottom: 0.5rem; }
-    .stat-box .val { font-size: var(--stat-value-size, 1.1rem); font-weight: var(--stat-value-weight, 700); color: var(--color-text); }
+    .stat-box .val { font-size: 1rem; font-weight: var(--stat-value-weight, 700); color: var(--color-text); }
 
     .chart-area {
         background-color: var(--color-bg-1, white);

@@ -14,8 +14,8 @@
   // --- Derived ---
   let filteredPlayers = $derived(
     players.filter((p) =>
-      p.playerName.toLowerCase().includes(searchText.toLowerCase()) ||
-      p.username.toLowerCase().includes(searchText.toLowerCase())
+      (p.playerName ?? '').toLowerCase().includes(searchText.toLowerCase()) ||
+      (p.username ?? '').toLowerCase().includes(searchText.toLowerCase())
     )
   );
 
@@ -32,14 +32,14 @@
     {
       label: '1위 총 자산',
       mainValue: players[0] ? formatAsset(players[0].totalAssetValue) : '-',
-      subValue: players[0] ? players[0].playerName : '',
+      subValue: players[0] ? (players[0].playerName ?? players[0].username) : '',
       subValueColor: 'gray' as const,
       iconType: 'chart' as const
     },
     {
       label: '상위 플레이어',
-      mainValue: players[0] ? players[0].playerName : '-',
-      subValue: players[0] ? players[0].title : '',
+      mainValue: players[0] ? (players[0].playerName ?? players[0].username) : '-',
+      subValue: players[0] ? (players[0].title ?? '') : '',
       subValueColor: 'gray' as const,
       iconType: 'crown' as const
     }
@@ -175,13 +175,15 @@
               <div class="col-player flex-align">
                 <img src={getAvatarUrl(player.username)} alt="avatar" class="avatar" />
                 <div class="player-info">
-                  <span class="p-name">{player.playerName}</span>
-                  <span class="p-level">Level {player.level} · {player.title}</span>
+                  <span class="p-name">{player.playerName ?? player.username}</span>
+                  <span class="p-level">Level {player.level}{player.title ? ` · ${player.title}` : ''}</span>
                 </div>
               </div>
 
               <div class="col-tag">
-                <span class="badge">{player.title}</span>
+                {#if player.title}
+                  <span class="badge">{player.title}</span>
+                {/if}
               </div>
 
               <div class="col-assets font-bold">

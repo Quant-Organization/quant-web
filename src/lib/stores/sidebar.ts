@@ -12,6 +12,7 @@ import dashStock from '$lib/images/dashboard_sidebar/stock.svg'
 import dashCoin from '$lib/images/dashboard_sidebar/coin.svg'
 import dashBond from '$lib/images/dashboard_sidebar/bond.svg'
 import dashEtf from '$lib/images/dashboard_sidebar/etf.svg'
+import dashPortfolio from '$lib/images/dashboard_sidebar/portfolio.svg'
 
 import assetTotal from '$lib/images/asset_sidebar/total.svg'
 import assetCar from '$lib/images/asset_sidebar/car.svg'
@@ -35,6 +36,7 @@ export type SidebarItem = {
 export const sidebarConfigs = {
     dashboard: [
         { name: "통합 현황", img: dashTotal, link: "/dashboard/overview" },
+        { name: "포트폴리오", img: dashPortfolio, link: "/dashboard/portfolio" },
         { name: "은행", img: dashBank, link: "/dashboard/bank" },
         { name: "주식", img: dashStock, link: "/dashboard/stock" },
         { name: "채권", img: dashBond, link: "/dashboard/bond" },
