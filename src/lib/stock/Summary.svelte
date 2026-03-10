@@ -59,7 +59,7 @@
     let isProfitPositive = $derived((holding?.profit_loss ?? 0) >= 0);
 </script>
 
-<aside class="summary" class:expanded>
+<aside class="info-panel" class:expanded>
     <div class="summary-content">
         <div class="header">
             <div class="title-row">
@@ -182,7 +182,7 @@
 </aside>
 
 <style>
-    .summary {
+    .info-panel {
         width: 100%;
         background: #fff;
         padding: 1rem;
@@ -197,7 +197,7 @@
         transition: max-height 0.3s ease;
     }
 
-    .summary.expanded {
+    .info-panel.expanded {
         max-height: none;
         overflow: visible;
     }

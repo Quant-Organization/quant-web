@@ -238,9 +238,11 @@
     }
 
     .etf-select {
+        -webkit-appearance: none; -moz-appearance: none; appearance: none;
         font-size: 1.125rem; font-weight: 700; color: #0f172a;
         border: 1px solid #e5e7eb; border-radius: 0.5rem;
-        padding: 0.25rem 0.5rem; background: #f8fafc;
+        padding: 0.25rem 1.75rem 0.25rem 0.5rem;
+        background: #f8fafc url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E") no-repeat right 0.5rem center;
         cursor: pointer; outline: none; min-width: 14rem;
     }
     .etf-select:focus { border-color: #3b82f6; }
