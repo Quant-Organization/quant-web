@@ -182,22 +182,32 @@
 
     .tf-bar {
         display: flex;
-        gap: 0.25rem;
-        padding: 0.5rem 0.75rem;
-        background: #0a0a0a;
+        gap: 0.875rem;
+        padding: 0.75rem 0.875rem;
+        background: #ffffff;
     }
     .tf-bar button {
-        background: transparent;
         border: none;
-        color: #6b7280;
-        font-size: 0.75rem;
-        padding: 0.25rem 0.5rem;
-        border-radius: 0.25rem;
+        background: none;
+        padding: 0.25rem 0;
+        font-weight: 600;
+        font-size: 0.8125rem;
+        color: #64748b;
         cursor: pointer;
+        position: relative;
     }
     .tf-bar button.active {
-        background: #1f2937;
-        color: #e5e7eb;
+        color: #3b82f6;
+    }
+    .tf-bar button.active::after {
+        content: '';
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: -0.375rem;
+        height: 2px;
+        background: #3b82f6;
+        border-radius: 2px;
     }
 
     .chart-wrap {

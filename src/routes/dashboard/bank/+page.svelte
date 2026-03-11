@@ -10,13 +10,14 @@
     import interestDateIcon from '$lib/images/dashboard_bank/interest-payment-date.svg';
 
     import { onMount } from 'svelte';
-    import { getSpringAccount } from '$lib/api/dashboard';
     import { getBanks, type BankResponse } from '$lib/api/bank';
     import { getLoanSummary, getActiveLoans, type LoanSummaryResponse } from '$lib/api/loan';
+    import { balance, refreshBalance } from '$lib/stores/asset';
     import Skeleton from '$lib/components/Skeleton.svelte';
 
     // --- 잔고 API 연동 ---
     let currentBalance = $state(0);
+    $effect(() => { currentBalance = $balance; });
     let loanSummary = $state<LoanSummaryResponse | null>(null);
 
     // --- 은행 목록 API ---
@@ -36,12 +37,11 @@
 
     onMount(async () => {
         try {
-            const [account, banks, summary] = await Promise.all([
-                getSpringAccount().catch(() => null),
+            const [banks, summary] = await Promise.all([
                 getBanks().catch(() => [] as BankResponse[]),
                 getLoanSummary().catch(() => null)
             ]);
-            if (account) currentBalance = account.cashBalance ?? 0;
+            refreshBalance().catch(() => {});
             allBanks = banks;
             // 각 tier에서 첫 번째 은행을 기본 선택
             for (const tier of [1, 2, 3]) {

@@ -8,6 +8,7 @@
     import CryptoChart from '$lib/components/CryptoChart.svelte';
     import OrderPanel from '$lib/components/OrderPanel.svelte';
     import SkeletonDashboard from '$lib/components/SkeletonDashboard.svelte';
+    import { setBalance } from '$lib/stores/asset';
 
     let cryptos: CryptoInfo[] = $state([]);
     let holdings: CryptoHolding[] = $state([]);
@@ -30,6 +31,7 @@
             cryptos = listRes.crypto;
             holdings = holdRes.holdings;
             cashBalance = holdRes.cash_balance;
+            setBalance(cashBalance);
             cryptoEvents = [...(eventsRes.delisting_events ?? []), ...(eventsRes.listing_events ?? [])];
             const queryCoin = get(page).url.searchParams.get('coin');
             if (queryCoin && cryptos.some(c => c.crypto_id === queryCoin)) {
@@ -54,6 +56,12 @@
 
     function handlePriceUpdate(price: number) {
         currentPrice = price;
+    }
+
+    function formatExactPrice(n: number): string {
+        if (n == null) return '$0';
+        if (n >= 1) return '$' + Math.round(n).toLocaleString();
+        return '$' + n.toFixed(4);
     }
 
     function formatPrice(n: number): string {
@@ -82,6 +90,7 @@
             const res = await getCryptoHoldings();
             holdings = res.holdings;
             cashBalance = res.cash_balance;
+            setBalance(cashBalance);
         } catch {}
     }
 
@@ -140,9 +149,9 @@
                             {/if}
                         </div>
                         <div class="price-row">
-                            <strong class="price">{formatPrice(currentPrice)}</strong>
+                            <strong class="price">{formatExactPrice(currentPrice)}</strong>
                             <span class={isUp ? 'badge-up' : 'badge-down'}>
-                                {isUp ? '+' : ''}{(changePct ?? 0).toFixed(2)}%
+                                {isUp ? '+' : ''}{((changePct ?? 0) * 100).toFixed(2)}%
                             </span>
                         </div>
                     </div>
@@ -196,7 +205,7 @@
                                     </td>
                                     <td class="price-cell">{formatPrice(crypto.current_price)}</td>
                                     <td class:pos={(crypto.price_change_pct ?? 0) >= 0} class:neg={crypto.price_change_pct < 0}>
-                                        {(crypto.price_change_pct ?? 0) >= 0 ? '+' : ''}{(crypto.price_change_pct ?? 0).toFixed(2)}%
+                                        {(crypto.price_change_pct ?? 0) >= 0 ? '+' : ''}{((crypto.price_change_pct ?? 0) * 100).toFixed(2)}%
                                     </td>
                                     <td>{formatMarketCap(crypto.market_cap)}</td>
                                 </tr>
@@ -237,7 +246,7 @@
                             <tbody>
                                 {#each holdings as h}
                                     <tr>
-                                        <td class="h-id">{h.crypto_id}</td>
+                                        <td class="h-id">{h.name || h.crypto_id}</td>
                                         <td>{(h.quantity ?? 0).toFixed(4)}</td>
                                         <td>{formatPrice(h.avg_price)}</td>
                                         <td class:pos={h.profit_loss >= 0} class:neg={h.profit_loss < 0}>

@@ -12,6 +12,7 @@
     import type { GlobalEvent } from '$lib/api/macro';
     import Skeleton from '$lib/components/Skeleton.svelte';
     import { toast } from 'svelte-sonner';
+    import { setBalance } from '$lib/stores/asset';
 
     let dashboardData = $state<DashboardData | null>(null);
     let clickInfo = $state<ClickInfo | null>(null);
@@ -37,13 +38,20 @@
     }
 
     function formatCurrency(num: number) {
-        return `$ ${formatNumber(num)}`;
+        return `$${formatNumber(num)}`;
+    }
+
+    function formatLargeAmount(num: number): string {
+        if (num >= 1_000_000_000) return '$' + (num / 1_000_000_000).toFixed(2) + 'B';
+        if (num >= 1_000_000) return '$' + (num / 1_000_000).toFixed(2) + 'M';
+        if (num >= 1_000) return '$' + (num / 1_000).toFixed(2) + 'K';
+        return '$' + num.toFixed(0);
     }
 
     function formatSignedCurrency(num: number): string {
         if (num > 0) return `+$${formatNumber(num)}`;
         if (num < 0) return `-$${formatNumber(Math.abs(num))}`;
-        return `$0`;
+        return '$0';
     }
 
     function signClass(num: number): string {
@@ -74,11 +82,13 @@
             // flush 중 새로 쌓인 낙관적 클릭분 보존
             const optimisticPending = pendingClicks * (clickInfo?.incomePerClick ?? 0);
             balance = result.newBalance + optimisticPending;
+            setBalance(balance);
         } catch {
             try {
                 const result = await clickEarn();
                 const optimisticPending = pendingClicks * (clickInfo?.incomePerClick ?? 0);
                 balance = result.newBalance + optimisticPending;
+                setBalance(balance);
             } catch { /* 로컬 값 유지 */ }
         } finally {
             isFlushing = false;
@@ -113,6 +123,7 @@
         try {
             const result = await clickUpgrade();
             balance = result.remainingBalance;
+            setBalance(balance);
             clickInfo = await getClickInfo();
             toast.success('업그레이드 완료!');
         } catch (e: any) {
@@ -141,6 +152,7 @@
             if (dashboard.status === 'fulfilled') {
                 dashboardData = dashboard.value;
                 balance = dashboard.value.account?.cashBalance ?? 0;
+                setBalance(balance);
             } else {
                 toast.error('대시보드 정보를 불러오지 못했습니다.');
             }
@@ -327,7 +339,7 @@
                     <div class="asset-column">
                         <span class="label">총 자산</span>
                         <span class="value">
-                            {#if isLoading}-{:else}${formatNumber(dashboardData?.assets.totalAssetValue ?? 0)}{/if}
+                            {#if isLoading}-{:else}{formatLargeAmount(dashboardData?.assets.totalAssetValue ?? 0)}{/if}
                         </span>
                     </div>
                     <div class="asset-column">
@@ -347,7 +359,7 @@
                     <div class="asset-column">
                         <span class="label-sub">자산 가치</span>
                         <span class="value positive">
-                            {#if isLoading}-{:else}${formatNumber(dashboardData?.account.totalAssetValue ?? 0)} <small>지난 7일</small>{/if}
+                            {#if isLoading}-{:else}{formatLargeAmount(dashboardData?.account.totalAssetValue ?? 0)} <small>지난 7일</small>{/if}
                         </span>
                     </div>
                 </div>

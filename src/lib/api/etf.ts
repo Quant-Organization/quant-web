@@ -14,8 +14,11 @@ export interface ETF {
 	ticker: string;
 	sector: string;
 	nav: number;
-	change_pct: number;
-	change_amount: number;
+	base_nav?: number;
+	change_pct: number | null;
+	change_amount: number | null;
+	change_from_base_pct?: number;
+	change_from_base_amount?: number;
 	constituents: string[];
 	weights: Record<string, number>;
 	holdings: ETFConstituent[];
@@ -24,6 +27,9 @@ export interface ETF {
 	dividend_yield?: number;
 	dividend_per_unit?: number;
 	last_dividend_date?: string;
+	weekly_dividend_rate?: number;
+	annual_dividend_rate?: number;
+	expected_weekly_dividend_per_share?: number;
 }
 
 export interface ETFCandle {
@@ -94,6 +100,8 @@ export async function getETFHoldings(opts?: { suppressAuth?: boolean }): Promise
 	};
 }
 
-export function getETFDividends(etfId: string) {
-	return fetchFastAPI<{ dividends: ETFDividendRecord[] }>(`/api/etfs/${etfId}/dividends`);
+export async function getETFDividends(etfId: string): Promise<{ dividends: ETFDividendRecord[] }> {
+	const data = await fetchFastAPI<{ dividends?: ETFDividendRecord[]; records?: ETFDividendRecord[] } | ETFDividendRecord[]>(`/api/etfs/${etfId}/dividends`);
+	if (Array.isArray(data)) return { dividends: data };
+	return { dividends: data?.dividends ?? data?.records ?? [] };
 }

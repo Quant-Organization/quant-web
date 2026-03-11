@@ -1,17 +1,22 @@
-import { writable } from 'svelte/store';
+import { writable, get } from 'svelte/store';
 import { getSpringAccount } from '$lib/api/dashboard';
 
 // ─── Balance Store (server-backed) ──────────────────────
 
 export const balance = writable<number>(0);
 
+export function setBalance(amount: number) {
+    balance.set(amount);
+}
+
 export async function refreshBalance(): Promise<number> {
     try {
         const acct = await getSpringAccount();
-        balance.set(acct.cashBalance ?? 0);
-        return acct.cashBalance ?? 0;
+        const val = acct.cashBalance ?? 0;
+        balance.set(val);
+        return val;
     } catch {
-        return 0;
+        return get(balance);
     }
 }
 

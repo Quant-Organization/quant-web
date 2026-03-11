@@ -35,9 +35,12 @@ export interface CryptoEvent {
 
 export interface CryptoHolding {
 	crypto_id: string;
+	name: string;
+	symbol: string;
 	quantity: number;
 	avg_price: number;
 	current_price: number;
+	market_value: number;
 	profit_loss: number;
 	profit_loss_pct: number;
 }

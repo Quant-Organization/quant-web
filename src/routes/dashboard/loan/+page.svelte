@@ -428,7 +428,7 @@
                             <div class="estimated-content">
                                 <div class="est-label">예상 월 상환금</div>
                                 <div class="est-amount">
-                                    {estimating ? '계산 중...' : estimate ? `₩${estimate.monthlyPayment.toLocaleString()}` : `₩0`}
+                                    {estimating ? '계산 중...' : estimate ? `$${estimate.monthlyPayment.toLocaleString()}` : `$0`}
                                 </div>
                             </div>
                         </div>

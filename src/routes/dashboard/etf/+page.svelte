@@ -6,6 +6,7 @@
     import ETFChart from '$lib/components/ETFChart.svelte';
     import OrderPanel from '$lib/components/OrderPanel.svelte';
     import SkeletonDashboard from '$lib/components/SkeletonDashboard.svelte';
+    import { setBalance } from '$lib/stores/asset';
 
     let etfs: ETF[] = $state([]);
     let holdings: ETFUserHolding[] = $state([]);
@@ -25,6 +26,7 @@
             etfs = listRes.etfs;
             holdings = holdRes.holdings;
             cashBalance = holdRes.cash_balance;
+            setBalance(cashBalance);
             if (etfs.length > 0) selectedETFId = etfs[0].id;
         } catch {
             error = '데이터를 불러오는 중 오류가 발생했습니다.';
@@ -57,6 +59,7 @@
             const res = await getETFHoldings();
             holdings = res.holdings;
             cashBalance = res.cash_balance;
+            setBalance(cashBalance);
         } catch {}
     }
 
@@ -85,10 +88,14 @@
     }
 
     let selectedETF = $derived(etfs.find(e => e.id === selectedETFId) ?? null);
-    let isUp = $derived((selectedETF?.change_pct ?? 0) >= 0);
+    let isUp = $derived((selectedETF?.change_from_base_pct ?? 0) >= 0);
     let maxSellQty = $derived(
         holdings.find(h => h.etf_id === selectedETFId)?.quantity ?? 0
     );
+
+    function formatExactPrice(n: number): string {
+        return '$' + Math.round(n).toLocaleString();
+    }
 
     function formatNumber(n: number): string {
         if (n >= 1_000_000) return '$' + (n / 1_000_000).toFixed(2) + 'M';
@@ -127,10 +134,10 @@
                             </select>
                         </div>
                         <div class="price-row">
-                            <strong class="price">{formatNumber(currentNav)}</strong>
+                            <strong class="price">{formatExactPrice(currentNav)}</strong>
                             {#if selectedETF}
                                 <span class={isUp ? 'badge-up' : 'badge-down'}>
-                                    {formatPct(selectedETF.change_pct)}
+                                    {formatPct(selectedETF.change_from_base_pct ?? 0)}
                                 </span>
                             {/if}
                         </div>
@@ -143,7 +150,7 @@
                         <div class="divider-v"></div>
                         <div class="stat">
                             <span class="stat-label">배당수익률</span>
-                            <strong>{selectedETF?.dividend_yield != null ? (selectedETF.dividend_yield * 100).toFixed(2) + '%' : '-'}</strong>
+                            <strong>{selectedETF?.annual_dividend_rate != null ? (selectedETF.annual_dividend_rate * 100).toFixed(2) + '%' : '-'}</strong>
                         </div>
                         <div class="divider-v"></div>
                         <div class="stat">
@@ -180,10 +187,10 @@
                                     </td>
                                     <td class="ticker-cell">{etf.ticker}</td>
                                     <td>{formatNumber(etf.nav)}</td>
-                                    <td class:positive={etf.change_pct >= 0} class:negative={etf.change_pct < 0}>
-                                        {formatPct(etf.change_pct)}
+                                    <td class:positive={(etf.change_from_base_pct ?? 0) >= 0} class:negative={(etf.change_from_base_pct ?? 0) < 0}>
+                                        {formatPct(etf.change_from_base_pct ?? 0)}
                                     </td>
-                                    <td>{etf.dividend_yield != null ? (etf.dividend_yield * 100).toFixed(2) + '%' : '-'}</td>
+                                    <td>{etf.annual_dividend_rate != null ? (etf.annual_dividend_rate * 100).toFixed(2) + '%' : '-'}</td>
                                 </tr>
                             {/each}
                         </tbody>
@@ -243,21 +250,21 @@
                         <h3 class="section-title">배당 정보</h3>
                         <div class="dividend-summary">
                             <div class="dividend-row">
-                                <span class="dividend-label">배당수익률</span>
+                                <span class="dividend-label">연 배당수익률</span>
                                 <strong class="dividend-value accent">
-                                    {selectedETF.dividend_yield != null ? (selectedETF.dividend_yield * 100).toFixed(2) + '%' : '-'}
+                                    {selectedETF.annual_dividend_rate != null ? (selectedETF.annual_dividend_rate * 100).toFixed(2) + '%' : '-'}
                                 </strong>
                             </div>
                             <div class="dividend-row">
-                                <span class="dividend-label">1좌당 배당금</span>
+                                <span class="dividend-label">주간 배당률</span>
                                 <strong class="dividend-value">
-                                    {selectedETF.dividend_per_unit != null ? formatNumber(selectedETF.dividend_per_unit) : '-'}
+                                    {selectedETF.weekly_dividend_rate != null ? (selectedETF.weekly_dividend_rate * 100).toFixed(2) + '%' : '-'}
                                 </strong>
                             </div>
                             <div class="dividend-row">
-                                <span class="dividend-label">최근 배당일</span>
+                                <span class="dividend-label">1좌당 예상 주간배당</span>
                                 <strong class="dividend-value">
-                                    {selectedETF.last_dividend_date ? formatDate(selectedETF.last_dividend_date) : '-'}
+                                    {selectedETF.expected_weekly_dividend_per_share != null ? formatNumber(selectedETF.expected_weekly_dividend_per_share) : '-'}
                                 </strong>
                             </div>
                         </div>

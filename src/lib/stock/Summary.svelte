@@ -64,6 +64,15 @@
     );
 
     let isProfitPositive = $derived((holding?.profit_loss ?? 0) >= 0);
+
+    function formatGameDollar(n: number): string {
+        const abs = Math.abs(n);
+        const sign = n < 0 ? '-' : '';
+        if (abs >= 1_000_000_000) return sign + '$' + (abs / 1_000_000_000).toFixed(2) + 'B';
+        if (abs >= 1_000_000) return sign + '$' + (abs / 1_000_000).toFixed(2) + 'M';
+        if (abs >= 1_000) return sign + '$' + (abs / 1_000).toFixed(2) + 'K';
+        return sign + '$' + abs.toLocaleString();
+    }
 </script>
 
 <aside class="info-panel" class:expanded>
@@ -163,20 +172,20 @@
 
         <div class="account-row">
             <span class="stat-label">가용 현금</span>
-            <span class="stat-value">{formatPrice(dashboard?.summary.cash ?? 0, 'KRW')}</span>
+            <span class="stat-value">{formatGameDollar(dashboard?.summary.cash ?? 0)}</span>
         </div>
         <div class="account-row">
             <span class="stat-label">주식 평가액</span>
-            <span class="stat-value">{formatPrice(dashboard?.summary.stock_value ?? 0, 'KRW')}</span>
+            <span class="stat-value">{formatGameDollar(dashboard?.summary.stock_value ?? 0)}</span>
         </div>
         <div class="account-row">
             <span class="stat-label">총 자산</span>
-            <span class="stat-value">{formatPrice(dashboard?.summary.total_assets ?? 0, 'KRW')}</span>
+            <span class="stat-value">{formatGameDollar(dashboard?.summary.total_assets ?? 0)}</span>
         </div>
         <div class="account-row">
             <span class="stat-label">총 손익</span>
             <span class="stat-value" style="color: {(dashboard?.summary.total_profit_loss ?? 0) >= 0 ? '#16a34a' : '#dc2626'}">
-                {(dashboard?.summary.total_profit_loss ?? 0) >= 0 ? '+' : ''}{formatPrice(dashboard?.summary.total_profit_loss ?? 0, 'KRW')} ({(dashboard?.summary.total_profit_loss_pct ?? 0).toFixed(2)}%)
+                {(dashboard?.summary.total_profit_loss ?? 0) >= 0 ? '+' : ''}{formatGameDollar(dashboard?.summary.total_profit_loss ?? 0)} ({(dashboard?.summary.total_profit_loss_pct ?? 0).toFixed(2)}%)
             </span>
         </div>
     </div>

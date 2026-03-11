@@ -12,6 +12,7 @@
     import type { Company } from '$lib/api/market';
     import type { PortfolioDashboard } from '$lib/api/trade';
     import { getCurrencySymbol, toDisplay, displayPrice, type CurrencyCode } from '$lib/utils/currency';
+    import { setBalance } from '$lib/stores/asset';
     import SkeletonDashboard from '$lib/components/SkeletonDashboard.svelte';
     import { get } from 'svelte/store';
 
@@ -23,6 +24,7 @@
     async function loadDashboard() {
         try {
             dashboard = await getPortfolioDashboard();
+            if (dashboard) setBalance(dashboard.summary.cash);
         } catch (e) {
             console.error('포트폴리오 로드 실패:', e);
             toast.error('포트폴리오 정보를 불러오지 못했습니다.');
