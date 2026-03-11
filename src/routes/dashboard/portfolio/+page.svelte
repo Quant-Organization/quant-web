@@ -39,20 +39,23 @@
     function toUnified(h: PortfolioHolding): UnifiedHolding {
         return {
             id: h.company_id, name: h.company_name, type: 'stock',
-            quantity: h.quantity, avgPrice: h.avg_price, currentPrice: h.current_price,
-            totalInvested: h.total_invested, currentValue: h.current_value,
-            profitLoss: h.profit_loss, profitLossPct: h.profit_loss_pct, weightPct: h.weight_pct
+            quantity: h.quantity ?? 0, avgPrice: h.avg_price ?? 0, currentPrice: h.current_price ?? 0,
+            totalInvested: h.total_invested ?? 0, currentValue: h.current_value ?? 0,
+            profitLoss: h.profit_loss ?? 0, profitLossPct: h.profit_loss_pct ?? 0, weightPct: h.weight_pct ?? 0
         };
     }
 
     function cryptoToUnified(h: CryptoHolding): UnifiedHolding {
-        const invested = h.avg_price * h.quantity;
-        const value = h.current_price * h.quantity;
+        const avgPrice = h.avg_price ?? 0;
+        const quantity = h.quantity ?? 0;
+        const currentPrice = h.current_price ?? 0;
+        const invested = avgPrice * quantity;
+        const value = currentPrice * quantity;
         return {
             id: h.crypto_id, name: h.crypto_id, type: 'crypto',
-            quantity: h.quantity, avgPrice: h.avg_price, currentPrice: h.current_price,
+            quantity, avgPrice, currentPrice,
             totalInvested: invested, currentValue: value,
-            profitLoss: h.profit_loss, profitLossPct: h.profit_loss_pct, weightPct: 0
+            profitLoss: h.profit_loss ?? 0, profitLossPct: h.profit_loss_pct ?? 0, weightPct: 0
         };
     }
 
@@ -224,10 +227,10 @@
     {#if portfolio?.performance}
     <section class="perf-row">
         {#each [
-            { label: '일간', value: portfolio.performance.daily_return },
-            { label: '주간', value: portfolio.performance.weekly_return },
-            { label: '월간', value: portfolio.performance.monthly_return },
-            { label: '누적', value: portfolio.performance.cumulative_return },
+            { label: '일간', value: portfolio.performance.daily_return ?? 0 },
+            { label: '주간', value: portfolio.performance.weekly_return ?? 0 },
+            { label: '월간', value: portfolio.performance.monthly_return ?? 0 },
+            { label: '누적', value: portfolio.performance.cumulative_return ?? 0 },
         ] as item}
             <div class="perf-card">
                 <span class="perf-label">{item.label}</span>
