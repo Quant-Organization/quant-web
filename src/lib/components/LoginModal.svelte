@@ -60,10 +60,10 @@
                     title: springRes.title
                 });
             } else {
-                const springRes = await springRegister(username, password, playerName || username);
+                const springRes = await springRegister(username, password, playerName);
                 localStorage.setItem('spring_token', springRes.token);
                 try {
-                    const fastRes = await fastAPIRegister(username, email || `${username}@quant.game`, password);
+                    const fastRes = await fastAPIRegister(username, email, password);
                     localStorage.setItem('fastapi_token', fastRes.access_token);
                 } catch { /* may already exist */ }
                 auth.login(springRes.token, {
@@ -140,7 +140,7 @@
                     </div>
                     <div class="field" transition:fly={{ y: -8, duration: 220, easing: cubicOut }}>
                         <label for="modal-email">이메일</label>
-                        <input id="modal-email" type="email" bind:value={email} placeholder="이메일 주소 (선택)" />
+                        <input id="modal-email" type="email" bind:value={email} placeholder="이메일 주소" required />
                     </div>
                 {/if}
                 {#if error}
