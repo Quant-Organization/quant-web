@@ -40,10 +40,10 @@
     );
 
     let stats = $derived([
-        { label: '공정가치', value: valuation ? formatPrice(valuation.fair_value, currency) : '-' },
+        { label: '공정가치', value: valuation ? displayPrice(valuation.fair_value, currency) : '-' },
         { label: '괴리율', value: valuation ? `${valuation.deviation_pct.toFixed(2)}%` : '-' },
-        { label: 'EPS', value: valuation ? formatPrice(valuation.eps, currency) : '-' },
-        { label: 'BPS', value: valuation ? formatPrice(valuation.bps, currency) : '-' },
+        { label: 'EPS', value: valuation ? displayPrice(valuation.eps, currency) : '-' },
+        { label: 'BPS', value: valuation ? displayPrice(valuation.bps, currency) : '-' },
         { label: 'PER', value: valuation ? valuation.current_per.toFixed(1) : '-' },
         { label: 'PBR', value: valuation ? valuation.current_pbr.toFixed(2) : '-' },
         { label: 'ROE', value: valuation ? `${valuation.roe.toFixed(1)}%` : '-' },

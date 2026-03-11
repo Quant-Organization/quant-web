@@ -8,9 +8,10 @@
         selectedCompanyId: string;
         currentPrice: number;
         currency: CurrencyCode;
+        marketCap: number;
     }
 
-    let { companies, selectedCompanyId = $bindable(), currentPrice, currency }: Props = $props();
+    let { companies, selectedCompanyId = $bindable(), currentPrice, currency, marketCap }: Props = $props();
 
     let valuation = $state<Valuation | null>(null);
     let volume = $state(0);
@@ -44,11 +45,6 @@
     let changePct = $derived(initialPrice > 0 ? (changeAmt / initialPrice) * 100 : 0);
     let isUp = $derived(changePct >= 0);
 
-    // 시가총액 추정: 게임 내 발행주식수 1,000만 주 가정
-    let marketCap = $derived.by(() => {
-        if (currentPrice <= 0) return 0;
-        return currentPrice * 10_000_000;
-    });
 </script>
 
 <section class="card">

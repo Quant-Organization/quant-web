@@ -56,11 +56,17 @@
 
     let currency = $state<CurrencyCode>('KRW');
     let currencySym = $derived(getCurrencySymbol(currency));
+    let marketCap = $state(0);
 
     $effect(() => {
         if (!selectedCompanyId) return;
+        currency = 'KRW';
+        marketCap = 0;
         getFinancials(selectedCompanyId)
-            .then(data => { currency = data.currency; })
+            .then(data => {
+                currency = data.currency;
+                marketCap = data.summary.market_cap ?? 0;
+            })
             .catch(() => {});
     });
 
@@ -101,6 +107,7 @@
             bind:selectedCompanyId
             {currentPrice}
             {currency}
+            {marketCap}
         />
         <StockChart {selectedCompanyId} onPriceUpdate={handlePriceUpdate} />
         <NewsSection {selectedCompanyId} />
