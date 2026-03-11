@@ -7,11 +7,11 @@
     import NewsSection from '../../../lib/stock/NewsSection.svelte';
     import OrderPanel from '$lib/components/OrderPanel.svelte';
     import Summary from '$lib/stock/Summary.svelte';
-    import { getCompanies } from '$lib/api/market';
+    import { getCompanies, getFinancials } from '$lib/api/market';
     import { getPortfolioDashboard, buyStock, sellStock } from '$lib/api/trade';
     import type { Company } from '$lib/api/market';
     import type { PortfolioDashboard } from '$lib/api/trade';
-    import { getCurrency, getCurrencySymbol, toDisplay, formatPrice, type CurrencyCode } from '$lib/utils/currency';
+    import { getCurrencySymbol, toDisplay, displayPrice, type CurrencyCode } from '$lib/utils/currency';
     import SkeletonDashboard from '$lib/components/SkeletonDashboard.svelte';
     import { get } from 'svelte/store';
 
@@ -54,9 +54,15 @@
         currentPrice = price;
     }
 
-    let selectedCompany = $derived(companies.find(c => c.company_id === selectedCompanyId));
-    let currency = $derived<CurrencyCode>(getCurrency(selectedCompany?.name ?? ''));
+    let currency = $state<CurrencyCode>('KRW');
     let currencySym = $derived(getCurrencySymbol(currency));
+
+    $effect(() => {
+        if (!selectedCompanyId) return;
+        getFinancials(selectedCompanyId)
+            .then(data => { currency = data.currency; })
+            .catch(() => {});
+    });
 
     let stockBalance = $derived(dashboard?.summary.cash ?? 0);
     let stockMaxSellQty = $derived(
@@ -94,6 +100,7 @@
             {companies}
             bind:selectedCompanyId
             {currentPrice}
+            {currency}
         />
         <StockChart {selectedCompanyId} onPriceUpdate={handlePriceUpdate} />
         <NewsSection {selectedCompanyId} />
@@ -123,7 +130,7 @@
                         <span class="order-type">{trade.type === 'BUY' ? '매수' : '매도'}</span>
                         <span class="order-company">{trade.company_name}</span>
                         <span class="order-qty">{trade.quantity}주</span>
-                        <span class="order-price">{formatPrice(trade.total_amount, getCurrency(trade.company_name))}</span>
+                        <span class="order-price">{displayPrice(trade.total_amount, currency)}</span>
                     </div>
                 {/each}
             </div>

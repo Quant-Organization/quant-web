@@ -1,34 +1,37 @@
 <script lang="ts">
     import { getValuation, getFinancials } from '$lib/api/market';
-    import type { Valuation, FinancialReport } from '$lib/api/market';
+    import type { Valuation, FinancialData } from '$lib/api/market';
     import type { PortfolioDashboard } from '$lib/api/trade';
-    import { formatPrice, type CurrencyCode, getCurrencySymbol } from '$lib/utils/currency';
+    import { displayPrice, formatPrice, getCurrencySymbol, type CurrencyCode } from '$lib/utils/currency';
 
     interface Props {
         selectedCompanyId: string;
         currentPrice: number;
         dashboard: PortfolioDashboard | null;
-        currency?: CurrencyCode;
+        currency: CurrencyCode;
     }
 
-    let { selectedCompanyId, currentPrice, dashboard, currency = 'KRW' }: Props = $props();
+    let { selectedCompanyId, currentPrice, dashboard, currency }: Props = $props();
 
     let sym = $derived(getCurrencySymbol(currency));
 
     let valuation = $state<Valuation | null>(null);
-    let financials = $state<FinancialReport | null>(null);
+    let financialData = $state<FinancialData | null>(null);
     let expanded = $state(false);
+
+    let financials = $derived(financialData?.summary ?? null);
+    let quarterly = $derived(financialData?.quarterly_history?.[0] ?? null);
 
     $effect(() => {
         if (!selectedCompanyId) return;
         valuation = null;
-        financials = null;
+        financialData = null;
         Promise.all([
             getValuation(selectedCompanyId),
             getFinancials(selectedCompanyId)
         ]).then(([v, f]) => {
             valuation = v;
-            financials = f;
+            financialData = f;
         }).catch(() => {});
     });
 
@@ -50,7 +53,7 @@
         holding
             ? [
                 { label: '보유 수량', value: `${holding.quantity}주` },
-                { label: '평균 단가', value: formatPrice(holding.avg_price, currency) },
+                { label: '평균 단가', value: displayPrice(holding.avg_price, currency) },
                 { label: '투자금', value: formatPrice(holding.total_invested, currency) },
                 { label: '평가액', value: formatPrice(holding.current_value, currency) },
                 { label: '평가 손익', value: formatPrice(holding.profit_loss, currency) },
@@ -72,10 +75,10 @@
             </div>
         </div>
 
-        <p class="meta">현재가 · {formatPrice(currentPrice, currency)}</p>
+        <p class="meta">현재가 · {displayPrice(currentPrice, currency)}</p>
 
         <div class="price">
-            <span class="price-value">{formatPrice(currentPrice, currency)}</span>
+            <span class="price-value">{displayPrice(currentPrice, currency)}</span>
             {#if holding}
                 <span class="change" class:negative={!isProfitPositive} class:positive={isProfitPositive}>
                     {isProfitPositive ? '+' : ''}{holding.profit_loss_pct.toFixed(2)}%
@@ -118,36 +121,40 @@
                     <span class="stat-value">{financials.revenue != null ? formatPrice(financials.revenue, currency) : '-'}</span>
                 </div>
                 <div class="stat-row">
+                    <span class="stat-label">영업이익</span>
+                    <span class="stat-value" style="color: {(financials.operating_income ?? 0) >= 0 ? '#16a34a' : '#dc2626'}">{financials.operating_income != null ? formatPrice(financials.operating_income, currency) : '-'}</span>
+                </div>
+                <div class="stat-row">
                     <span class="stat-label">순이익</span>
                     <span class="stat-value" style="color: {(financials.net_income ?? 0) >= 0 ? '#16a34a' : '#dc2626'}">{financials.net_income != null ? formatPrice(financials.net_income, currency) : '-'}</span>
                 </div>
                 <div class="stat-row">
-                    <span class="stat-label">총자산</span>
-                    <span class="stat-value">{financials.total_assets != null ? formatPrice(financials.total_assets, currency) : '-'}</span>
+                    <span class="stat-label">시가총액</span>
+                    <span class="stat-value">{financials.market_cap != null ? formatPrice(financials.market_cap, currency) : '-'}</span>
                 </div>
                 <div class="stat-row">
                     <span class="stat-label">자기자본</span>
-                    <span class="stat-value">{financials.total_equity != null ? formatPrice(financials.total_equity, currency) : '-'}</span>
+                    <span class="stat-value">{financials.base_equity != null ? formatPrice(financials.base_equity, currency) : '-'}</span>
                 </div>
                 <div class="stat-row">
                     <span class="stat-label">EPS</span>
-                    <span class="stat-value">{financials.eps != null ? formatPrice(financials.eps, currency) : '-'}</span>
+                    <span class="stat-value">{financials.eps != null ? displayPrice(financials.eps, currency) : '-'}</span>
                 </div>
                 <div class="stat-row">
                     <span class="stat-label">BPS</span>
-                    <span class="stat-value">{financials.bps != null ? formatPrice(financials.bps, currency) : '-'}</span>
+                    <span class="stat-value">{financials.bps != null ? displayPrice(financials.bps, currency) : '-'}</span>
                 </div>
                 <div class="stat-row">
                     <span class="stat-label">ROE</span>
-                    <span class="stat-value">{financials.roe != null ? `${financials.roe.toFixed(1)}%` : '-'}</span>
+                    <span class="stat-value">{quarterly?.roe != null ? `${quarterly.roe.toFixed(1)}%` : '-'}</span>
                 </div>
                 <div class="stat-row">
                     <span class="stat-label">PER</span>
-                    <span class="stat-value">{financials.per != null ? financials.per.toFixed(1) : '-'}</span>
+                    <span class="stat-value">{quarterly?.per != null ? quarterly.per.toFixed(1) : '-'}</span>
                 </div>
                 <div class="stat-row">
                     <span class="stat-label">PBR</span>
-                    <span class="stat-value">{financials.pbr != null ? financials.pbr.toFixed(2) : '-'}</span>
+                    <span class="stat-value">{quarterly?.pbr != null ? quarterly.pbr.toFixed(2) : '-'}</span>
                 </div>
             </div>
         {/if}

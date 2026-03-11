@@ -1,4 +1,5 @@
 import { fetchFastAPI } from './config';
+import { setCachedCurrency, type CurrencyCode } from '$lib/utils/currency';
 
 export interface Company {
 	company_id: string;
@@ -39,17 +40,41 @@ export interface NewsItem {
 	created_at: string;
 }
 
-export interface FinancialReport {
+export interface FinancialSummary {
 	company_id: string;
+	company_name: string;
+	sector: string;
+	current_price: number;
+	market_cap: number;
+	shares_outstanding: number;
 	revenue: number;
+	operating_income: number;
 	net_income: number;
-	total_assets: number;
-	total_equity: number;
+	operating_margin: number;
+	net_margin: number;
+	base_equity: number;
 	eps: number;
 	bps: number;
+}
+
+export interface QuarterlyReport {
+	quarter: string;
+	timestamp: string;
+	revenue: number;
+	operating_income: number;
+	net_income: number;
+	revenue_growth_yoy: number;
+	operating_margin: number;
+	net_margin: number;
 	roe: number;
 	per: number;
 	pbr: number;
+}
+
+export interface FinancialData {
+	summary: FinancialSummary;
+	quarterly_history: QuarterlyReport[];
+	currency: CurrencyCode;
 }
 
 export interface SectorPerformance {
@@ -78,9 +103,16 @@ export async function getNews(companyId: string) {
 	return data.news ?? [];
 }
 
-export async function getFinancials(companyId: string) {
-	const data = await fetchFastAPI<{ summary: FinancialReport }>(`/financials/${companyId}`);
-	return data.summary;
+export async function getFinancials(companyId: string): Promise<FinancialData> {
+	const data = await fetchFastAPI<FinancialData>(`/financials/${companyId}`);
+	if (data.currency) setCachedCurrency(companyId, data.currency);
+	return data;
+}
+
+/** 여러 회사의 통화 정보를 서버에서 미리 로드 (캐시) */
+export async function loadCompanyCurrencies(companyIds: string[]): Promise<void> {
+	const unique = [...new Set(companyIds)];
+	await Promise.allSettled(unique.map(id => getFinancials(id)));
 }
 
 export function getSectorPerformance() {

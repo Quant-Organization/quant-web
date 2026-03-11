@@ -11,7 +11,8 @@
     import type { CryptoHolding } from '$lib/api/crypto';
     import type { ETFUserHolding } from '$lib/api/etf';
     import type { ProfileStats } from '$lib/api/dashboard';
-    import { getCurrency, formatPrice, type CurrencyCode } from '$lib/utils/currency';
+    import { loadCompanyCurrencies } from '$lib/api/market';
+    import { getCachedCurrency, displayPrice, formatPrice, type CurrencyCode } from '$lib/utils/currency';
     import SkeletonDashboard from '$lib/components/SkeletonDashboard.svelte';
 
     let portfolio = $state<PortfolioDashboard | null>(null);
@@ -44,7 +45,7 @@
     function toUnified(h: PortfolioHolding): UnifiedHolding {
         return {
             id: h.company_id, name: h.company_name, type: 'stock',
-            currency: getCurrency(h.company_name),
+            currency: getCachedCurrency(h.company_id),
             quantity: h.quantity ?? 0, avgPrice: h.avg_price ?? 0, currentPrice: h.current_price ?? 0,
             totalInvested: h.total_invested ?? 0, currentValue: h.current_value ?? 0,
             profitLoss: h.profit_loss ?? 0, profitLossPct: h.profit_loss_pct ?? 0, weightPct: h.weight_pct ?? 0
@@ -206,6 +207,10 @@
         if (results[2].status === 'fulfilled') etfHoldings = results[2].value.holdings;
         if (results[3].status === 'fulfilled') profile = results[3].value;
 
+        // 주식 보유 종목의 통화 정보를 서버에서 로드
+        const stockIds = (portfolio?.holdings ?? []).map(h => h.company_id);
+        if (stockIds.length > 0) await loadCompanyCurrencies(stockIds);
+
         loading = false;
 
         // wait for DOM
@@ -321,7 +326,7 @@
                                 </span>
                                 <span class="holding-name">{h.name}</span>
                             </td>
-                            <td class="col-num">{formatPrice(h.currentPrice, h.currency)}</td>
+                            <td class="col-num">{displayPrice(h.currentPrice, h.currency)}</td>
                             <td class="col-num">{h.type === 'crypto' ? (h.quantity % 1 === 0 ? h.quantity : h.quantity.toFixed(4)) : h.quantity}{h.type === 'etf' ? '좌' : ''}</td>
                             <td class="col-num">{formatPrice(Math.round(h.currentValue), h.currency)}</td>
                             <td class="col-num" class:positive={h.profitLoss >= 0} class:negative={h.profitLoss < 0}>
@@ -374,7 +379,7 @@
                             </span>
                             <span class="trade-name">{trade.company_name}</span>
                             <span class="trade-qty">{trade.quantity}주</span>
-                            <span class="trade-amount">{formatPrice(trade.total_amount, getCurrency(trade.company_name))}</span>
+                            <span class="trade-amount">{displayPrice(trade.total_amount, getCachedCurrency(trade.company_id))}</span>
                         </div>
                     {/each}
                 </div>
@@ -652,6 +657,7 @@
     /* Right Panel */
     .right-panel {
         width: 22rem;
+        flex-shrink: 0;
         display: flex;
         flex-direction: column;
         gap: 1.25rem;

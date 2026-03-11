@@ -1,20 +1,16 @@
 <script lang="ts">
     import { getValuation, getHistory } from '$lib/api/market';
     import type { Company, Valuation } from '$lib/api/market';
-    import { getCurrency, formatPrice, toDisplay, type CurrencyCode } from '$lib/utils/currency';
+    import { displayPrice, formatPrice, type CurrencyCode } from '$lib/utils/currency';
 
     interface Props {
         companies: Company[];
         selectedCompanyId: string;
         currentPrice: number;
+        currency: CurrencyCode;
     }
 
-    let { companies, selectedCompanyId = $bindable(), currentPrice }: Props = $props();
-
-    let currency = $derived<CurrencyCode>(
-        getCurrency(companies.find(c => c.company_id === selectedCompanyId)?.name ?? '')
-    );
-    let sym = $derived(currency === 'KRW' ? '₩' : '$');
+    let { companies, selectedCompanyId = $bindable(), currentPrice, currency }: Props = $props();
 
     let valuation = $state<Valuation | null>(null);
     let volume = $state(0);
@@ -74,7 +70,7 @@
         </div>
 
         <div class="price-row">
-            <strong class="price">{formatPrice(currentPrice, currency)}</strong>
+            <strong class="price">{displayPrice(currentPrice, currency)}</strong>
             {#if initialPrice > 0}
                 <span class={isUp ? 'up' : 'down'}>
                     {isUp ? '+' : ''}{changePct.toFixed(2)}%

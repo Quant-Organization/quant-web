@@ -1,19 +1,22 @@
 /**
  * 게임 내 환율: ₩1,000 = $1
  * 모든 API 가격은 KRW 단위로 저장됨.
- * 해외 기업은 이름에 한글이 없으면 USD로 표시.
+ * 통화 정보는 서버 financials API의 currency 필드로 결정.
  */
 
 const EXCHANGE_RATE = 1000;
 
 export type CurrencyCode = 'KRW' | 'USD';
 
-export function isKoreanName(name: string): boolean {
-	return /[\uAC00-\uD7AF]/.test(name);
+/** 서버에서 받은 통화 정보 캐시 (company_id → currency) */
+const currencyCache = new Map<string, CurrencyCode>();
+
+export function setCachedCurrency(companyId: string, currency: CurrencyCode) {
+	currencyCache.set(companyId, currency);
 }
 
-export function getCurrency(companyName: string): CurrencyCode {
-	return isKoreanName(companyName) ? 'KRW' : 'USD';
+export function getCachedCurrency(companyId: string): CurrencyCode {
+	return currencyCache.get(companyId) ?? 'KRW';
 }
 
 export function getCurrencySymbol(currency: CurrencyCode): string {
@@ -30,7 +33,17 @@ export function toRaw(display: number, currency: CurrencyCode): number {
 	return currency === 'USD' ? display * EXCHANGE_RATE : display;
 }
 
-/** 가격 포맷 (원시 KRW 값 입력) */
+/** 가격 표시 (축약 없음) - 현재가, 단가 등에 사용 */
+export function displayPrice(raw: number, currency: CurrencyCode): string {
+	const sym = getCurrencySymbol(currency);
+	if (currency === 'USD') {
+		const usd = raw / EXCHANGE_RATE;
+		return sym + usd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+	}
+	return sym + Math.round(raw).toLocaleString();
+}
+
+/** 큰 숫자 축약 포맷 - 시가총액, 매출 등에 사용 */
 export function formatPrice(raw: number, currency: CurrencyCode): string {
 	const sym = getCurrencySymbol(currency);
 	if (currency === 'USD') {
