@@ -5,17 +5,20 @@
     import Chart from 'chart.js/auto';
     import { getPortfolioDashboard } from '$lib/api/trade';
     import { getCryptoHoldings } from '$lib/api/crypto';
+    import { getETFHoldings } from '$lib/api/etf';
     import { getProfileStats } from '$lib/api/dashboard';
     import type { PortfolioDashboard, PortfolioHolding } from '$lib/api/trade';
     import type { CryptoHolding } from '$lib/api/crypto';
+    import type { ETFUserHolding } from '$lib/api/etf';
     import type { ProfileStats } from '$lib/api/dashboard';
     import SkeletonDashboard from '$lib/components/SkeletonDashboard.svelte';
 
     let portfolio = $state<PortfolioDashboard | null>(null);
     let cryptoHoldings = $state<CryptoHolding[]>([]);
+    let etfHoldings = $state<ETFUserHolding[]>([]);
     let profile = $state<ProfileStats | null>(null);
     let loading = $state(true);
-    let holdingTab = $state<'all' | 'stock' | 'crypto'>('all');
+    let holdingTab = $state<'all' | 'stock' | 'crypto' | 'etf'>('all');
     let sortKey = $state<string>('profit_loss_pct');
     let sortDir = $state<'asc' | 'desc'>('desc');
 
@@ -25,7 +28,7 @@
     type UnifiedHolding = {
         id: string;
         name: string;
-        type: 'stock' | 'crypto';
+        type: 'stock' | 'crypto' | 'etf';
         quantity: number;
         avgPrice: number;
         currentPrice: number;
@@ -59,21 +62,40 @@
         };
     }
 
+    function etfToUnified(h: ETFUserHolding): UnifiedHolding {
+        const avgPrice = h.avg_price ?? 0;
+        const quantity = h.quantity ?? 0;
+        const currentPrice = h.current_price ?? 0;
+        const invested = avgPrice * quantity;
+        const value = currentPrice * quantity;
+        return {
+            id: h.etf_id, name: h.etf_id, type: 'etf',
+            quantity, avgPrice, currentPrice,
+            totalInvested: invested, currentValue: value,
+            profitLoss: h.profit_loss ?? 0, profitLossPct: h.profit_loss_pct ?? 0, weightPct: 0
+        };
+    }
+
     let holdings = $derived.by(() => {
         let stockItems = (portfolio?.holdings ?? []).map(toUnified);
         let cryptoItems = cryptoHoldings.map(cryptoToUnified);
+        let etfItems = etfHoldings.map(etfToUnified);
 
-        // compute weight for crypto
-        const totalValue = stockItems.reduce((s, h) => s + h.currentValue, 0) + cryptoItems.reduce((s, h) => s + h.currentValue, 0);
+        // compute weight across all asset types
+        const totalValue = stockItems.reduce((s, h) => s + h.currentValue, 0)
+            + cryptoItems.reduce((s, h) => s + h.currentValue, 0)
+            + etfItems.reduce((s, h) => s + h.currentValue, 0);
         if (totalValue > 0) {
-            cryptoItems = cryptoItems.map(h => ({ ...h, weightPct: (h.currentValue / totalValue) * 100 }));
             stockItems = stockItems.map(h => ({ ...h, weightPct: (h.currentValue / totalValue) * 100 }));
+            cryptoItems = cryptoItems.map(h => ({ ...h, weightPct: (h.currentValue / totalValue) * 100 }));
+            etfItems = etfItems.map(h => ({ ...h, weightPct: (h.currentValue / totalValue) * 100 }));
         }
 
         let filtered: UnifiedHolding[];
         if (holdingTab === 'stock') filtered = stockItems;
         else if (holdingTab === 'crypto') filtered = cryptoItems;
-        else filtered = [...stockItems, ...cryptoItems];
+        else if (holdingTab === 'etf') filtered = etfItems;
+        else filtered = [...stockItems, ...cryptoItems, ...etfItems];
 
         filtered.sort((a, b) => {
             const av = (a as Record<string, unknown>)[sortKey] as number;
@@ -84,7 +106,9 @@
     });
 
     let totalInvestmentValue = $derived(
-        (portfolio?.summary.stock_value ?? 0) + cryptoHoldings.reduce((s, h) => s + h.current_price * h.quantity, 0)
+        (portfolio?.summary.stock_value ?? 0)
+        + cryptoHoldings.reduce((s, h) => s + h.current_price * h.quantity, 0)
+        + etfHoldings.reduce((s, h) => s + h.current_price * h.quantity, 0)
     );
 
     let totalPL = $derived(portfolio?.summary.total_profit_loss ?? 0);
@@ -108,15 +132,18 @@
 
     function goToHolding(h: UnifiedHolding) {
         if (h.type === 'stock') goto(`/dashboard/stock?company=${h.id}`);
+        else if (h.type === 'etf') goto(`/dashboard/etf`);
         else goto(`/dashboard/coin?coin=${h.id}`);
     }
 
     let allocationCategories = $derived.by(() => {
         const stockValue = portfolio?.summary.stock_value ?? 0;
         const cryptoValue = cryptoHoldings.reduce((s, h) => s + h.current_price * h.quantity, 0);
+        const etfValue = etfHoldings.reduce((s, h) => s + h.current_price * h.quantity, 0);
         return [
             { label: '현금', value: portfolio?.summary.cash ?? profile?.currentBalance ?? 0, color: '#64748b' },
             { label: '주식', value: stockValue, color: '#2563eb' },
+            { label: 'ETF', value: etfValue, color: '#14b8a6' },
             { label: '암호화폐', value: cryptoValue, color: '#f59e0b' },
             { label: '비즈니스', value: profile?.businessValue ?? 0, color: '#10b981' },
             { label: '부동산', value: profile?.realEstateValue ?? 0, color: '#8b5cf6' },
@@ -165,6 +192,7 @@
         const results = await Promise.allSettled([
             getPortfolioDashboard(),
             getCryptoHoldings({ suppressAuth: true }),
+            getETFHoldings({ suppressAuth: true }),
             getProfileStats()
         ]);
 
@@ -172,7 +200,8 @@
         else toast.error('주식 포트폴리오를 불러오지 못했습니다.');
 
         if (results[1].status === 'fulfilled') cryptoHoldings = results[1].value.holdings;
-        if (results[2].status === 'fulfilled') profile = results[2].value;
+        if (results[2].status === 'fulfilled') etfHoldings = results[2].value.holdings;
+        if (results[3].status === 'fulfilled') profile = results[3].value;
 
         loading = false;
 
@@ -252,12 +281,13 @@
                     {#each [
                         { key: 'all', label: '전체' },
                         { key: 'stock', label: '주식' },
+                        { key: 'etf', label: 'ETF' },
                         { key: 'crypto', label: '코인' }
                     ] as tab}
                         <button
                             class="tab-pill"
                             class:active={holdingTab === tab.key}
-                            onclick={() => holdingTab = tab.key as 'all' | 'stock' | 'crypto'}
+                            onclick={() => holdingTab = tab.key as 'all' | 'stock' | 'crypto' | 'etf'}
                         >{tab.label}</button>
                     {/each}
                 </div>
@@ -283,13 +313,13 @@
                         {#each holdings as h}
                         <tr class="holding-row" onclick={() => goToHolding(h)}>
                             <td class="col-name">
-                                <span class="type-badge" class:stock={h.type === 'stock'} class:crypto={h.type === 'crypto'}>
-                                    {h.type === 'stock' ? '주식' : '코인'}
+                                <span class="type-badge" class:stock={h.type === 'stock'} class:crypto={h.type === 'crypto'} class:etf={h.type === 'etf'}>
+                                    {h.type === 'stock' ? '주식' : h.type === 'etf' ? 'ETF' : '코인'}
                                 </span>
                                 <span class="holding-name">{h.name}</span>
                             </td>
                             <td class="col-num">₩{h.currentPrice.toLocaleString()}</td>
-                            <td class="col-num">{h.type === 'crypto' ? (h.quantity % 1 === 0 ? h.quantity : h.quantity.toFixed(4)) : h.quantity}</td>
+                            <td class="col-num">{h.type === 'crypto' ? (h.quantity % 1 === 0 ? h.quantity : h.quantity.toFixed(4)) : h.quantity}{h.type === 'etf' ? '좌' : ''}</td>
                             <td class="col-num">₩{Math.round(h.currentValue).toLocaleString()}</td>
                             <td class="col-num" class:positive={h.profitLoss >= 0} class:negative={h.profitLoss < 0}>
                                 {h.profitLoss >= 0 ? '+' : ''}₩{Math.round(h.profitLoss).toLocaleString()}
@@ -598,6 +628,7 @@
     }
 
     .type-badge.stock { background: #eff6ff; color: #2563eb; }
+    .type-badge.etf { background: #f0fdfa; color: #0d9488; }
     .type-badge.crypto { background: #fffbeb; color: #d97706; }
 
     .holding-name {

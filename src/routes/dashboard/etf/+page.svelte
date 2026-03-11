@@ -1,11 +1,16 @@
 <script lang="ts">
     import { onMount } from 'svelte';
-    import { getETFs, getETFDetail } from '$lib/api/etf';
-    import type { ETF } from '$lib/api/etf';
+    import { toast } from 'svelte-sonner';
+    import { getETFs, getETFDetail, getETFHoldings, getETFDividends, buyETF, sellETF } from '$lib/api/etf';
+    import type { ETF, ETFUserHolding, ETFDividendRecord, ETFHoldingsResponse } from '$lib/api/etf';
     import ETFChart from '$lib/components/ETFChart.svelte';
+    import OrderPanel from '$lib/components/OrderPanel.svelte';
     import SkeletonDashboard from '$lib/components/SkeletonDashboard.svelte';
 
     let etfs: ETF[] = $state([]);
+    let holdings: ETFUserHolding[] = $state([]);
+    let cashBalance = $state(0);
+    let dividends: ETFDividendRecord[] = $state([]);
     let selectedETFId = $state('');
     let loading = $state(true);
     let error = $state('');
@@ -13,11 +18,17 @@
 
     onMount(async () => {
         try {
-            const res = await getETFs();
-            etfs = res.etfs;
+            const [listRes, holdRes] = await Promise.all([
+                getETFs(),
+                getETFHoldings({ suppressAuth: true }).catch(() => ({ holdings: [], total_etf_value: 0, cash_balance: 0 }) as ETFHoldingsResponse)
+            ]);
+            etfs = listRes.etfs;
+            holdings = holdRes.holdings;
+            cashBalance = holdRes.cash_balance;
             if (etfs.length > 0) selectedETFId = etfs[0].id;
         } catch {
             error = '데이터를 불러오는 중 오류가 발생했습니다.';
+            toast.error('ETF 데이터를 불러오지 못했습니다.');
         } finally {
             loading = false;
         }
@@ -32,23 +43,67 @@
                 currentNav = detail.nav;
             }
         }).catch(() => {});
+        getETFDividends(selectedETFId).then(res => {
+            dividends = res.dividends ?? [];
+        }).catch(() => { dividends = []; });
     });
 
     function handlePriceUpdate(price: number) {
         currentNav = price;
     }
 
+    async function refreshHoldings() {
+        try {
+            const res = await getETFHoldings();
+            holdings = res.holdings;
+            cashBalance = res.cash_balance;
+        } catch {}
+    }
+
+    async function handleBuy(qty: number) {
+        if (!selectedETFId) return;
+        try {
+            await buyETF(selectedETFId, qty);
+            await refreshHoldings();
+            toast.success('매수가 완료되었습니다.');
+        } catch (e: unknown) {
+            toast.error(e instanceof Error ? e.message : '매수 실패');
+            throw e;
+        }
+    }
+
+    async function handleSell(qty: number) {
+        if (!selectedETFId) return;
+        try {
+            await sellETF(selectedETFId, qty);
+            await refreshHoldings();
+            toast.success('매도가 완료되었습니다.');
+        } catch (e: unknown) {
+            toast.error(e instanceof Error ? e.message : '매도 실패');
+            throw e;
+        }
+    }
+
     let selectedETF = $derived(etfs.find(e => e.id === selectedETFId) ?? null);
     let isUp = $derived((selectedETF?.change_pct ?? 0) >= 0);
+    let maxSellQty = $derived(
+        holdings.find(h => h.etf_id === selectedETFId)?.quantity ?? 0
+    );
 
     function formatNumber(n: number): string {
-        if (n >= 1_000_000) return (n / 1_000_000).toFixed(2) + 'M';
-        if (n >= 1_000) return (n / 1_000).toFixed(2) + 'K';
-        return n.toFixed(2);
+        if (n >= 1_000_000) return '$' + (n / 1_000_000).toFixed(2) + 'M';
+        if (n >= 1_000) return '$' + (n / 1_000).toFixed(2) + 'K';
+        return '$' + n.toFixed(2);
     }
 
     function formatPct(n: number): string {
         return (n >= 0 ? '+' : '') + n.toFixed(2) + '%';
+    }
+
+    function formatDate(s: string): string {
+        try {
+            return new Date(s).toLocaleDateString('ko-KR', { year: 'numeric', month: 'short', day: 'numeric' });
+        } catch { return s; }
     }
 </script>
 
@@ -75,7 +130,7 @@
                             {/if}
                         </div>
                         <div class="price-row">
-                            <strong class="price">NAV {formatNumber(currentNav)}</strong>
+                            <strong class="price">{formatNumber(currentNav)}</strong>
                             {#if selectedETF}
                                 <span class={isUp ? 'badge-up' : 'badge-down'}>
                                     {formatPct(selectedETF.change_pct)}
@@ -92,6 +147,11 @@
                         <div class="stat">
                             <span class="stat-label">보수율</span>
                             <strong>{selectedETF ? ((selectedETF?.expense_ratio ?? 0) * 100).toFixed(2) + '%' : '-'}</strong>
+                        </div>
+                        <div class="divider-v"></div>
+                        <div class="stat">
+                            <span class="stat-label">배당수익률</span>
+                            <strong>{selectedETF?.dividend_yield != null ? (selectedETF.dividend_yield * 100).toFixed(2) + '%' : '-'}</strong>
                         </div>
                         <div class="divider-v"></div>
                         <div class="stat">
@@ -113,6 +173,7 @@
                                 <th>티커</th>
                                 <th>NAV</th>
                                 <th>변동률</th>
+                                <th>배당수익률</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -130,6 +191,7 @@
                                     <td class:positive={etf.change_pct >= 0} class:negative={etf.change_pct < 0}>
                                         {formatPct(etf.change_pct)}
                                     </td>
+                                    <td>{etf.dividend_yield != null ? (etf.dividend_yield * 100).toFixed(2) + '%' : '-'}</td>
                                 </tr>
                             {/each}
                         </tbody>
@@ -138,8 +200,102 @@
             </div>
 
             <div class="right">
+                <!-- Order Panel -->
+                <OrderPanel
+                    currentPrice={currentNav}
+                    balance={cashBalance}
+                    {maxSellQty}
+                    onBuy={handleBuy}
+                    onSell={handleSell}
+                    currency="$"
+                    unit="좌"
+                    allowDecimal={false}
+                    showReserve={false}
+                />
+
+                <!-- User Holdings -->
+                <div class="panel">
+                    <h3 class="section-title">보유현황</h3>
+                    {#if holdings.length === 0}
+                        <div class="empty-state">보유한 ETF가 없습니다.</div>
+                    {:else}
+                        <table class="holdings-table">
+                            <thead>
+                                <tr>
+                                    <th>종목</th>
+                                    <th>수량</th>
+                                    <th>평균단가</th>
+                                    <th>손익</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {#each holdings as h}
+                                    <tr>
+                                        <td class="h-id">{h.etf_id}</td>
+                                        <td>{h.quantity}</td>
+                                        <td>{formatNumber(h.avg_price)}</td>
+                                        <td class:pos={h.profit_loss >= 0} class:neg={h.profit_loss < 0}>
+                                            {h.profit_loss >= 0 ? '+' : ''}{formatNumber(h.profit_loss)}
+                                            ({(h.profit_loss_pct ?? 0) >= 0 ? '+' : ''}{(h.profit_loss_pct ?? 0).toFixed(2)}%)
+                                        </td>
+                                    </tr>
+                                {/each}
+                            </tbody>
+                        </table>
+                    {/if}
+                </div>
+
+                <!-- Dividend Info -->
                 {#if selectedETF}
-                    <!-- Description -->
+                    <div class="panel">
+                        <h3 class="section-title">배당 정보</h3>
+                        <div class="dividend-summary">
+                            <div class="dividend-row">
+                                <span class="dividend-label">배당수익률</span>
+                                <strong class="dividend-value accent">
+                                    {selectedETF.dividend_yield != null ? (selectedETF.dividend_yield * 100).toFixed(2) + '%' : '-'}
+                                </strong>
+                            </div>
+                            <div class="dividend-row">
+                                <span class="dividend-label">1좌당 배당금</span>
+                                <strong class="dividend-value">
+                                    {selectedETF.dividend_per_unit != null ? formatNumber(selectedETF.dividend_per_unit) : '-'}
+                                </strong>
+                            </div>
+                            <div class="dividend-row">
+                                <span class="dividend-label">최근 배당일</span>
+                                <strong class="dividend-value">
+                                    {selectedETF.last_dividend_date ? formatDate(selectedETF.last_dividend_date) : '-'}
+                                </strong>
+                            </div>
+                        </div>
+
+                        {#if dividends.length > 0}
+                            <h4 class="subsection-title">배당 내역</h4>
+                            <table class="dividend-table">
+                                <thead>
+                                    <tr>
+                                        <th>지급일</th>
+                                        <th>1좌당</th>
+                                        <th>수령액</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {#each dividends.slice(0, 5) as d}
+                                        <tr>
+                                            <td>{formatDate(d.payment_date)}</td>
+                                            <td>{formatNumber(d.dividend_per_unit)}</td>
+                                            <td class="pos">{formatNumber(d.total_dividend)}</td>
+                                        </tr>
+                                    {/each}
+                                </tbody>
+                            </table>
+                        {/if}
+                    </div>
+                {/if}
+
+                <!-- Constituents -->
+                {#if selectedETF}
                     {#if selectedETF.description}
                         <div class="panel">
                             <h3 class="section-title">설명</h3>
@@ -147,10 +303,9 @@
                         </div>
                     {/if}
 
-                    <!-- Holdings -->
                     <div class="panel">
                         <h3 class="section-title">구성종목</h3>
-                        <table class="holdings-table">
+                        <table class="constituents-table">
                             <thead>
                                 <tr>
                                     <th>종목</th>
@@ -303,12 +458,14 @@
 
     /* Right panel */
     .section-title { font-size: 0.95rem; font-weight: 700; margin: 0 0 0.75rem; }
+    .subsection-title { font-size: 0.85rem; font-weight: 600; margin: 1rem 0 0.5rem; color: #475569; }
     .desc-text { font-size: 0.875rem; color: #555; line-height: 1.6; margin: 0; }
     .empty-state {
         display: flex; align-items: center; justify-content: center;
         min-height: 120px; color: var(--color-text-gray); font-size: 0.9rem;
     }
 
+    /* User Holdings */
     .holdings-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
     .holdings-table th {
         text-align: left; padding: 0.5rem;
@@ -316,6 +473,37 @@
         color: var(--color-text-gray); font-weight: 600;
     }
     .holdings-table td { padding: 0.5rem; border-bottom: 1px solid #f0f0f0; }
+    .h-id { font-family: 'Fira Mono', monospace; font-weight: 600; color: var(--color-theme-1); }
+    .pos { color: var(--color-positive); font-weight: 700; }
+    .neg { color: var(--color-negative); font-weight: 700; }
+
+    /* Dividend */
+    .dividend-summary { display: flex; flex-direction: column; gap: 0.5rem; }
+    .dividend-row {
+        display: flex; justify-content: space-between; align-items: center;
+        padding: 0.375rem 0; border-bottom: 1px solid #f5f5f5;
+    }
+    .dividend-row:last-child { border-bottom: none; }
+    .dividend-label { font-size: 0.8125rem; color: #64748b; }
+    .dividend-value { font-size: 0.875rem; font-weight: 700; color: #0f172a; }
+    .dividend-value.accent { color: var(--color-theme-1); }
+
+    .dividend-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+    .dividend-table th {
+        text-align: left; padding: 0.5rem;
+        border-bottom: 2px solid #e5e7eb;
+        color: var(--color-text-gray); font-weight: 600;
+    }
+    .dividend-table td { padding: 0.5rem; border-bottom: 1px solid #f0f0f0; }
+
+    /* Constituents */
+    .constituents-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+    .constituents-table th {
+        text-align: left; padding: 0.5rem;
+        border-bottom: 2px solid #e5e7eb;
+        color: var(--color-text-gray); font-weight: 600;
+    }
+    .constituents-table td { padding: 0.5rem; border-bottom: 1px solid #f0f0f0; }
     .holding-id { font-family: 'Fira Mono', monospace; font-weight: 600; color: var(--color-theme-1); }
 
     .weight-bar-wrap { display: flex; align-items: center; gap: 0.5rem; }
