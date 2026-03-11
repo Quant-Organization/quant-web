@@ -12,6 +12,7 @@
     import type { GlobalEvent } from '$lib/api/macro';
     import Skeleton from '$lib/components/Skeleton.svelte';
     import { toast } from 'svelte-sonner';
+    import GoldCoin3D from '$lib/components/GoldCoin3D.svelte';
 
     let dashboardData = $state<DashboardData | null>(null);
     let clickInfo = $state<ClickInfo | null>(null);
@@ -259,55 +260,14 @@
                     </div>
                 </div>
 
-                <div
-                    class="receipt-wrapper"
-                    onclick={handleReceiptClick}
-                    onmousedown={handleMouseDown}
-                    onmouseup={handleMouseUp}
-                    onmouseleave={handleMouseUp}
-                >
-                    <svg class="receipt-icon" viewBox="0 0 652 326" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <g filter="url(#receipt_shadow)">
-                            <g clip-path="url(#receipt_clip)">
-                                <rect x="6" y="2" width="620" height="314" rx="20" fill="white"/>
-                                <path d="M35.1765 172H491.059" stroke="#D9D9D9" stroke-opacity="0.5" stroke-width="20" stroke-linecap="round"/>
-                                <path d="M35.1765 92H308.706" stroke="#D9D9D9" stroke-opacity="0.5" stroke-width="20" stroke-linecap="round"/>
-                                <path d="M35.1765 252H491.059" stroke="#D9D9D9" stroke-opacity="0.5" stroke-width="20" stroke-linecap="round"/>
-                                <path d="M25 315.5C25 315.5 41.2815 315.476 46 302.5C52 286 50.5 249 50.5 249" stroke="#E3E9F1"/>
-                            </g>
-                            <rect x="6.5" y="2.5" width="619" height="313" rx="19.5" stroke="#E3E9F1"/>
-                        </g>
-                        <mask id="receipt_mask" fill="white">
-                            <path d="M51 246H652V286C652 302.569 638.569 316 622 316H51V246Z"/>
-                        </mask>
-                        <path d="M51 246H652V286C652 302.569 638.569 316 622 316H51V246Z" fill="white"/>
-                        <path d="M51 245H653L651 247H51V245ZM653 286C653 303.121 639.121 317 622 317H51V315H622C638.016 315 651 302.016 651 286H653ZM51 316V246V316ZM653 245V286C653 303.121 639.121 317 622 317V315C638.016 315 651 302.016 651 286V247L653 245Z" fill="#E3E9F1" mask="url(#receipt_mask)"/>
-                        <text class="receipt-text-title" x="30" y="62">클릭하여 수익 획득!</text>
-                        <text class="receipt-text-sub" x="30" y="90">클릭당 수입</text>
-                        <text class="receipt-text-value" x="605" y="90" text-anchor="end">+${formatNumber(clickInfo?.incomePerClick ?? 0)}/s</text>
-                        <defs>
-                            <filter id="receipt_shadow" x="0" y="0" width="632" height="326" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
-                                <feFlood flood-opacity="0" result="BackgroundImageFix"/>
-                                <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
-                                <feOffset dy="4"/>
-                                <feGaussianBlur stdDeviation="3"/>
-                                <feComposite in2="hardAlpha" operator="out"/>
-                                <feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.05 0"/>
-                                <feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow"/>
-                                <feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow" result="shape"/>
-                            </filter>
-                            <clipPath id="receipt_clip">
-                                <rect x="6" y="2" width="620" height="314" rx="20" fill="white"/>
-                            </clipPath>
-                        </defs>
-                    </svg>
-                    <img
-                        src={isMouseDown ? pointer_clicked : pointer}
-                        alt="pointer"
-                        class="pointer-icon"
-                        class:pulse={!isReceiptClicked}
-                        draggable="false"
-                    />
+                <div class="coin-clicker-wrapper">
+                    <div class="coin-clicker-area">
+                        <GoldCoin3D onclick={handleReceiptClick} />
+                    </div>
+                    <div class="coin-clicker-label">
+                        <span class="coin-label-title">코인을 클릭하여 수익 획득!</span>
+                        <span class="coin-label-value">+${formatNumber(clickInfo?.incomePerClick ?? 0)} / 클릭</span>
+                    </div>
                     {#if showIncomePopup}
                         <div class="income-popup">
                             +{formatCurrency(incomeAmount)}
@@ -570,66 +530,46 @@
         box-shadow: 0 4px 4px rgba(0, 0, 0, 0.25);
     }
 
-    .receipt-wrapper {
+    .coin-clicker-wrapper {
         position: absolute;
         top: calc(2rem + 13rem);
         left: 2rem;
         width: calc(100% - 4rem);
-        height: auto;
         z-index: 2;
-        cursor: pointer;
         display: flex;
-        justify-content: center;
+        flex-direction: column;
         align-items: center;
     }
 
-    .account-cards-wrapper .receipt-icon {
+    .coin-clicker-area {
         width: 100%;
-        height: auto;
-        opacity: 0.95;
-        user-select: none;
-        -webkit-user-drag: none;
+        height: 14rem;
+        border-radius: 1.25rem;
+        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+        overflow: hidden;
+        box-shadow: 0 0.25rem 1.5rem rgba(255, 215, 0, 0.15);
+        border: 1px solid rgba(255, 215, 0, 0.2);
     }
 
-    .receipt-text-title {
-        fill: black;
-        font-size: 18px;
+    .coin-clicker-label {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        width: 100%;
+        margin-top: 0.75rem;
+        padding: 0 0.25rem;
+    }
+
+    .coin-label-title {
+        font-size: 1rem;
+        font-weight: 600;
+        color: var(--color-text-gray);
+    }
+
+    .coin-label-value {
+        font-size: 1rem;
         font-weight: 700;
-    }
-
-    .receipt-text-sub {
-        fill: #64758B;
-        font-size: 13px;
-    }
-
-    .receipt-text-value {
-        fill: #00529B;
-        font-size: 16px;
-        font-weight: 700;
-    }
-
-    .pointer-icon {
-        position: absolute;
-        width: 10rem;
-        height: 10rem;
-        transition: all 0.3s ease;
-        user-select: none;
-        -webkit-user-drag: none;
-    }
-
-    .pointer-icon.pulse {
-        animation: pulsePointer 2s ease-in-out infinite;
-    }
-
-    @keyframes pulsePointer {
-        0%, 100% {
-            transform: scale(1);
-            filter: brightness(1);
-        }
-        50% {
-            transform: scale(1.1);
-            filter: brightness(1.2);
-        }
+        color: var(--color-theme-1);
     }
 
 

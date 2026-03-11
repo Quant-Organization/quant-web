@@ -10,8 +10,26 @@ npm run build        # Production build
 npm run preview      # Preview production build
 npm run check        # TypeScript type checking (svelte-kit sync + svelte-check)
 npm run check:watch  # Type checking in watch mode
-npx playwright test tests/e2e/full-test.spec.ts  # Run Playwright e2e tests
 ```
+
+### E2E Tests (Playwright)
+
+Requires dev server (`npm run dev`) and both backends (Spring Boot `:8080`, FastAPI `:8000`) running.
+
+```bash
+npx playwright test tests/e2e/full-test.spec.ts           # Run all e2e tests
+npx playwright test tests/e2e/full-test.spec.ts -g "코인"  # Run tests matching name
+npx playwright test tests/e2e/auth.setup.ts                # Auth-only tests
+```
+
+Tests run headless Chromium against `localhost:5173` with 30s timeout. Auth setup registers throwaway users via API calls -- no manual login needed.
+
+### Environment Variables
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `VITE_FASTAPI_URL` | `http://localhost:8000` | FastAPI backend URL (dev proxy target) |
+| `VITE_SPRING_API_URL` | `''` (same origin) | Spring Boot API base URL |
 
 No ESLint or Prettier configured.
 
@@ -36,7 +54,11 @@ Two separate API servers, accessed through wrapper functions in `src/lib/api/con
 | `fetchFastAPI()` | FastAPI `:8000` | Stock/coin simulation, trading | `fastapi_token` |
 | `fetchSpring()` | Spring Boot `:80` | Game backend (auth, companies, assets, missions) | `spring_token` / `auth_token` |
 
-Each API domain has its own module in `src/lib/api/` (e.g., `trade.ts`, `company.ts`, `bank.ts`). Both wrappers dispatch a `quant:auth-required` custom event on 401 responses (before throwing), which triggers a login modal in the root layout. Pass `{ suppressAuth: true }` in options to skip this for optional auth calls.
+Each API domain has its own module in `src/lib/api/` (e.g., `trade.ts`, `company.ts`, `bank.ts`). On 401/403, each wrapper dispatches a distinct custom event before throwing:
+- `fetchSpring()` → `quant:auth-required` (clears all tokens, forces full re-login)
+- `fetchFastAPI()` → `quant:fastapi-auth-required` (clears FastAPI token only, shows login modal)
+
+Pass `{ suppressAuth: true }` in options to skip this for optional auth calls.
 
 The API layer includes smart caching: GET requests are cached with configurable TTL (default 15s, shorter for market data), supports ETag/304 revalidation, deduplicates in-flight requests, and auto-invalidates cache on mutating requests.
 
@@ -61,9 +83,9 @@ To add/modify sidebar menu items, update `sidebarConfigs` in `sidebar.ts`.
 ### Main Sections
 
 Five sections, four with context-sensitive sidebars:
-1. **Dashboard** (`/dashboard/*`) - Financial dashboards: overview, bank, stock, bond, coin, etf
+1. **Dashboard** (`/dashboard/*`) - Financial dashboards: overview, portfolio, bank, stock, bond, coin, etf, loan
 2. **Asset** (`/asset/*`) - Asset management: overview, vehicles, jet, yacht, realestate, luxury
-3. **Business** (`/business/*`) - Company operations with dynamic company context
+3. **Business** (`/business/*`) - Top-level: dashboard, world (국제 정세). Company pages via dynamic routing (see below)
 4. **Leaderboard** (`/leaderboard/*`) - Rankings, profiles, missions
 5. **Auction** (`/auction`) - Standalone auction page (no sidebar entry)
 
@@ -84,6 +106,7 @@ When navigating to a company, `setCompanySidebar(companyId, name)` replaces the 
 - **Balance** (`src/lib/stores/asset.ts`): Server-backed via `refreshBalance()` which calls Spring API
 - **Login modal** (`src/lib/stores/loginModal.ts`): `showLoginModal` + `loginModalAuthRequired` flags
 - **Factory build** (`src/lib/stores/factoryBuild.ts`): Multi-step factory creation wizard state
+- **Toast** (`src/lib/stores/toast.ts`): Legacy toast store (`toast.success()`, `toast.error()`). The root layout also renders `svelte-sonner` `<Toaster />` (top-right) for newer toast usage
 
 ## Conventions
 

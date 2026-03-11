@@ -289,7 +289,7 @@
                                 <span class="holding-name">{h.name}</span>
                             </td>
                             <td class="col-num">₩{h.currentPrice.toLocaleString()}</td>
-                            <td class="col-num">{h.type === 'crypto' ? h.quantity.toFixed(4) : h.quantity}</td>
+                            <td class="col-num">{h.type === 'crypto' ? (h.quantity % 1 === 0 ? h.quantity : h.quantity.toFixed(4)) : h.quantity}</td>
                             <td class="col-num">₩{Math.round(h.currentValue).toLocaleString()}</td>
                             <td class="col-num" class:positive={h.profitLoss >= 0} class:negative={h.profitLoss < 0}>
                                 {h.profitLoss >= 0 ? '+' : ''}₩{Math.round(h.profitLoss).toLocaleString()}
