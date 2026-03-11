@@ -11,6 +11,7 @@
     import { getPortfolioDashboard, buyStock, sellStock } from '$lib/api/trade';
     import type { Company } from '$lib/api/market';
     import type { PortfolioDashboard } from '$lib/api/trade';
+    import { getCurrency, getCurrencySymbol, toDisplay, formatPrice, type CurrencyCode } from '$lib/utils/currency';
     import SkeletonDashboard from '$lib/components/SkeletonDashboard.svelte';
     import { get } from 'svelte/store';
 
@@ -52,6 +53,10 @@
     function handlePriceUpdate(price: number) {
         currentPrice = price;
     }
+
+    let selectedCompany = $derived(companies.find(c => c.company_id === selectedCompanyId));
+    let currency = $derived<CurrencyCode>(getCurrency(selectedCompany?.name ?? ''));
+    let currencySym = $derived(getCurrencySymbol(currency));
 
     let stockBalance = $derived(dashboard?.summary.cash ?? 0);
     let stockMaxSellQty = $derived(
@@ -96,16 +101,18 @@
 
     <div class="right">
         <OrderPanel
-            {currentPrice}
-            balance={stockBalance}
+            currentPrice={toDisplay(currentPrice, currency)}
+            balance={toDisplay(stockBalance, currency)}
             maxSellQty={stockMaxSellQty}
             onBuy={handleStockBuy}
             onSell={handleStockSell}
+            currency={currencySym}
         />
         <Summary
             {selectedCompanyId}
             {currentPrice}
             {dashboard}
+            {currency}
         />
         {#if dashboard && dashboard.recent_trades.length > 0}
         <div class="orders-panel">
@@ -116,7 +123,7 @@
                         <span class="order-type">{trade.type === 'BUY' ? '매수' : '매도'}</span>
                         <span class="order-company">{trade.company_name}</span>
                         <span class="order-qty">{trade.quantity}주</span>
-                        <span class="order-price">{trade.total_amount.toLocaleString()}원</span>
+                        <span class="order-price">{formatPrice(trade.total_amount, getCurrency(trade.company_name))}</span>
                     </div>
                 {/each}
             </div>

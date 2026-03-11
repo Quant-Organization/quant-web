@@ -2,14 +2,18 @@
     import { getValuation, getFinancials } from '$lib/api/market';
     import type { Valuation, FinancialReport } from '$lib/api/market';
     import type { PortfolioDashboard } from '$lib/api/trade';
+    import { formatPrice, type CurrencyCode, getCurrencySymbol } from '$lib/utils/currency';
 
     interface Props {
         selectedCompanyId: string;
         currentPrice: number;
         dashboard: PortfolioDashboard | null;
+        currency?: CurrencyCode;
     }
 
-    let { selectedCompanyId, currentPrice, dashboard }: Props = $props();
+    let { selectedCompanyId, currentPrice, dashboard, currency = 'KRW' }: Props = $props();
+
+    let sym = $derived(getCurrencySymbol(currency));
 
     let valuation = $state<Valuation | null>(null);
     let financials = $state<FinancialReport | null>(null);
@@ -33,10 +37,10 @@
     );
 
     let stats = $derived([
-        { label: '공정가치', value: valuation ? `₩${valuation.fair_value.toLocaleString()}` : '-' },
+        { label: '공정가치', value: valuation ? formatPrice(valuation.fair_value, currency) : '-' },
         { label: '괴리율', value: valuation ? `${valuation.deviation_pct.toFixed(2)}%` : '-' },
-        { label: 'EPS', value: valuation ? `₩${valuation.eps.toLocaleString()}` : '-' },
-        { label: 'BPS', value: valuation ? `₩${valuation.bps.toLocaleString()}` : '-' },
+        { label: 'EPS', value: valuation ? formatPrice(valuation.eps, currency) : '-' },
+        { label: 'BPS', value: valuation ? formatPrice(valuation.bps, currency) : '-' },
         { label: 'PER', value: valuation ? valuation.current_per.toFixed(1) : '-' },
         { label: 'PBR', value: valuation ? valuation.current_pbr.toFixed(2) : '-' },
         { label: 'ROE', value: valuation ? `${valuation.roe.toFixed(1)}%` : '-' },
@@ -46,10 +50,10 @@
         holding
             ? [
                 { label: '보유 수량', value: `${holding.quantity}주` },
-                { label: '평균 단가', value: `₩${Math.round(holding.avg_price).toLocaleString()}` },
-                { label: '투자금', value: `₩${holding.total_invested.toLocaleString()}` },
-                { label: '평가액', value: `₩${holding.current_value.toLocaleString()}` },
-                { label: '평가 손익', value: `₩${holding.profit_loss.toLocaleString()}` },
+                { label: '평균 단가', value: formatPrice(holding.avg_price, currency) },
+                { label: '투자금', value: formatPrice(holding.total_invested, currency) },
+                { label: '평가액', value: formatPrice(holding.current_value, currency) },
+                { label: '평가 손익', value: formatPrice(holding.profit_loss, currency) },
                 { label: '수익률', value: `${holding.profit_loss_pct.toFixed(2)}%` },
                 { label: '비중', value: `${holding.weight_pct.toFixed(1)}%` },
               ]
@@ -63,15 +67,15 @@
     <div class="summary-content">
         <div class="header">
             <div class="title-row">
-                <div class="icon">₩</div>
+                <div class="icon">{sym}</div>
                 <strong class="code">{holding?.company_name ?? (selectedCompanyId || '-')}</strong>
             </div>
         </div>
 
-        <p class="meta">현재가 · ₩{currentPrice.toLocaleString()}</p>
+        <p class="meta">현재가 · {formatPrice(currentPrice, currency)}</p>
 
         <div class="price">
-            <span class="price-value">₩{currentPrice.toLocaleString()}</span>
+            <span class="price-value">{formatPrice(currentPrice, currency)}</span>
             {#if holding}
                 <span class="change" class:negative={!isProfitPositive} class:positive={isProfitPositive}>
                     {isProfitPositive ? '+' : ''}{holding.profit_loss_pct.toFixed(2)}%
@@ -111,27 +115,27 @@
             <div class="stats">
                 <div class="stat-row">
                     <span class="stat-label">매출</span>
-                    <span class="stat-value">{financials.revenue != null ? `₩${financials.revenue.toLocaleString()}` : '-'}</span>
+                    <span class="stat-value">{financials.revenue != null ? formatPrice(financials.revenue, currency) : '-'}</span>
                 </div>
                 <div class="stat-row">
                     <span class="stat-label">순이익</span>
-                    <span class="stat-value" style="color: {(financials.net_income ?? 0) >= 0 ? '#16a34a' : '#dc2626'}">{financials.net_income != null ? `₩${financials.net_income.toLocaleString()}` : '-'}</span>
+                    <span class="stat-value" style="color: {(financials.net_income ?? 0) >= 0 ? '#16a34a' : '#dc2626'}">{financials.net_income != null ? formatPrice(financials.net_income, currency) : '-'}</span>
                 </div>
                 <div class="stat-row">
                     <span class="stat-label">총자산</span>
-                    <span class="stat-value">{financials.total_assets != null ? `₩${financials.total_assets.toLocaleString()}` : '-'}</span>
+                    <span class="stat-value">{financials.total_assets != null ? formatPrice(financials.total_assets, currency) : '-'}</span>
                 </div>
                 <div class="stat-row">
                     <span class="stat-label">자기자본</span>
-                    <span class="stat-value">{financials.total_equity != null ? `₩${financials.total_equity.toLocaleString()}` : '-'}</span>
+                    <span class="stat-value">{financials.total_equity != null ? formatPrice(financials.total_equity, currency) : '-'}</span>
                 </div>
                 <div class="stat-row">
                     <span class="stat-label">EPS</span>
-                    <span class="stat-value">{financials.eps != null ? `₩${financials.eps.toLocaleString()}` : '-'}</span>
+                    <span class="stat-value">{financials.eps != null ? formatPrice(financials.eps, currency) : '-'}</span>
                 </div>
                 <div class="stat-row">
                     <span class="stat-label">BPS</span>
-                    <span class="stat-value">{financials.bps != null ? `₩${financials.bps.toLocaleString()}` : '-'}</span>
+                    <span class="stat-value">{financials.bps != null ? formatPrice(financials.bps, currency) : '-'}</span>
                 </div>
                 <div class="stat-row">
                     <span class="stat-label">ROE</span>
@@ -152,20 +156,20 @@
 
         <div class="account-row">
             <span class="stat-label">가용 현금</span>
-            <span class="stat-value">₩{(dashboard?.summary.cash ?? 0).toLocaleString()}</span>
+            <span class="stat-value">{formatPrice(dashboard?.summary.cash ?? 0, 'KRW')}</span>
         </div>
         <div class="account-row">
             <span class="stat-label">주식 평가액</span>
-            <span class="stat-value">₩{(dashboard?.summary.stock_value ?? 0).toLocaleString()}</span>
+            <span class="stat-value">{formatPrice(dashboard?.summary.stock_value ?? 0, 'KRW')}</span>
         </div>
         <div class="account-row">
             <span class="stat-label">총 자산</span>
-            <span class="stat-value">₩{(dashboard?.summary.total_assets ?? 0).toLocaleString()}</span>
+            <span class="stat-value">{formatPrice(dashboard?.summary.total_assets ?? 0, 'KRW')}</span>
         </div>
         <div class="account-row">
             <span class="stat-label">총 손익</span>
             <span class="stat-value" style="color: {(dashboard?.summary.total_profit_loss ?? 0) >= 0 ? '#16a34a' : '#dc2626'}">
-                {(dashboard?.summary.total_profit_loss ?? 0) >= 0 ? '+' : ''}₩{(dashboard?.summary.total_profit_loss ?? 0).toLocaleString()} ({(dashboard?.summary.total_profit_loss_pct ?? 0).toFixed(2)}%)
+                {(dashboard?.summary.total_profit_loss ?? 0) >= 0 ? '+' : ''}{formatPrice(dashboard?.summary.total_profit_loss ?? 0, 'KRW')} ({(dashboard?.summary.total_profit_loss_pct ?? 0).toFixed(2)}%)
             </span>
         </div>
     </div>

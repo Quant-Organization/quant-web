@@ -1,6 +1,7 @@
 <script lang="ts">
     import { getValuation, getHistory } from '$lib/api/market';
     import type { Company, Valuation } from '$lib/api/market';
+    import { getCurrency, formatPrice, toDisplay, type CurrencyCode } from '$lib/utils/currency';
 
     interface Props {
         companies: Company[];
@@ -9,6 +10,11 @@
     }
 
     let { companies, selectedCompanyId = $bindable(), currentPrice }: Props = $props();
+
+    let currency = $derived<CurrencyCode>(
+        getCurrency(companies.find(c => c.company_id === selectedCompanyId)?.name ?? '')
+    );
+    let sym = $derived(currency === 'KRW' ? '₩' : '$');
 
     let valuation = $state<Valuation | null>(null);
     let volume = $state(0);
@@ -47,13 +53,6 @@
         if (currentPrice <= 0) return 0;
         return currentPrice * 10_000_000;
     });
-
-    function formatLargeNumber(n: number): string {
-        if (n >= 1_000_000_000_000) return (n / 1_000_000_000_000).toFixed(1) + '조';
-        if (n >= 100_000_000) return (n / 100_000_000).toFixed(1) + '억';
-        if (n >= 10_000) return (n / 10_000).toFixed(0) + '만';
-        return n.toLocaleString();
-    }
 </script>
 
 <section class="card">
@@ -75,7 +74,7 @@
         </div>
 
         <div class="price-row">
-            <strong class="price">₩{currentPrice.toLocaleString()}</strong>
+            <strong class="price">{formatPrice(currentPrice, currency)}</strong>
             {#if initialPrice > 0}
                 <span class={isUp ? 'up' : 'down'}>
                     {isUp ? '+' : ''}{changePct.toFixed(2)}%
@@ -90,7 +89,7 @@
     <div class="stats">
         <div class="stat">
             <span class="stat-label">시가총액</span>
-            <strong>{marketCap > 0 ? formatLargeNumber(marketCap) : '-'}</strong>
+            <strong>{marketCap > 0 ? formatPrice(marketCap, currency) : '-'}</strong>
         </div>
 
         <div class="divider"></div>

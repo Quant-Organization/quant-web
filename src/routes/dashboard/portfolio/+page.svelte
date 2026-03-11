@@ -11,6 +11,7 @@
     import type { CryptoHolding } from '$lib/api/crypto';
     import type { ETFUserHolding } from '$lib/api/etf';
     import type { ProfileStats } from '$lib/api/dashboard';
+    import { getCurrency, formatPrice, type CurrencyCode } from '$lib/utils/currency';
     import SkeletonDashboard from '$lib/components/SkeletonDashboard.svelte';
 
     let portfolio = $state<PortfolioDashboard | null>(null);
@@ -29,6 +30,7 @@
         id: string;
         name: string;
         type: 'stock' | 'crypto' | 'etf';
+        currency: CurrencyCode;
         quantity: number;
         avgPrice: number;
         currentPrice: number;
@@ -42,6 +44,7 @@
     function toUnified(h: PortfolioHolding): UnifiedHolding {
         return {
             id: h.company_id, name: h.company_name, type: 'stock',
+            currency: getCurrency(h.company_name),
             quantity: h.quantity ?? 0, avgPrice: h.avg_price ?? 0, currentPrice: h.current_price ?? 0,
             totalInvested: h.total_invested ?? 0, currentValue: h.current_value ?? 0,
             profitLoss: h.profit_loss ?? 0, profitLossPct: h.profit_loss_pct ?? 0, weightPct: h.weight_pct ?? 0
@@ -55,7 +58,7 @@
         const invested = avgPrice * quantity;
         const value = currentPrice * quantity;
         return {
-            id: h.crypto_id, name: h.crypto_id, type: 'crypto',
+            id: h.crypto_id, name: h.crypto_id, type: 'crypto', currency: 'KRW',
             quantity, avgPrice, currentPrice,
             totalInvested: invested, currentValue: value,
             profitLoss: h.profit_loss ?? 0, profitLossPct: h.profit_loss_pct ?? 0, weightPct: 0
@@ -69,7 +72,7 @@
         const invested = avgPrice * quantity;
         const value = currentPrice * quantity;
         return {
-            id: h.etf_id, name: h.etf_id, type: 'etf',
+            id: h.etf_id, name: h.etf_id, type: 'etf', currency: 'KRW',
             quantity, avgPrice, currentPrice,
             totalInvested: invested, currentValue: value,
             profitLoss: h.profit_loss ?? 0, profitLossPct: h.profit_loss_pct ?? 0, weightPct: 0
@@ -179,7 +182,7 @@
                             label: (ctx) => {
                                 const total = categories.reduce((s, c) => s + c.value, 0);
                                 const v = ctx.parsed;
-                                return `${ctx.label}: ₩${money(v)} (${((v / total) * 100).toFixed(1)}%)`;
+                                return `${ctx.label}: ${formatPrice(v, 'KRW')} (${((v / total) * 100).toFixed(1)}%)`;
                             }
                         }
                     }
@@ -229,21 +232,21 @@
     <section class="hero-card">
         <div class="hero-left">
             <p class="hero-label">총 자산</p>
-            <h1 class="hero-value">₩{(profile?.totalAssetValue ?? 0).toLocaleString()}</h1>
+            <h1 class="hero-value">{formatPrice(profile?.totalAssetValue ?? 0, 'KRW')}</h1>
             <div class="hero-metrics">
                 <span class="hero-pl" class:positive={totalPL >= 0} class:negative={totalPL < 0}>
-                    투자 손익 {totalPL >= 0 ? '+' : ''}₩{totalPL.toLocaleString()} ({pct(totalPLPct)})
+                    투자 손익 {totalPL >= 0 ? '+' : ''}{formatPrice(totalPL, 'KRW')} ({pct(totalPLPct)})
                 </span>
             </div>
         </div>
         <div class="hero-right">
             <div class="hero-stat">
                 <span class="hero-stat-label">투자 평가액</span>
-                <strong>₩{totalInvestmentValue.toLocaleString()}</strong>
+                <strong>{formatPrice(totalInvestmentValue, 'KRW')}</strong>
             </div>
             <div class="hero-stat">
                 <span class="hero-stat-label">가용 현금</span>
-                <strong>₩{(portfolio?.summary.cash ?? 0).toLocaleString()}</strong>
+                <strong>{formatPrice(portfolio?.summary.cash ?? 0, 'KRW')}</strong>
             </div>
             <div class="hero-stat">
                 <span class="hero-stat-label">수익/손실 종목</span>
@@ -318,11 +321,11 @@
                                 </span>
                                 <span class="holding-name">{h.name}</span>
                             </td>
-                            <td class="col-num">₩{h.currentPrice.toLocaleString()}</td>
+                            <td class="col-num">{formatPrice(h.currentPrice, h.currency)}</td>
                             <td class="col-num">{h.type === 'crypto' ? (h.quantity % 1 === 0 ? h.quantity : h.quantity.toFixed(4)) : h.quantity}{h.type === 'etf' ? '좌' : ''}</td>
-                            <td class="col-num">₩{Math.round(h.currentValue).toLocaleString()}</td>
+                            <td class="col-num">{formatPrice(Math.round(h.currentValue), h.currency)}</td>
                             <td class="col-num" class:positive={h.profitLoss >= 0} class:negative={h.profitLoss < 0}>
-                                {h.profitLoss >= 0 ? '+' : ''}₩{Math.round(h.profitLoss).toLocaleString()}
+                                {h.profitLoss >= 0 ? '+' : ''}{formatPrice(Math.round(h.profitLoss), h.currency)}
                             </td>
                             <td class="col-num" class:positive={h.profitLossPct >= 0} class:negative={h.profitLossPct < 0}>
                                 {pct(h.profitLossPct)}
@@ -350,7 +353,7 @@
                         <div class="legend-item">
                             <span class="legend-dot" style="background: {c.color}"></span>
                             <span class="legend-label">{c.label}</span>
-                            <span class="legend-value">₩{money(c.value)}</span>
+                            <span class="legend-value">{formatPrice(c.value, 'KRW')}</span>
                         </div>
                     {/each}
                 </div>
@@ -371,7 +374,7 @@
                             </span>
                             <span class="trade-name">{trade.company_name}</span>
                             <span class="trade-qty">{trade.quantity}주</span>
-                            <span class="trade-amount">₩{trade.total_amount.toLocaleString()}</span>
+                            <span class="trade-amount">{formatPrice(trade.total_amount, getCurrency(trade.company_name))}</span>
                         </div>
                     {/each}
                 </div>
@@ -393,7 +396,7 @@
                             <div class="category-bar-bg">
                                 <div class="category-bar" style="width: {Math.min((cat.value / total) * 100, 100)}%"></div>
                             </div>
-                            <span class="category-value">₩{money(cat.value)}</span>
+                            <span class="category-value">{formatPrice(cat.value, 'KRW')}</span>
                         </div>
                     {/each}
                 </div>
