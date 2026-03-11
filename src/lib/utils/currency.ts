@@ -48,6 +48,8 @@ export function formatPrice(raw: number, currency: CurrencyCode): string {
 	const sym = getCurrencySymbol(currency);
 	if (currency === 'USD') {
 		const usd = raw / EXCHANGE_RATE;
+		if (Math.abs(usd) >= 1_000_000_000_000) return sym + (usd / 1_000_000_000_000).toFixed(2) + 'T';
+		if (Math.abs(usd) >= 1_000_000_000) return sym + (usd / 1_000_000_000).toFixed(2) + 'B';
 		if (Math.abs(usd) >= 1_000_000) return sym + (usd / 1_000_000).toFixed(2) + 'M';
 		if (Math.abs(usd) >= 1_000) return sym + (usd / 1_000).toFixed(2) + 'K';
 		return sym + usd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -63,6 +65,7 @@ export function formatPrice(raw: number, currency: CurrencyCode): string {
 export function formatPriceShort(raw: number, currency: CurrencyCode): string {
 	const sym = getCurrencySymbol(currency);
 	const val = currency === 'USD' ? raw / EXCHANGE_RATE : raw;
+	if (Math.abs(val) >= 1_000_000_000_000) return sym + (val / 1_000_000_000_000).toFixed(1) + 'T';
 	if (Math.abs(val) >= 1_000_000_000) return sym + (val / 1_000_000_000).toFixed(1) + 'B';
 	if (Math.abs(val) >= 1_000_000) return sym + (val / 1_000_000).toFixed(1) + 'M';
 	if (Math.abs(val) >= 1_000) return sym + (val / 1_000).toFixed(1) + 'K';
