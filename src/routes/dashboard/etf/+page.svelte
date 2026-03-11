@@ -125,9 +125,6 @@
                                     <option value={e.id}>{e.name} ({e.ticker})</option>
                                 {/each}
                             </select>
-                            {#if selectedETF}
-                                <span class="sector-badge">{selectedETF.sector}</span>
-                            {/if}
                         </div>
                         <div class="price-row">
                             <strong class="price">{formatNumber(currentNav)}</strong>
@@ -139,11 +136,6 @@
                         </div>
                     </div>
                     <div class="stats">
-                        <div class="stat">
-                            <span class="stat-label">섹터</span>
-                            <strong>{selectedETF?.sector ?? '-'}</strong>
-                        </div>
-                        <div class="divider-v"></div>
                         <div class="stat">
                             <span class="stat-label">보수율</span>
                             <strong>{selectedETF ? ((selectedETF?.expense_ratio ?? 0) * 100).toFixed(2) + '%' : '-'}</strong>
@@ -401,12 +393,6 @@
         cursor: pointer; outline: none; min-width: 14rem;
     }
     .etf-select:focus { border-color: #3b82f6; }
-
-    .sector-badge {
-        background: #ECF2FE; color: var(--color-theme-1);
-        border-radius: 20px; padding: 0.2rem 0.65rem;
-        font-size: 0.75rem; font-weight: 600;
-    }
 
     .price-row {
         margin-top: 0.625rem;
