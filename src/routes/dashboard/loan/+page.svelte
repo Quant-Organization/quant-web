@@ -66,10 +66,11 @@
         if (rateParam) bankRate = Number(rateParam);
         if (tierParam) bankTier = Number(tierParam);
 
-        // 대출 상품 로드
+        // 대출 상품 로드 (tier 파라미터가 있으면 해당 등급만 조회)
+        if (bankTier) selectedTier = bankTier;
         try {
             const [products, loans] = await Promise.all([
-                getLoanProducts(),
+                bankTier ? getLoanProductsByTier(bankTier) : getLoanProducts(),
                 getActiveLoans().catch(() => [] as UserLoanResponse[])
             ]);
             loanProducts = products;
