@@ -8,6 +8,7 @@
 	import { onMount } from 'svelte';
 	import { showLoginModal, loginModalAuthRequired } from '$lib/stores/loginModal';
 	import { auth } from '$lib/stores/auth';
+	import { springMe } from '$lib/api/auth';
 	import { get } from 'svelte/store';
 	import '../app.css';
 
@@ -20,6 +21,23 @@
 		// 최초 접속 시 비로그인이면 로그인 모달 표시 (닫기 가능)
 		if (!get(auth.isLoggedIn)) {
 			showLoginModal.set(true);
+		} else {
+			// 이미 로그인된 상태면 서버에서 최신 유저 정보(레벨, 명성 등) 갱신
+			springMe().then((me) => {
+				const currentUser = get(auth.user);
+				if (currentUser) {
+					auth.user.set({
+						...currentUser,
+						level: me.level,
+						fame: me.fame,
+						playerName: me.playerName,
+						investmentStyle: me.investmentStyle,
+						title: me.title
+					});
+				}
+			}).catch(() => {
+				// 토큰 만료 등의 경우 — auth-required 이벤트가 처리함
+			});
 		}
 
 		const onAuthRequired = () => {
