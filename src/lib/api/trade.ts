@@ -93,6 +93,7 @@ export interface PortfolioHolding {
 	profit_loss: number;
 	profit_loss_pct: number;
 	weight_pct: number;
+	sector: string;
 }
 
 export interface SectorAllocation {

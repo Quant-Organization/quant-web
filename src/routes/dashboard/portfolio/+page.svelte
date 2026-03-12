@@ -4,20 +4,14 @@
     import { goto } from '$app/navigation';
     import Chart from 'chart.js/auto';
     import { getPortfolioDashboard } from '$lib/api/trade';
-    import { getCryptoHoldings } from '$lib/api/crypto';
-    import { getETFHoldings } from '$lib/api/etf';
     import { getProfileStats } from '$lib/api/dashboard';
     import type { PortfolioDashboard, PortfolioHolding } from '$lib/api/trade';
-    import type { CryptoHolding } from '$lib/api/crypto';
-    import type { ETFUserHolding } from '$lib/api/etf';
     import type { ProfileStats } from '$lib/api/dashboard';
     import { loadCompanyCurrencies } from '$lib/api/market';
     import { getCachedCurrency, displayPrice, formatPrice, type CurrencyCode } from '$lib/utils/currency';
     import SkeletonDashboard from '$lib/components/SkeletonDashboard.svelte';
 
     let portfolio = $state<PortfolioDashboard | null>(null);
-    let cryptoHoldings = $state<CryptoHolding[]>([]);
-    let etfHoldings = $state<ETFUserHolding[]>([]);
     let profile = $state<ProfileStats | null>(null);
     let loading = $state(true);
     let holdingTab = $state<'all' | 'stock' | 'crypto' | 'etf'>('all');
@@ -43,63 +37,27 @@
     };
 
     function toUnified(h: PortfolioHolding): UnifiedHolding {
+        let type: 'stock' | 'crypto' | 'etf' = 'stock';
+        if (h.sector === 'CRYPTO') type = 'crypto';
+        else if (h.sector === 'ETF') type = 'etf';
+
         return {
-            id: h.company_id, name: h.company_name, type: 'stock',
-            currency: getCachedCurrency(h.company_id),
+            id: h.company_id, name: h.company_name, type,
+            currency: type === 'stock' ? getCachedCurrency(h.company_id) : 'KRW',
             quantity: h.quantity ?? 0, avgPrice: h.avg_price ?? 0, currentPrice: h.current_price ?? 0,
             totalInvested: h.total_invested ?? 0, currentValue: h.current_value ?? 0,
             profitLoss: h.profit_loss ?? 0, profitLossPct: h.profit_loss_pct ?? 0, weightPct: h.weight_pct ?? 0
         };
     }
 
-    function cryptoToUnified(h: CryptoHolding): UnifiedHolding {
-        const avgPrice = h.avg_price ?? 0;
-        const quantity = h.quantity ?? 0;
-        const currentPrice = h.current_price ?? 0;
-        const invested = avgPrice * quantity;
-        const value = currentPrice * quantity;
-        return {
-            id: h.crypto_id, name: h.crypto_id, type: 'crypto', currency: 'KRW',
-            quantity, avgPrice, currentPrice,
-            totalInvested: invested, currentValue: value,
-            profitLoss: h.profit_loss ?? 0, profitLossPct: h.profit_loss_pct ?? 0, weightPct: 0
-        };
-    }
-
-    function etfToUnified(h: ETFUserHolding): UnifiedHolding {
-        const avgPrice = h.avg_price ?? 0;
-        const quantity = h.quantity ?? 0;
-        const currentPrice = h.current_price ?? 0;
-        const invested = avgPrice * quantity;
-        const value = currentPrice * quantity;
-        return {
-            id: h.etf_id, name: h.etf_id, type: 'etf', currency: 'KRW',
-            quantity, avgPrice, currentPrice,
-            totalInvested: invested, currentValue: value,
-            profitLoss: h.profit_loss ?? 0, profitLossPct: h.profit_loss_pct ?? 0, weightPct: 0
-        };
-    }
-
     let holdings = $derived.by(() => {
-        let stockItems = (portfolio?.holdings ?? []).map(toUnified);
-        let cryptoItems = cryptoHoldings.map(cryptoToUnified);
-        let etfItems = etfHoldings.map(etfToUnified);
-
-        // compute weight across all asset types
-        const totalValue = stockItems.reduce((s, h) => s + h.currentValue, 0)
-            + cryptoItems.reduce((s, h) => s + h.currentValue, 0)
-            + etfItems.reduce((s, h) => s + h.currentValue, 0);
-        if (totalValue > 0) {
-            stockItems = stockItems.map(h => ({ ...h, weightPct: (h.currentValue / totalValue) * 100 }));
-            cryptoItems = cryptoItems.map(h => ({ ...h, weightPct: (h.currentValue / totalValue) * 100 }));
-            etfItems = etfItems.map(h => ({ ...h, weightPct: (h.currentValue / totalValue) * 100 }));
-        }
+        const allItems = (portfolio?.holdings ?? []).map(toUnified);
 
         let filtered: UnifiedHolding[];
-        if (holdingTab === 'stock') filtered = stockItems;
-        else if (holdingTab === 'crypto') filtered = cryptoItems;
-        else if (holdingTab === 'etf') filtered = etfItems;
-        else filtered = [...stockItems, ...cryptoItems, ...etfItems];
+        if (holdingTab === 'stock') filtered = allItems.filter(h => h.type === 'stock');
+        else if (holdingTab === 'crypto') filtered = allItems.filter(h => h.type === 'crypto');
+        else if (holdingTab === 'etf') filtered = allItems.filter(h => h.type === 'etf');
+        else filtered = allItems;
 
         filtered.sort((a, b) => {
             const av = (a as Record<string, unknown>)[sortKey] as number;
@@ -110,9 +68,7 @@
     });
 
     let totalInvestmentValue = $derived(
-        (portfolio?.summary.stock_value ?? 0)
-        + cryptoHoldings.reduce((s, h) => s + h.current_price * h.quantity, 0)
-        + etfHoldings.reduce((s, h) => s + h.current_price * h.quantity, 0)
+        (portfolio?.holdings ?? []).reduce((s, h) => s + (h.current_value ?? 0), 0)
     );
 
     let totalPL = $derived(portfolio?.summary.total_profit_loss ?? 0);
@@ -141,9 +97,10 @@
     }
 
     let allocationCategories = $derived.by(() => {
-        const stockValue = portfolio?.summary.stock_value ?? 0;
-        const cryptoValue = cryptoHoldings.reduce((s, h) => s + h.current_price * h.quantity, 0);
-        const etfValue = etfHoldings.reduce((s, h) => s + h.current_price * h.quantity, 0);
+        const allItems = (portfolio?.holdings ?? []).map(toUnified);
+        const stockValue = allItems.filter(h => h.type === 'stock').reduce((s, h) => s + h.currentValue, 0);
+        const cryptoValue = allItems.filter(h => h.type === 'crypto').reduce((s, h) => s + h.currentValue, 0);
+        const etfValue = allItems.filter(h => h.type === 'etf').reduce((s, h) => s + h.currentValue, 0);
         return [
             { label: '현금', value: portfolio?.summary.cash ?? profile?.currentBalance ?? 0, color: '#64748b' },
             { label: '주식', value: stockValue, color: '#2563eb' },
@@ -195,20 +152,18 @@
     onMount(async () => {
         const results = await Promise.allSettled([
             getPortfolioDashboard(),
-            getCryptoHoldings({ suppressAuth: true }),
-            getETFHoldings({ suppressAuth: true }),
             getProfileStats()
         ]);
 
         if (results[0].status === 'fulfilled') portfolio = results[0].value;
-        else toast.error('주식 포트폴리오를 불러오지 못했습니다.');
+        else toast.error('포트폴리오를 불러오지 못했습니다.');
 
-        if (results[1].status === 'fulfilled') cryptoHoldings = results[1].value.holdings;
-        if (results[2].status === 'fulfilled') etfHoldings = results[2].value.holdings;
-        if (results[3].status === 'fulfilled') profile = results[3].value;
+        if (results[1].status === 'fulfilled') profile = results[1].value;
 
         // 주식 보유 종목의 통화 정보를 서버에서 로드
-        const stockIds = (portfolio?.holdings ?? []).map(h => h.company_id);
+        const stockIds = (portfolio?.holdings ?? [])
+            .filter(h => h.sector !== 'CRYPTO' && h.sector !== 'ETF')
+            .map(h => h.company_id);
         if (stockIds.length > 0) await loadCompanyCurrencies(stockIds);
 
         loading = false;
