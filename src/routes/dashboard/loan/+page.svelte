@@ -300,7 +300,7 @@
                             <div class="input-group">
                                 <label for="loan-term">대출 기간</label>
                                 <select id="loan-term" class="custom-select" bind:value={applyTerm}>
-                                    {#each [12, 24, 36, 48, 60].filter(m => m >= selectedProduct!.minTermMonths && m <= selectedProduct!.maxTermMonths) as months}
+                                    {#each Array.from({ length: selectedProduct!.maxTermMonths - selectedProduct!.minTermMonths + 1 }, (_, i) => selectedProduct!.minTermMonths + i) as months}
                                         <option value={months}>{months}개월</option>
                                     {/each}
                                 </select>
