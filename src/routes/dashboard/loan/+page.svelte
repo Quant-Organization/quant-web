@@ -215,10 +215,12 @@
         }
     }
 
-    // amount/term 변경 시 자동 견적
+    // amount/term 변경 시 자동 견적 (debounce)
+    let debounceTimer: ReturnType<typeof setTimeout>;
     $effect(() => {
         if (selectedProduct && applyAmount && applyTerm && repaymentMethod) {
-            updateEstimate();
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(updateEstimate, 500);
         }
     });
 </script>
