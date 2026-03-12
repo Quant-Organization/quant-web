@@ -71,7 +71,8 @@
     '제주특별자치도': [33.4996, 126.5312]
   };
 
-  function formatCost(val: number): string {
+  function formatCost(val: number | undefined | null): string {
+    if (val == null) return '$0';
     if (val >= 1_000_000_000) return `$${(val / 1_000_000_000).toFixed(1)}B`;
     if (val >= 1_000_000) return `$${(val / 1_000_000).toFixed(0)}M`;
     if (val >= 1_000) return `$${(val / 1_000).toFixed(0)}K`;
@@ -140,7 +141,7 @@ function selectRegionOnMap(regionId: number) {
   onMount(async () => {
     // Get user level: prefer server, fallback to auth store
     const currentUser = get(auth.user);
-    if (currentUser?.level) userLevel = currentUser.level;
+    if (currentUser?.level != null) userLevel = currentUser.level;
 
     try {
       const [typesRes, regionData, me] = await Promise.all([
@@ -148,7 +149,7 @@ function selectRegionOnMap(regionId: number) {
         getRegions(),
         springMe().catch(() => null)
       ]);
-      if (me?.level) userLevel = me.level;
+      if (me?.level != null) userLevel = me.level;
       companyTypes = typesRes.sort((a, b) => a.requiredLevel - b.requiredLevel);
       regions = regionData;
       allRegions = regionData;
@@ -225,7 +226,7 @@ function selectRegionOnMap(regionId: number) {
       <h2>신규 기업 설립</h2>
     </div>
     {#if account}
-      <span class="balance-badge">보유 자금 {formatCost(account.cashBalance)}</span>
+      <span class="balance-badge">보유 자금 {formatCost(account?.cashBalance)}</span>
     {/if}
   </div>
 

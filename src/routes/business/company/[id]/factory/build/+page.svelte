@@ -40,7 +40,8 @@
     return val.toString();
   }
 
-  function formatCost(val: number): string {
+  function formatCost(val: number | undefined | null): string {
+    if (val == null) return '₩0';
     if (val >= 1_000_000_000) return `₩${(val / 1_000_000_000).toFixed(1)}B`;
     if (val >= 1_000_000) return `₩${(val / 1_000_000).toFixed(0)}M`;
     return `₩${val.toLocaleString()}`;
