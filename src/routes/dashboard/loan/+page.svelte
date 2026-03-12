@@ -7,6 +7,7 @@
 
     import { getSpringAccount } from '$lib/api/dashboard';
     import { getLoanProducts, getLoanProductsByTier, getLoanDetail, estimateLoan, applyLoan, getActiveLoans, repayLoan, repayFullLoan, getLoanSchedule, type LoanProductResponse, type LoanEstimateResponse, type UserLoanResponse, type PaymentScheduleItem } from '$lib/api/loan';
+    import { getBankProducts } from '$lib/api/bank';
     import SkeletonTable from '$lib/components/SkeletonTable.svelte';
     import { toast } from 'svelte-sonner';
 
@@ -66,11 +67,14 @@
         if (rateParam) bankRate = Number(rateParam);
         if (tierParam) bankTier = Number(tierParam);
 
-        // 대출 상품 로드 (tier 파라미터가 있으면 해당 등급만 조회)
-        if (bankTier) selectedTier = bankTier;
+        // 대출 상품 로드 (bankId가 있으면 해당 은행 상품만 조회)
         try {
+            const productsFetcher = bankId
+                ? getBankProducts(bankId)
+                : bankTier ? getLoanProductsByTier(bankTier) : getLoanProducts();
+            if (bankTier) selectedTier = bankTier;
             const [products, loans] = await Promise.all([
-                bankTier ? getLoanProductsByTier(bankTier) : getLoanProducts(),
+                productsFetcher as Promise<LoanProductResponse[]>,
                 getActiveLoans().catch(() => [] as UserLoanResponse[])
             ]);
             loanProducts = products;
@@ -84,6 +88,7 @@
                     selectedProduct = products[0];
                 }
                 applyAmount = Math.max(MIN_AMOUNT, Math.min(MAX_AMOUNT, applyAmount));
+                applyTerm = Math.max(selectedProduct!.minTermMonths, Math.min(selectedProduct!.maxTermMonths, applyTerm));
             }
         } catch (e) {
             console.error('대출 상품 로드 실패:', e);
@@ -260,6 +265,7 @@
                 <div class="loan-content-grid">
                     <!-- 왼쪽 폼 -->
                     <div class="loan-form-card">
+                        {#if !bankId}
                         <div class="tier-filter-row">
                             {#each [{ label: '전체', value: 0 }, { label: '1등급', value: 1 }, { label: '2등급', value: 2 }, { label: '3등급', value: 3 }] as tier}
                                 <button
@@ -269,13 +275,18 @@
                                 >{tier.label}</button>
                             {/each}
                         </div>
+                        {/if}
                         <div class="form-row two-col">
                             <div class="input-group">
                                 <label for="loan-product">대출 상품</label>
                                 <select id="loan-product" class="custom-select"
                                     onchange={(e) => {
                                         const found = loanProducts.find(p => p.id === Number((e.target as HTMLSelectElement).value));
-                                        if (found) selectedProduct = found;
+                                        if (found) {
+                                            selectedProduct = found;
+                                            applyAmount = Math.max(found.minAmount, Math.min(found.maxAmount, applyAmount));
+                                            applyTerm = Math.max(found.minTermMonths, Math.min(found.maxTermMonths, applyTerm));
+                                        }
                                     }}>
                                     {#each loanProducts as product}
                                         <option value={product.id} selected={product.id === selectedProduct.id}>
