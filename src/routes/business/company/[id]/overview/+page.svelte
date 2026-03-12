@@ -236,11 +236,6 @@
           </div>
           <div class="divider"></div>
           <div class="info-row">
-            <span class="label">📍 본사</span>
-            <span class="val">{company.headquartersRegionName}</span>
-          </div>
-          <div class="divider"></div>
-          <div class="info-row">
             <span class="label"><img src={factoryIcon} alt="공장" class="label-icon" /> 공장 수</span>
             <span class="val">{factories.length}개</span>
           </div>

@@ -2,13 +2,11 @@
   import { goto } from '$app/navigation';
   import { onMount } from 'svelte';
   import { getMyCompanies, type CompanyResponse } from '$lib/api/company';
-  import { getRegions, type Region } from '$lib/api/region';
   import SkeletonTable from '$lib/components/SkeletonTable.svelte';
   import chipIcon from '$lib/images/chip.svg';
 
   // --- State ---
   let companies = $state<CompanyResponse[]>([]);
-  let regions = $state<Region[]>([]);
   let loading = $state(true);
   let error = $state<string | null>(null);
   let searchText = $state('');
@@ -60,12 +58,8 @@
 
   onMount(async () => {
     try {
-      const [companiesRes, regionsRes] = await Promise.all([
-        getMyCompanies(),
-        getRegions()
-      ]);
+      const companiesRes = await getMyCompanies();
       companies = companiesRes.companies;
-      regions = regionsRes;
     } catch (e) {
       error = '데이터를 불러오지 못했습니다.';
     } finally {
@@ -126,7 +120,6 @@
       <div class="dropdown-group">
         <div class="dropdown">이름순으로 정렬 <span class="arrow">▼</span></div>
         <div class="dropdown">수익순으로 정렬 <span class="arrow">▼</span></div>
-        <div class="dropdown">지역순으로 정렬 <span class="arrow">▼</span></div>
       </div>
     </div>
 
@@ -146,9 +139,6 @@
               <div class="biz-info-row">
                 <div class="info-item">
                   <img src={chipIcon} alt="메인 제품" class="icon-chip-img" /> <span>메인 제품 : {biz.mainProduct}</span>
-                </div>
-                <div class="country-info">
-                  <span>📍 {biz.headquartersRegionName}</span>
                 </div>
               </div>
 
@@ -385,11 +375,6 @@
     width: 1.1rem;
     height: 1.1rem;
     vertical-align: middle;
-  }
-
-  .country-info {
-    font-weight: 600;
-    color: var(--color-text);
   }
 
   .biz-stats-row {

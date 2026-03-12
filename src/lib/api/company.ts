@@ -5,8 +5,6 @@ export interface CompanyResponse {
 	name: string;
 	companyType: string;
 	ceoName: string;
-	headquartersRegionId: number;
-	headquartersRegionName: string;
 	foundedDate: string;
 	mainProduct: string;
 	totalRevenue: number;
@@ -36,7 +34,6 @@ export interface CreateCompanyRequest {
 	name: string;
 	companyType: string;
 	ceoName?: string;
-	headquartersRegionId: number;
 	mainProduct?: string;
 }
 
