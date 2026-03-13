@@ -5,9 +5,6 @@
   import { getFactoryGrades, type FactoryGrade } from '$lib/api/factory';
   import { getRegions, getRegionsByType, getRegionDetail, type Region } from '$lib/api/region';
   import { updateFactoryBuild, resetFactoryBuild } from '$lib/stores/factoryBuild';
-  import { springMe } from '$lib/api/auth';
-  import { auth } from '$lib/stores/auth';
-  import { get } from 'svelte/store';
   import SkeletonTable from '$lib/components/SkeletonTable.svelte';
   import { REGION_CENTERS } from '$lib/constants';
   import workshopImg from '$lib/images/factory/workshop.svg';
@@ -25,7 +22,6 @@
   let selectedRegionId = $state(0);
   let loading = $state(true);
   let error = $state('');
-  let userLevel = $state(1);
   let allRegions = $state<Region[]>([]);
   let availableRegionTypes = $state<string[]>([]);
   let selectedRegionType = $state<string | null>(null);
@@ -123,21 +119,17 @@
 
   onMount(async () => {
     resetFactoryBuild();
-    const currentUser = get(auth.user);
-    if (currentUser?.level != null) userLevel = currentUser.level;
     try {
-      const [gradeData, regionData, me] = await Promise.all([
+      const [gradeData, regionData] = await Promise.all([
         getFactoryGrades(),
-        getRegions(),
-        springMe().catch(() => null)
+        getRegions()
       ]);
-      if (me?.level != null) userLevel = me.level;
       grades = gradeData.sort((a, b) => a.requiredLevel - b.requiredLevel);
       regions = regionData;
       allRegions = regionData;
       availableRegionTypes = [...new Set(regionData.map(r => r.regionType))];
       if (grades.length > 0) {
-        const available = grades.find(g => g.requiredLevel <= userLevel);
+        const available = grades.find(g => !g.locked);
         selectedGrade = available ? available.grade : grades[0].grade;
       }
       if (regions.length > 0) selectedRegionId = regions[0].id;
@@ -230,7 +222,7 @@
 
     <div class="factory-grid">
       {#each grades as grade}
-        {@const locked = grade.requiredLevel > userLevel}
+        {@const locked = grade.locked}
         <div
           class="card factory-card {grade.grade.toUpperCase() === 'GIGA' ? 'full-width' : ''}"
           class:selected={selectedGrade === grade.grade && !locked}
@@ -239,7 +231,7 @@
           onkeydown={(e) => { if (e.key === 'Enter' && !locked) selectedGrade = grade.grade; }}
           role="button"
           tabindex={locked ? -1 : 0}
-          title={locked ? `레벨 ${grade.requiredLevel} 필요 (현재 Lv.${userLevel})` : grade.displayName}
+          title={locked ? `레벨 ${grade.requiredLevel} 필요` : grade.displayName}
         >
           <div class="card-header">
             <div class="icon-box">
@@ -253,7 +245,7 @@
             </div>
             <h3>{grade.displayName}</h3>
           </div>
-          <p class="desc">{locked ? `Lv.${grade.requiredLevel} 필요 (현재 Lv.${userLevel})` : `Lv.${grade.requiredLevel} 이상 건설 가능`}</p>
+          <p class="desc">{locked ? `Lv.${grade.requiredLevel} 필요` : `Lv.${grade.requiredLevel} 이상 건설 가능`}</p>
 
           <div class="stats-row">
             <div class="stat">
@@ -339,14 +331,14 @@
         </div>
         <div class="sum-row cost-row">
           <span class="lbl">건설 가능 여부</span>
-          {#if selectedGradeData && selectedGradeData.requiredLevel > userLevel}
+          {#if selectedGradeData?.locked}
             <span class="badge-red">● 레벨 부족</span>
           {:else}
             <span class="badge-green">● 건설 가능</span>
           {/if}
         </div>
 
-        <button class="btn-next" onclick={goToNextStep} disabled={!selectedGrade || !selectedRegionId || (selectedGradeData != null && selectedGradeData.requiredLevel > userLevel)}>다음단계로 ></button>
+        <button class="btn-next" onclick={goToNextStep} disabled={!selectedGrade || !selectedRegionId || selectedGradeData?.locked}>다음단계로 ></button>
       </div>
     </div>
 

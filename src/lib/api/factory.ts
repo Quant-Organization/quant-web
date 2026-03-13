@@ -40,6 +40,7 @@ export interface FactoryGrade {
 	employeeCount: number;
 	baseConstructionCost: number;
 	requiredLevel: number;
+	locked: boolean;
 }
 
 export interface CreateFactoryRequest {

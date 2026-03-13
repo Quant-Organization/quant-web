@@ -481,10 +481,10 @@
           {#each rndEffects as effect}
             <div class="rnd-item">
               <div class="rnd-icon">
-                {#if effect.effectType === 'PRODUCTION_BOOST'}📈
-                {:else if effect.effectType === 'COST_REDUCTION'}💰
-                {:else if effect.effectType === 'QUALITY_IMPROVEMENT'}✨
-                {:else if effect.effectType === 'EFFICIENCY_BOOST'}⚡
+                {#if effect.effectType === 'REDUCE_LABOR' || effect.effectType === 'INCREASE_PRODUCTION' || effect.effectType === 'INCREASE_MAX_PRODUCTION'}📈
+                {:else if effect.effectType === 'REDUCE_ELECTRICITY_COST' || effect.effectType === 'REDUCE_MATERIAL_COST' || effect.effectType === 'REDUCE_SHIPPING_COST'}💰
+                {:else if effect.effectType === 'REDUCE_DEFECT_RATE' || effect.effectType === 'INCREASE_PRODUCT_PRICE' || effect.effectType === 'INCREASE_BRAND_VALUE' || effect.effectType === 'INCREASE_QUALITY_SCORE'}✨
+                {:else if effect.effectType === 'INCREASE_WAREHOUSE_CAPACITY'}📦
                 {:else}🔬
                 {/if}
               </div>

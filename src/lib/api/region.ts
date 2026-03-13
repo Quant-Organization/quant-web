@@ -7,6 +7,8 @@ export interface Region {
 	costMultiplier: number;
 	revenueMultiplier: number;
 	constructionSpeedMultiplier: number;
+	latitude: number;
+	longitude: number;
 	polygonCoordinates: string;
 	createdAt: string;
 }
