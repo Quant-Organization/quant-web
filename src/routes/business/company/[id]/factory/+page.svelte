@@ -209,8 +209,8 @@
             <div class="tags">
               <span class="tag">{selectedFactory.grade}</span>
               <span class="tag">{selectedFactory.regionName}</span>
-              <span class="tag status-tag {selectedFactory.status === 'RUNNING' || selectedFactory.status === 'OPERATING' ? 'running' : 'paused'}">
-                {selectedFactory.status === 'RUNNING' || selectedFactory.status === 'OPERATING' ? '가동 중' : '일시정지'}
+              <span class="tag status-tag {selectedFactory.status === 'OPERATING' ? 'running' : selectedFactory.status === 'CONSTRUCTING' ? 'constructing' : 'paused'}">
+                {selectedFactory.status === 'OPERATING' ? '가동 중' : selectedFactory.status === 'CONSTRUCTING' ? '건설 중' : '일시정지'}
               </span>
             </div>
           </div>
@@ -248,7 +248,9 @@
           </div>
 
           <div class="detail-actions">
-            {#if selectedFactory.status === 'RUNNING' || selectedFactory.status === 'OPERATING'}
+            {#if selectedFactory.status === 'CONSTRUCTING'}
+              <button class="btn-constructing" disabled>건설 중...</button>
+            {:else if selectedFactory.status === 'OPERATING'}
               <button class="btn-pause" onclick={() => handlePause(selectedFactory!.id)}>일시정지</button>
             {:else}
               <button class="btn-resume" onclick={() => handleResume(selectedFactory!.id)}>재가동</button>
@@ -300,8 +302,8 @@
                   <h3>{factory.name}</h3>
                   <p class="location-sub">📍 {factory.regionName}</p>
                 </div>
-                <span class="status-badge {factory.status === 'RUNNING' || factory.status === 'OPERATING' ? 'running' : 'paused'}">
-                  {factory.status === 'RUNNING' || factory.status === 'OPERATING' ? '가동 중' : '일시정지'}
+                <span class="status-badge {factory.status === 'OPERATING' ? 'running' : factory.status === 'CONSTRUCTING' ? 'constructing' : 'paused'}">
+                  {factory.status === 'OPERATING' ? '가동 중' : factory.status === 'CONSTRUCTING' ? '건설 중' : '일시정지'}
                 </span>
               </div>
 
@@ -334,7 +336,9 @@
               <div class="card-actions">
                 <button onclick={(e) => { e.stopPropagation(); goto(`/business/company/${$page.params.id}/factory/${factory.id}`); }}>자세히보기</button>
                 <div class="v-divider"></div>
-                {#if factory.status === 'RUNNING' || factory.status === 'OPERATING'}
+                {#if factory.status === 'CONSTRUCTING'}
+                  <button disabled>건설 중</button>
+                {:else if factory.status === 'OPERATING'}
                   <button onclick={(e) => { e.stopPropagation(); handlePause(factory.id); }}>일시정지</button>
                 {:else}
                   <button onclick={(e) => { e.stopPropagation(); handleResume(factory.id); }}>재가동</button>
@@ -445,6 +449,7 @@
   }
 
   .status-tag.running { background-color: #dcfce7; color: #16a34a; border-color: #bbf7d0; }
+  .status-tag.constructing { background-color: #dbeafe; color: #2563eb; border-color: #bfdbfe; }
   .status-tag.paused { background-color: #fef9c3; color: #a16207; border-color: #fef08a; }
 
   .info-table { display: flex; flex-direction: column; gap: 12px; }
@@ -475,6 +480,18 @@
   .btn-pause:hover { background: #fef08a; }
   .btn-resume { background: #dcfce7; color: #16a34a; }
   .btn-resume:hover { background: #bbf7d0; }
+  .btn-constructing {
+    flex: 1;
+    padding: 10px;
+    border-radius: 6px;
+    border: none;
+    font-weight: 600;
+    font-size: 14px;
+    background: #dbeafe;
+    color: #2563eb;
+    cursor: not-allowed;
+    opacity: 0.8;
+  }
 
   .list-header {
     display: flex; justify-content: space-between; align-items: center;
@@ -534,6 +551,7 @@
     flex-shrink: 0;
   }
   .status-badge.running { background: #dcfce7; color: #16a34a; }
+  .status-badge.constructing { background: #dbeafe; color: #2563eb; }
   .status-badge.paused { background: #fef9c3; color: #a16207; }
 
   .f-stats {

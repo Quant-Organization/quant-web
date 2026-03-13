@@ -98,8 +98,8 @@
     INDUSTRIAL: '산업 단지', MEGA: '메가 팩토리', GIGA: '기가 팩토리'
   };
 
-  let isRunning = $derived(factory?.status === 'RUNNING' || factory?.status === 'ACTIVE' || factory?.status === 'OPERATING');
-  let isUnderConstruction = $derived(factory?.status === 'CONSTRUCTION' || factory?.status === 'BUILDING' || factory?.status === 'UNDER_CONSTRUCTION');
+  let isRunning = $derived(factory?.status === 'OPERATING');
+  let isUnderConstruction = $derived(factory?.status === 'CONSTRUCTING');
 
   let constructionProgress = $derived(() => {
     if (!factory?.constructionStartDate || !factory?.constructionEndDate) return 0;
