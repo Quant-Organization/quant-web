@@ -231,7 +231,7 @@
       {#each grades as grade}
         {@const locked = grade.requiredLevel > userLevel}
         <div
-          class="card factory-card {grade.grade === 'giga' ? 'full-width' : ''}"
+          class="card factory-card {grade.grade.toUpperCase() === 'GIGA' ? 'full-width' : ''}"
           class:selected={selectedGrade === grade.grade && !locked}
           class:locked
           onclick={() => { if (!locked) selectedGrade = grade.grade; }}
