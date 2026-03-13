@@ -183,7 +183,8 @@
       grade: selectedGrade,
       gradeName: selectedGradeData?.displayName || selectedGrade,
       regionId: selectedRegionId,
-      regionName: selectedRegion?.name || ''
+      regionName: selectedRegion?.name || '',
+      baseConstructionCost: selectedGradeData?.baseConstructionCost || 0
     });
     goto(`/business/company/${$page.params.id}/factory/build/settings`);
   }

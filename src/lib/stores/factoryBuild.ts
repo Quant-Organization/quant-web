@@ -7,6 +7,7 @@ export interface FactoryBuildState {
 	gradeName: string;
 	regionId: number;
 	regionName: string;
+	baseConstructionCost: number;
 	// Step 2
 	name: string;
 	productionLineType: string;
@@ -23,6 +24,7 @@ const initialState: FactoryBuildState = {
 	gradeName: '',
 	regionId: 0,
 	regionName: '',
+	baseConstructionCost: 0,
 	name: '',
 	productionLineType: 'general',
 	landExpansionLevel: 1,

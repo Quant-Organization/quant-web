@@ -99,6 +99,24 @@
   };
 
   let isRunning = $derived(factory?.status === 'RUNNING' || factory?.status === 'ACTIVE' || factory?.status === 'OPERATING');
+  let isUnderConstruction = $derived(factory?.status === 'CONSTRUCTION' || factory?.status === 'BUILDING' || factory?.status === 'UNDER_CONSTRUCTION');
+
+  let constructionProgress = $derived(() => {
+    if (!factory?.constructionStartDate || !factory?.constructionEndDate) return 0;
+    const start = new Date(factory.constructionStartDate).getTime();
+    const end = new Date(factory.constructionEndDate).getTime();
+    const now = Date.now();
+    if (end <= start) return 100;
+    return Math.min(Math.max(((now - start) / (end - start)) * 100, 0), 100);
+  });
+
+  let daysRemaining = $derived(() => {
+    if (!factory?.constructionEndDate) return 0;
+    const end = new Date(factory.constructionEndDate).getTime();
+    const now = Date.now();
+    const diff = Math.ceil((end - now) / (1000 * 60 * 60 * 24));
+    return Math.max(diff, 0);
+  });
 
   let chartMetrics = $derived(factory ? [
     { label: '생산 가동률', value: factory.baseMonthlyProduction > 0 ? Math.min((factory.currentMonthlyProduction / factory.baseMonthlyProduction) * 100, 100) : 0, color: '#00529B', display: `${fmtUnit(factory.currentMonthlyProduction)} / ${fmtUnit(factory.baseMonthlyProduction)}` },
@@ -253,11 +271,84 @@
       <p class="sub-text">{factory.regionName}</p>
       <p class="meta-text">완공일: {factory.constructionEndDate ?? '-'} · 등급: {gradeNames[factory.grade] ?? factory.grade}</p>
     </div>
-    <div class="status-badge" class:running={isRunning} class:paused={!isRunning}>
-      {isRunning ? '가동중' : '일시정지'}
+    <div class="status-badge" class:running={isRunning && !isUnderConstruction} class:paused={!isRunning && !isUnderConstruction} class:constructing={isUnderConstruction}>
+      {isUnderConstruction ? '건설 중' : isRunning ? '가동중' : '일시정지'}
     </div>
   </div>
 
+  {#if isUnderConstruction}
+  <div class="construction-wrapper">
+    <div class="construction-banner">
+      <div class="barricade-stripe"></div>
+      <div class="construction-body">
+        <div class="construction-icon">🏗️</div>
+        <div class="construction-text">
+          <h2>공사 진행 중</h2>
+          <p class="construction-sub">건설 완료까지 <strong>{daysRemaining()}</strong>일 남음</p>
+        </div>
+      </div>
+      <div class="barricade-stripe"></div>
+    </div>
+
+    <div class="construction-info-grid">
+      <div class="card construction-detail-card">
+        <h3>공장 정보</h3>
+        <div class="info-list">
+          <div class="info-row">
+            <span class="lbl"><img src={factoryIcon} alt="공장" class="lbl-icon" /> 공장 등급</span>
+            <span class="val">{gradeNames[factory.grade] ?? factory.grade}</span>
+          </div>
+          <div class="info-row">
+            <span class="lbl">📍 지역</span>
+            <span class="val">{factory.regionName}</span>
+          </div>
+          <div class="info-row">
+            <span class="lbl">💰 건설 비용</span>
+            <span class="val">{fmtMoney(factory.constructionCost)}</span>
+          </div>
+          <div class="info-row">
+            <span class="lbl">👥 예정 직원 수</span>
+            <span class="val">{fmtSimple(factory.employeeCount)}명</span>
+          </div>
+          <div class="info-row">
+            <span class="lbl">📦 기본 생산량</span>
+            <span class="val">{fmtUnit(factory.baseMonthlyProduction)} Units/월</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card construction-progress-card">
+        <h3>건설 진행 현황</h3>
+        <div class="progress-dates">
+          <div class="date-item">
+            <span class="date-lbl">착공일</span>
+            <span class="date-val">{factory.constructionStartDate ?? '-'}</span>
+          </div>
+          <div class="date-arrow">→</div>
+          <div class="date-item">
+            <span class="date-lbl">완공 예정일</span>
+            <span class="date-val">{factory.constructionEndDate ?? '-'}</span>
+          </div>
+        </div>
+        <div class="progress-bar-wrapper">
+          <div class="progress-bar-track">
+            <div class="progress-bar-fill" style="width: {constructionProgress()}%"></div>
+          </div>
+          <div class="progress-pct">{constructionProgress().toFixed(1)}% 완료</div>
+        </div>
+        <div class="days-remaining-box">
+          <span class="days-lbl">건설 완료까지</span>
+          <span class="days-val">{daysRemaining()}일</span>
+          <span class="days-lbl">남음</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="construction-actions">
+      <button class="btn btn-red" onclick={handleDeleteFactory} disabled={actionLoading}>공장 매각</button>
+    </div>
+  </div>
+  {:else}
   <div class="grid-layout">
 
     <div class="card location-card">
@@ -460,6 +551,7 @@
 
   </div>
   {/if}
+  {/if}
 </div>
 
 <style>
@@ -484,6 +576,7 @@
   }
   .status-badge.running { background: #dcfce7; color: #166534; }
   .status-badge.paused { background: #fef3c7; color: #92400e; }
+  .status-badge.constructing { background: #fed7aa; color: #9a3412; }
   .header-icon {
     width: 64px; height: 64px; background: var(--color-bg-2); border-radius: 8px;
     font-size: 32px; display: flex; align-items: center; justify-content: center;
@@ -697,4 +790,166 @@
   .prod-detail-desc { font-size: 0.8rem; color: var(--color-text-gray); margin: 0 0 6px; }
   .prod-detail-stats { display: flex; flex-wrap: wrap; gap: 0.75rem; font-size: 0.8rem; color: var(--color-text-gray); }
   .prod-detail-stats strong { color: var(--color-text); }
+
+  /* --- Construction UI --- */
+  .construction-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .construction-banner {
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid var(--color-border);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.04);
+  }
+
+  .barricade-stripe {
+    height: 16px;
+    background: repeating-linear-gradient(
+      45deg,
+      #fbbf24,
+      #fbbf24 10px,
+      #1f2937 10px,
+      #1f2937 20px
+    );
+  }
+
+  .construction-body {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    padding: 28px 32px;
+    background: var(--color-bg-1);
+  }
+
+  .construction-icon {
+    font-size: 48px;
+    line-height: 1;
+    flex-shrink: 0;
+  }
+
+  .construction-text h2 {
+    margin: 0 0 8px 0;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--color-text);
+  }
+
+  .construction-sub {
+    margin: 0;
+    font-size: 15px;
+    color: var(--color-text-gray);
+  }
+
+  .construction-sub strong {
+    color: #d97706;
+    font-size: 18px;
+  }
+
+  .construction-info-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+
+  @media (max-width: 768px) {
+    .construction-info-grid { grid-template-columns: 1fr; }
+  }
+
+
+  .progress-dates {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+
+  .date-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .date-lbl {
+    font-size: 11px;
+    color: var(--color-text-gray);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .date-val {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--color-text);
+  }
+
+  .date-arrow {
+    font-size: 18px;
+    color: var(--color-text-gray);
+    margin-top: 12px;
+  }
+
+  .progress-bar-wrapper {
+    margin-bottom: 20px;
+  }
+
+  .progress-bar-track {
+    width: 100%;
+    height: 12px;
+    background: var(--color-border);
+    border-radius: 6px;
+    overflow: hidden;
+    margin-bottom: 6px;
+  }
+
+  .progress-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #f59e0b, #d97706);
+    border-radius: 6px;
+    transition: width 0.4s ease;
+    min-width: 4px;
+  }
+
+  .progress-pct {
+    font-size: 12px;
+    color: var(--color-text-gray);
+    font-weight: 600;
+    text-align: right;
+  }
+
+  .days-remaining-box {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    background: #fffbeb;
+    border: 1px solid #fde68a;
+    border-radius: 8px;
+    padding: 12px 16px;
+  }
+
+  .days-lbl {
+    font-size: 13px;
+    color: #92400e;
+  }
+
+  .days-val {
+    font-size: 28px;
+    font-weight: 800;
+    color: #d97706;
+    line-height: 1;
+  }
+
+  .construction-actions {
+    display: flex;
+    gap: 16px;
+    justify-content: flex-end;
+  }
+
+  .construction-actions .btn {
+    min-width: 120px;
+    flex: none;
+  }
 </style>

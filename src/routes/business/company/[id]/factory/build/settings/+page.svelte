@@ -3,6 +3,8 @@
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
   import { factoryBuild, updateFactoryBuild, getFactoryBuild } from '$lib/stores/factoryBuild';
+  import { getRegionDetail } from '$lib/api/region';
+  import { estimateFactory } from '$lib/api/factory';
 
   // --- Types ---
   interface CategoryOption {
@@ -28,6 +30,8 @@
   let storeBaseCost = $state(0);
   let storeBonus = $state('');
   let factoryName = $state('');
+  let estimatedCompletionDate = $state('-');
+  let buildState = $state({ companyId: 0, grade: '', regionId: 0 });
 
   // 2. 생산 라인 옵션
   const productionLines: CategoryOption[] = [
@@ -102,7 +106,7 @@
 
   const formatMoney = (val: number) => `${val % 1 === 0 ? val : val.toFixed(1)}B`;
 
-  onMount(() => {
+  onMount(async () => {
     const state = getFactoryBuild();
     if (!state.grade || !state.regionId) {
       goto(`/business/company/${$page.params.id}/factory/build`);
@@ -110,9 +114,42 @@
     }
     storeName = state.gradeName;
     storeRegion = state.regionName;
-    storeBaseCost = 2.0; // base cost in B units
-    storeBonus = '건설 속도 +5%';
+    storeBaseCost = state.baseConstructionCost / 1_000_000_000;
     factoryName = `${state.gradeName} - ${state.regionName}`;
+    buildState = { companyId: state.companyId, grade: state.grade, regionId: state.regionId };
+
+    try {
+      const regionDetail = await getRegionDetail(state.regionId);
+      const speed = regionDetail.constructionSpeedMultiplier;
+      if (speed > 1) storeBonus = `건설 속도 +${Math.round((speed - 1) * 100)}%`;
+      else if (speed < 1) storeBonus = `건설 속도 -${Math.round((1 - speed) * 100)}%`;
+      else storeBonus = '보너스 없음';
+    } catch {
+      storeBonus = '-';
+    }
+  });
+
+  $effect(() => {
+    if (!buildState.grade || !buildState.regionId) return;
+    const req = {
+      companyId: buildState.companyId,
+      name: factoryName,
+      regionId: buildState.regionId,
+      grade: buildState.grade,
+      productionLineType: selectedProdLine.id,
+      landExpansionLevel: selectedFacility.land.level,
+      buildingExpansionLevel: selectedFacility.building.level,
+      loungeLevel: selectedFacility.rest.level,
+      energyOption: selectedEnergy.id,
+      securityOption: selectedSecurity.id
+    };
+    estimateFactory(req).then(result => {
+      estimatedCompletionDate = result.estimatedCompletionDate
+        ? result.estimatedCompletionDate.replace(/-/g, '.').slice(0, 10)
+        : '-';
+    }).catch(() => {
+      estimatedCompletionDate = '-';
+    });
   });
 
   function goToNextStep() {
@@ -348,7 +385,7 @@
 
         <div class="date-row">
           <span class="lbl">예상 완공일</span>
-          <span class="val">2026.05.17</span>
+          <span class="val">{estimatedCompletionDate}</span>
         </div>
 
         <button class="btn-next" onclick={goToNextStep}>다음단계로 ></button>
