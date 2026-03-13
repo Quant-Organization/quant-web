@@ -2,11 +2,21 @@
   import { onMount, onDestroy } from 'svelte';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
-  import { getAvailableFactoryGrades, type FactoryGrade } from '$lib/api/factory';
+  import { getFactoryGrades, type FactoryGrade } from '$lib/api/factory';
   import { getRegions, getRegionsByType, getRegionDetail, type Region } from '$lib/api/region';
   import { updateFactoryBuild, resetFactoryBuild } from '$lib/stores/factoryBuild';
+  import { springMe } from '$lib/api/auth';
+  import { auth } from '$lib/stores/auth';
+  import { get } from 'svelte/store';
   import SkeletonTable from '$lib/components/SkeletonTable.svelte';
   import { REGION_CENTERS } from '$lib/constants';
+  import workshopImg from '$lib/images/factory/workshop.svg';
+  import smallImg from '$lib/images/factory/small.svg';
+  import mediumImg from '$lib/images/factory/medium.svg';
+  import largeImg from '$lib/images/factory/large.svg';
+  import industrialImg from '$lib/images/factory/industrial.svg';
+  import megaImg from '$lib/images/factory/mega.svg';
+  import gigaImg from '$lib/images/factory/giga.svg';
 
   // --- State ---
   let grades = $state<FactoryGrade[]>([]);
@@ -15,6 +25,7 @@
   let selectedRegionId = $state(0);
   let loading = $state(true);
   let error = $state('');
+  let userLevel = $state(1);
   let allRegions = $state<Region[]>([]);
   let availableRegionTypes = $state<string[]>([]);
   let selectedRegionType = $state<string | null>(null);
@@ -28,9 +39,9 @@
 
   const regionCenters = REGION_CENTERS;
 
-  const gradeIcons: Record<string, string> = {
-    WORKSHOP: '🏠', SMALL: '🏭', MEDIUM: '🏭', LARGE: '🏭',
-    INDUSTRIAL: '🏭', MEGA: '🏭', GIGA: '🏙️'
+  const gradeImages: Record<string, string> = {
+    WORKSHOP: workshopImg, SMALL: smallImg, MEDIUM: mediumImg, LARGE: largeImg,
+    INDUSTRIAL: industrialImg, MEGA: megaImg, GIGA: gigaImg
   };
 
   function formatProduction(val: number): string {
@@ -112,16 +123,23 @@
 
   onMount(async () => {
     resetFactoryBuild();
+    const currentUser = get(auth.user);
+    if (currentUser?.level != null) userLevel = currentUser.level;
     try {
-      const [gradeData, regionData] = await Promise.all([
-        getAvailableFactoryGrades(),
-        getRegions()
+      const [gradeData, regionData, me] = await Promise.all([
+        getFactoryGrades(),
+        getRegions(),
+        springMe().catch(() => null)
       ]);
-      grades = gradeData;
+      if (me?.level != null) userLevel = me.level;
+      grades = gradeData.sort((a, b) => a.requiredLevel - b.requiredLevel);
       regions = regionData;
       allRegions = regionData;
       availableRegionTypes = [...new Set(regionData.map(r => r.regionType))];
-      if (grades.length > 0) selectedGrade = grades[0].grade;
+      if (grades.length > 0) {
+        const available = grades.find(g => g.requiredLevel <= userLevel);
+        selectedGrade = available ? available.grade : grades[0].grade;
+      }
       if (regions.length > 0) selectedRegionId = regions[0].id;
     } catch (e: any) {
       error = e.message || '데이터를 불러오는데 실패했습니다.';
@@ -211,19 +229,30 @@
 
     <div class="factory-grid">
       {#each grades as grade}
+        {@const locked = grade.requiredLevel > userLevel}
         <div
           class="card factory-card {grade.grade === 'giga' ? 'full-width' : ''}"
-          class:selected={selectedGrade === grade.grade}
-          onclick={() => selectedGrade = grade.grade}
-          onkeydown={(e) => e.key === 'Enter' && (selectedGrade = grade.grade)}
+          class:selected={selectedGrade === grade.grade && !locked}
+          class:locked
+          onclick={() => { if (!locked) selectedGrade = grade.grade; }}
+          onkeydown={(e) => { if (e.key === 'Enter' && !locked) selectedGrade = grade.grade; }}
           role="button"
-          tabindex="0"
+          tabindex={locked ? -1 : 0}
+          title={locked ? `레벨 ${grade.requiredLevel} 필요 (현재 Lv.${userLevel})` : grade.displayName}
         >
           <div class="card-header">
-            <div class="icon-box">{gradeIcons[grade.grade] || '🏭'}</div>
+            <div class="icon-box">
+              {#if locked}
+                🔒
+              {:else if gradeImages[grade.grade]}
+                <img src={gradeImages[grade.grade]} alt={grade.displayName} class="grade-img" />
+              {:else}
+                🏭
+              {/if}
+            </div>
             <h3>{grade.displayName}</h3>
           </div>
-          <p class="desc">Lv.{grade.requiredLevel} 이상 건설 가능</p>
+          <p class="desc">{locked ? `Lv.${grade.requiredLevel} 필요 (현재 Lv.${userLevel})` : `Lv.${grade.requiredLevel} 이상 건설 가능`}</p>
 
           <div class="stats-row">
             <div class="stat">
@@ -309,10 +338,14 @@
         </div>
         <div class="sum-row cost-row">
           <span class="lbl">건설 가능 여부</span>
-          <span class="badge-green">● 건설 가능</span>
+          {#if selectedGradeData && selectedGradeData.requiredLevel > userLevel}
+            <span class="badge-red">● 레벨 부족</span>
+          {:else}
+            <span class="badge-green">● 건설 가능</span>
+          {/if}
         </div>
 
-        <button class="btn-next" onclick={goToNextStep} disabled={!selectedGrade || !selectedRegionId}>다음단계로 ></button>
+        <button class="btn-next" onclick={goToNextStep} disabled={!selectedGrade || !selectedRegionId || (selectedGradeData != null && selectedGradeData.requiredLevel > userLevel)}>다음단계로 ></button>
       </div>
     </div>
 
@@ -388,7 +421,11 @@
   }
 
   /* Selected State */
-  .factory-card:hover { border-color: #93c5fd; }
+  .factory-card.locked {
+    opacity: 0.5; cursor: not-allowed;
+  }
+  .factory-card.locked:hover { border-color: var(--color-border); }
+  .factory-card:not(.locked):hover { border-color: #93c5fd; }
   .factory-card.selected {
     border-color: rgba(0, 82, 155, 0.8);
     background-color: rgba(66, 134, 245, 0.1);
@@ -400,7 +437,8 @@
   .card-header {
     display: flex; align-items: center; gap: 10px; margin-bottom: 12px;
   }
-  .icon-box { font-size: 24px; }
+  .icon-box { font-size: 24px; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .grade-img { width: 32px; height: 32px; object-fit: contain; }
   .card-header h3 { font-size: 18px; font-weight: 700; margin: 0; }
 
   .desc {
@@ -480,6 +518,11 @@
 
   .badge-green {
     background-color: #dcfce7; color: #166534;
+    padding: 4px 12px; border-radius: 20px;
+    font-size: 12px; font-weight: 600;
+  }
+  .badge-red {
+    background-color: #fee2e2; color: #991b1b;
     padding: 4px 12px; border-radius: 20px;
     font-size: 12px; font-weight: 600;
   }
