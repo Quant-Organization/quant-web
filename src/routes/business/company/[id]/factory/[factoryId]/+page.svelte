@@ -85,6 +85,11 @@
   let sliderPercent = $derived(productionPercent);
 
   // 숫자 포맷팅 유틸
+  function formatDate(dateStr: string | null | undefined): string {
+    if (!dateStr) return '-';
+    return dateStr.split('T')[0].replace(/-/g, '.');
+  }
+
   const fmtMoney = (n: number) => `$${n.toLocaleString()}`;
   const fmtSimple = (n: number) => n.toLocaleString();
   const fmtUnit = (n: number) => {
@@ -269,7 +274,7 @@
     <div class="header-text">
       <h1>{factory.name}</h1>
       <p class="sub-text">{factory.regionName}</p>
-      <p class="meta-text">완공일: {factory.constructionEndDate ?? '-'} · 등급: {gradeNames[factory.grade] ?? factory.grade}</p>
+      <p class="meta-text">완공일: {formatDate(factory.constructionEndDate)} · 등급: {gradeNames[factory.grade] ?? factory.grade}</p>
     </div>
     <div class="status-badge" class:running={isRunning && !isUnderConstruction} class:paused={!isRunning && !isUnderConstruction} class:constructing={isUnderConstruction}>
       {isUnderConstruction ? '건설 중' : isRunning ? '가동중' : '일시정지'}
@@ -322,12 +327,12 @@
         <div class="progress-dates">
           <div class="date-item">
             <span class="date-lbl">착공일</span>
-            <span class="date-val">{factory.constructionStartDate ?? '-'}</span>
+            <span class="date-val">{formatDate(factory.constructionStartDate)}</span>
           </div>
           <div class="date-arrow">→</div>
           <div class="date-item">
             <span class="date-lbl">완공 예정일</span>
-            <span class="date-val">{factory.constructionEndDate ?? '-'}</span>
+            <span class="date-val">{formatDate(factory.constructionEndDate)}</span>
           </div>
         </div>
         <div class="progress-bar-wrapper">
@@ -385,7 +390,7 @@
           </div>
           <div class="info-row">
             <span class="lbl">📅 완공일</span>
-            <span class="val">{factory.constructionEndDate ?? '-'}</span>
+            <span class="val">{formatDate(factory.constructionEndDate)}</span>
           </div>
         </div>
       </div>
