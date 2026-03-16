@@ -575,6 +575,14 @@
               <span>창고</span><span>불필요</span>
             </div>
           </div>
+        {:else if !selectedWarehouse}
+          <div class="estimate-box warehouse-warning">
+            <h4>창고 미설립</h4>
+            <p>해외 시장으로 수출하려면 먼저 해당 시장에 창고를 설립해야 합니다.</p>
+            <button class="btn-create-warehouse" onclick={() => { showCreateWarehouseModal = true; }}>
+              {selectedMarket?.flagEmoji} {selectedMarket?.name} 창고 설립 ($100,000)
+            </button>
+          </div>
         {:else}
           <button class="estimate-btn" onclick={handleEstimate} disabled={!shipFactoryId || !shipProductId || estimating}>
             {estimating ? '견적 계산 중...' : '견적 확인'}
@@ -596,7 +604,7 @@
       </div>
       <div class="modal-footer">
         <button class="cancel-modal-btn" onclick={() => { showShipmentModal = false; }}>취소</button>
-        <button class="primary-btn" onclick={handleCreateShipment} disabled={(!isKorMarket && !shipEstimate) || !shipFactoryId || !shipProductId || submittingShipment}>
+        <button class="primary-btn" onclick={handleCreateShipment} disabled={(!isKorMarket && (!shipEstimate || !selectedWarehouse)) || !shipFactoryId || !shipProductId || submittingShipment}>
           {submittingShipment ? '처리 중...' : isKorMarket ? '즉시 판매' : '선적 생성'}
         </button>
       </div>
@@ -1008,6 +1016,14 @@
     padding: 16px;
   }
   .estimate-box h4 { margin: 0 0 12px 0; font-size: 14px; font-weight: 700; color: var(--color-text); }
+  .warehouse-warning { border-color: #fde68a; background: #fffbeb; }
+  .warehouse-warning h4 { color: #92400e; }
+  .warehouse-warning p { font-size: 0.8rem; color: #92400e; margin: 0 0 0.75rem; }
+  .btn-create-warehouse {
+    width: 100%; padding: 0.5rem; background: #fef3c7; color: #92400e; border: 1px solid #fde68a;
+    border-radius: 6px; font-size: 0.85rem; font-weight: 600; cursor: pointer; transition: 0.2s;
+  }
+  .btn-create-warehouse:hover { background: #fde68a; }
   .estimate-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
