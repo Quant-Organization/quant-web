@@ -447,12 +447,11 @@
   </section>
   {/if}
 
-  <!-- 글로벌 창고 현황 -->
+  <!-- 글로벌 시장 현황 -->
   <section class="warehouse-section">
-    <h3>글로벌 창고 현황</h3>
+    <h3>글로벌 시장 현황</h3>
     <div class="warehouse-grid">
       {#each markets as market}
-        {@const wh = warehouses.find(w => w.market.code === market.code)}
         {#if market.code === 'KOR'}
           <div class="wh-card wh-kor">
             <div class="wh-header">
@@ -460,46 +459,18 @@
               <span class="wh-name">{market.name}</span>
             </div>
             <div class="wh-kor-tag">국내 시장 · 즉시 판매</div>
-            <div class="wh-kor-desc">창고 불필요 · 배송비 $0 · 관세 0%</div>
-          </div>
-        {:else if wh}
-          <div class="wh-card wh-active">
-            <div class="wh-header">
-              <span class="wh-flag">{market.flagEmoji}</span>
-              <span class="wh-name">{market.name}</span>
-              <span class="wh-level">Lv.{wh.level}</span>
-            </div>
-            <div class="wh-capacity">
-              <div class="wh-capacity-header">
-                <span>재고</span>
-                <span>{wh.currentInventory.toLocaleString()} / {wh.capacity.toLocaleString()}</span>
-              </div>
-              <div class="wh-bar-track">
-                <div class="wh-bar-fill" style="width: {wh.capacity > 0 ? Math.min((wh.currentInventory / wh.capacity) * 100, 100) : 0}%"></div>
-              </div>
-            </div>
-            <div class="wh-meta">
-              <span>임대료 {formatCurrency(wh.monthlyRentCost)}/월</span>
-              {#if wh.canUpgrade}
-                <button class="wh-upgrade-btn" onclick={() => handleUpgradeWarehouse(wh.id)} disabled={upgradingId === wh.id}>
-                  {upgradingId === wh.id ? '업그레이드 중...' : `업그레이드 (${formatCurrency(wh.upgradeCost)})`}
-                </button>
-              {:else}
-                <span class="wh-max-tag">MAX</span>
-              {/if}
-            </div>
+            <div class="wh-kor-desc">배송비 $0 · 관세 0%</div>
           </div>
         {:else}
-          <div class="wh-card wh-empty">
+          <div class="wh-card">
             <div class="wh-header">
               <span class="wh-flag">{market.flagEmoji}</span>
               <span class="wh-name">{market.name}</span>
             </div>
-            <div class="wh-empty-body">
-              <p>창고 미설립</p>
-              <button class="wh-create-btn" onclick={() => { selectedMarketCode = market.code; showCreateWarehouseModal = true; }}>
-                설립 ($100,000)
-              </button>
+            <div class="wh-market-info">
+              <span>배송비 {formatCurrency(market.shippingCostPerContainer)}/컨테이너</span>
+              <span>관세 {market.tariffRateMin}~{market.tariffRateMax}%</span>
+              <span>배송 {market.deliveryDaysMin}~{market.deliveryDaysMax}일</span>
             </div>
           </div>
         {/if}
@@ -635,14 +606,6 @@
               <span>창고</span><span>불필요</span>
             </div>
           </div>
-        {:else if !selectedWarehouse}
-          <div class="estimate-box warehouse-warning">
-            <h4>창고 미설립</h4>
-            <p>해외 시장으로 수출하려면 먼저 해당 시장에 창고를 설립해야 합니다.</p>
-            <button class="btn-create-warehouse" onclick={() => { showCreateWarehouseModal = true; }}>
-              {selectedMarket?.flagEmoji} {selectedMarket?.name} 창고 설립 ($100,000)
-            </button>
-          </div>
         {:else}
           <button class="estimate-btn" onclick={handleEstimate} disabled={!shipFactoryId || !shipProductId || estimating}>
             {estimating ? '견적 계산 중...' : '견적 확인'}
@@ -664,7 +627,7 @@
       </div>
       <div class="modal-footer">
         <button class="cancel-modal-btn" onclick={() => { showShipmentModal = false; }}>취소</button>
-        <button class="primary-btn" onclick={handleCreateShipment} disabled={(!isKorMarket && (!shipEstimate || !selectedWarehouse)) || !shipFactoryId || !shipProductId || submittingShipment}>
+        <button class="primary-btn" onclick={handleCreateShipment} disabled={(!isKorMarket && !shipEstimate) || !shipFactoryId || !shipProductId || submittingShipment}>
           {submittingShipment ? '처리 중...' : isKorMarket ? '즉시 판매' : '선적 생성'}
         </button>
       </div>
@@ -1167,6 +1130,7 @@
   .wh-kor { border-color: #93c5fd; background: #eff6ff; }
   .wh-kor-tag { font-size: 0.8rem; font-weight: 700; color: #1e40af; }
   .wh-kor-desc { font-size: 0.7rem; color: #3b82f6; }
+  .wh-market-info { display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.75rem; color: var(--color-text-gray); }
 
   /* --- 선적 섹션 헤더 --- */
   .shipments-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
