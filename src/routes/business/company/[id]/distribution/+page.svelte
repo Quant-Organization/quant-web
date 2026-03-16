@@ -447,6 +447,66 @@
   </section>
   {/if}
 
+  <!-- 글로벌 창고 현황 -->
+  <section class="warehouse-section">
+    <h3>글로벌 창고 현황</h3>
+    <div class="warehouse-grid">
+      {#each markets as market}
+        {@const wh = warehouses.find(w => w.market.code === market.code)}
+        {#if market.code === 'KOR'}
+          <div class="wh-card wh-kor">
+            <div class="wh-header">
+              <span class="wh-flag">{market.flagEmoji}</span>
+              <span class="wh-name">{market.name}</span>
+            </div>
+            <div class="wh-kor-tag">국내 시장 · 즉시 판매</div>
+            <div class="wh-kor-desc">창고 불필요 · 배송비 $0 · 관세 0%</div>
+          </div>
+        {:else if wh}
+          <div class="wh-card wh-active">
+            <div class="wh-header">
+              <span class="wh-flag">{market.flagEmoji}</span>
+              <span class="wh-name">{market.name}</span>
+              <span class="wh-level">Lv.{wh.level}</span>
+            </div>
+            <div class="wh-capacity">
+              <div class="wh-capacity-header">
+                <span>재고</span>
+                <span>{wh.currentInventory.toLocaleString()} / {wh.capacity.toLocaleString()}</span>
+              </div>
+              <div class="wh-bar-track">
+                <div class="wh-bar-fill" style="width: {wh.capacity > 0 ? Math.min((wh.currentInventory / wh.capacity) * 100, 100) : 0}%"></div>
+              </div>
+            </div>
+            <div class="wh-meta">
+              <span>임대료 {formatCurrency(wh.monthlyRentCost)}/월</span>
+              {#if wh.canUpgrade}
+                <button class="wh-upgrade-btn" onclick={() => handleUpgradeWarehouse(wh.id)} disabled={upgradingId === wh.id}>
+                  {upgradingId === wh.id ? '업그레이드 중...' : `업그레이드 (${formatCurrency(wh.upgradeCost)})`}
+                </button>
+              {:else}
+                <span class="wh-max-tag">MAX</span>
+              {/if}
+            </div>
+          </div>
+        {:else}
+          <div class="wh-card wh-empty">
+            <div class="wh-header">
+              <span class="wh-flag">{market.flagEmoji}</span>
+              <span class="wh-name">{market.name}</span>
+            </div>
+            <div class="wh-empty-body">
+              <p>창고 미설립</p>
+              <button class="wh-create-btn" onclick={() => { selectedMarketCode = market.code; showCreateWarehouseModal = true; }}>
+                설립 ($100,000)
+              </button>
+            </div>
+          </div>
+        {/if}
+      {/each}
+    </div>
+  </section>
+
   <!-- 진행 중인 선적 -->
   {#if shipments.length > 0}
   <section class="card competitor-card">
@@ -1064,6 +1124,49 @@
   .inv-name { font-weight: 600; color: var(--color-text); flex: 1; }
   .inv-grade { color: var(--color-text-gray); }
   .inv-qty { color: var(--color-text-gray); white-space: nowrap; }
+
+  /* --- 창고 카드 그리드 --- */
+  .warehouse-section { margin-bottom: 1.5rem; }
+  .warehouse-section h3 { font-size: 1.125rem; font-weight: 700; margin: 0 0 1rem; color: var(--color-text); }
+  .warehouse-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: 0.75rem; }
+  .wh-card {
+    border-radius: 10px; padding: 1rem; display: flex; flex-direction: column; gap: 0.6rem;
+    border: 1px solid var(--color-border); background: var(--color-bg-1);
+  }
+  .wh-header { display: flex; align-items: center; gap: 0.5rem; }
+  .wh-flag { font-size: 1.25rem; }
+  .wh-name { font-size: 0.875rem; font-weight: 700; flex: 1; }
+  .wh-level {
+    font-size: 0.7rem; font-weight: 700; padding: 0.15rem 0.5rem; border-radius: 10px;
+    background: var(--color-theme-1); color: white;
+  }
+  .wh-active { border-color: #86efac; background: #f0fdf4; }
+  .wh-capacity { display: flex; flex-direction: column; gap: 0.25rem; }
+  .wh-capacity-header { display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--color-text-gray); }
+  .wh-bar-track { height: 6px; background: #e5e7eb; border-radius: 3px; overflow: hidden; }
+  .wh-bar-fill { height: 100%; background: #10b981; border-radius: 3px; transition: width 0.3s; }
+  .wh-meta { display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem; color: var(--color-text-gray); }
+  .wh-upgrade-btn {
+    padding: 0.2rem 0.5rem; background: var(--color-theme-1); color: white; border: none;
+    border-radius: 4px; font-size: 0.7rem; font-weight: 600; cursor: pointer; transition: 0.2s;
+  }
+  .wh-upgrade-btn:hover { opacity: 0.85; }
+  .wh-upgrade-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .wh-max-tag {
+    font-size: 0.65rem; font-weight: 700; padding: 0.1rem 0.4rem; border-radius: 4px;
+    background: #fef3c7; color: #92400e;
+  }
+  .wh-empty { border-style: dashed; border-color: #d1d5db; background: var(--color-bg-2, #f9fafb); }
+  .wh-empty-body { text-align: center; padding: 0.5rem 0; }
+  .wh-empty-body p { font-size: 0.8rem; color: var(--color-text-gray); margin: 0 0 0.5rem; }
+  .wh-create-btn {
+    padding: 0.35rem 1rem; background: var(--color-bg-1); color: var(--color-text); border: 1px solid var(--color-border);
+    border-radius: 6px; font-size: 0.8rem; font-weight: 600; cursor: pointer; transition: 0.2s;
+  }
+  .wh-create-btn:hover { background: var(--color-border); }
+  .wh-kor { border-color: #93c5fd; background: #eff6ff; }
+  .wh-kor-tag { font-size: 0.8rem; font-weight: 700; color: #1e40af; }
+  .wh-kor-desc { font-size: 0.7rem; color: #3b82f6; }
 
   /* --- 선적 섹션 헤더 --- */
   .shipments-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
