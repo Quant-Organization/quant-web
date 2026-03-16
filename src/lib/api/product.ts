@@ -29,6 +29,7 @@ export interface FactoryProductResponse {
 	inventoryGradeB: number;
 	inventoryGradeC: number;
 	inventoryGradeD: number;
+	autoSellEnabled: boolean;
 }
 
 export interface SetProductionRequest {
@@ -62,6 +63,12 @@ export function setFactoryProduction(factoryId: number, req: SetProductionReques
 export function removeFactoryProduction(factoryId: number, productId: number) {
 	return fetchSpring(`/api/products/factories/${factoryId}/production/${productId}`, {
 		method: 'DELETE'
+	});
+}
+
+export function setAutoSell(factoryId: number, productId: number, enabled: boolean) {
+	return fetchSpring(`/api/products/factories/${factoryId}/production/${productId}/auto-sell?enabled=${enabled}`, {
+		method: 'PUT'
 	});
 }
 

@@ -125,6 +125,8 @@ async function requestWithSmartCache<T = unknown>(
 			throw error;
 		}
 
+		if (res.status === 204) return undefined as T;
+
 		const data = await parseJsonSafe<T>(res);
 
 		if (useCache) {

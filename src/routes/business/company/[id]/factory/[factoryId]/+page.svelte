@@ -16,9 +16,11 @@
     removeFactoryProduction,
     getProductsByCategory,
     getAvailableProducts,
+    setAutoSell,
     type FactoryProductResponse,
     type ProductResponse
   } from '$lib/api/product';
+  import { getCompanyDetail } from '$lib/api/company';
   import { getResearchEffects, type CompletedResearchResponse } from '$lib/api/research';
   import SkeletonTable from '$lib/components/SkeletonTable.svelte';
   import { toast } from 'svelte-sonner';
@@ -139,10 +141,11 @@
       [factory] = await Promise.all([
         getFactoryDetail(factoryId),
       ]);
+      const company = await getCompanyDetail(factory!.companyId);
       await Promise.all([
         loadFactoryProductions(),
         getResearchEffects(factory!.companyId).then(e => { rndEffects = e; }).catch(() => {}),
-        getAvailableProducts('MANUFACTURING').then(p => {
+        getAvailableProducts(company.companyType).then(p => {
           availableProducts = p;
           filteredProducts = p;
           productCategories = [...new Set(p.map(prod => prod.category || 'ALL'))];
@@ -233,6 +236,20 @@
       toast.error(e.message || '생산량 조절에 실패했습니다.');
     } finally {
       actionLoading = false;
+    }
+  }
+
+  async function handleToggleAutoSell(productId: number, currentEnabled: boolean) {
+    if (productionLoading) return;
+    productionLoading = true;
+    try {
+      await setAutoSell(factoryId, productId, !currentEnabled);
+      await loadFactoryProductions();
+      toast.success(!currentEnabled ? '자동판매가 활성화되었습니다.' : '자동판매가 비활성화되었습니다.');
+    } catch (e: any) {
+      toast.error(e.message || '자동판매 설정에 실패했습니다.');
+    } finally {
+      productionLoading = false;
     }
   }
 
@@ -554,6 +571,85 @@
       </div>
     </div>
 
+    <div class="card production-card">
+      <h3>생산 관리</h3>
+
+      {#if factoryProductions.length > 0}
+        <div class="prod-list">
+          {#each factoryProductions as fp}
+            <div class="prod-item">
+              <img src={fp.product.imageUrl || ''} alt={fp.product.name} class="prod-thumb" />
+              <div class="prod-info">
+                <span class="prod-name">{fp.product.name} <span class="prod-quality-badge">{fp.baseQualityGrade}</span></span>
+                <span class="prod-cat">{fmtMoney(fp.product.baseUnitPrice)} · 마진 {fmtMoney(fp.product.baseUnitPrice - fp.product.productionCostPerUnit)}</span>
+              </div>
+              <div class="prod-stat">
+                <span class="prod-stat-label">월 생산량</span>
+                <span class="prod-stat-value">{fmtUnit(fp.currentMonthlyProduction)} <span class="prod-stat-cap">/ {fmtUnit(fp.monthlyProductionCapacity)}</span></span>
+              </div>
+              <div class="prod-grades">
+                <span class="grade grade-a">A {fmtSimple(fp.inventoryGradeA)}</span>
+                <span class="grade grade-b">B {fmtSimple(fp.inventoryGradeB)}</span>
+                <span class="grade grade-c">C {fmtSimple(fp.inventoryGradeC)}</span>
+                <span class="grade grade-d">D {fmtSimple(fp.inventoryGradeD)}</span>
+                <span class="prod-inv-total">계 {fmtSimple(fp.currentInventory)}</span>
+              </div>
+              <button
+                class="btn-auto-sell"
+                class:enabled={fp.autoSellEnabled}
+                onclick={() => handleToggleAutoSell(fp.product.id, fp.autoSellEnabled)}
+                disabled={productionLoading}
+              >
+                {fp.autoSellEnabled ? '자동판매 ON' : '자동판매 OFF'}
+              </button>
+              <button class="btn-prod-remove" onclick={() => handleRemoveProduction(fp.product.id)} disabled={productionLoading}>중지</button>
+            </div>
+          {/each}
+        </div>
+      {:else}
+        <p class="prod-empty">현재 생산 중인 상품이 없습니다.</p>
+      {/if}
+
+      <div class="prod-add">
+        <h4>상품 추가</h4>
+        <div class="cat-filters">
+          <button class:active={selectedProductCategory === null} onclick={() => selectCategory(null)}>전체</button>
+          {#each productCategories as cat}
+            <button class:active={selectedProductCategory === cat} onclick={() => selectCategory(cat)}>{cat}</button>
+          {/each}
+        </div>
+        <div class="prod-add-row">
+          <select class="prod-select" bind:value={selectedProductId}>
+            <option value={null}>상품 선택...</option>
+            {#each filteredProducts as p}
+              <option value={p.id}>{p.name} (${p.baseUnitPrice})</option>
+            {/each}
+          </select>
+          <input type="number" class="prod-input" bind:value={newMonthlyProduction} min={1} placeholder="월 생산량" />
+          <button class="btn-prod-add" onclick={handleSetProduction} disabled={!selectedProductId || productionLoading}>
+            {productionLoading ? '처리중...' : '생산 설정'}
+          </button>
+        </div>
+        {#if selectedProductId}
+          {@const sp = filteredProducts.find(p => p.id === selectedProductId)}
+          {#if sp}
+            <div class="prod-detail-panel">
+              <img src={sp.imageUrl || ''} alt={sp.name} class="prod-detail-img" />
+              <div class="prod-detail-info">
+                <p class="prod-detail-name">{sp.name}</p>
+                <p class="prod-detail-desc">{sp.description || ''}</p>
+                <div class="prod-detail-stats">
+                  <span>기본가격: <strong>{fmtMoney(sp.baseUnitPrice)}</strong></span>
+                  <span>생산비용: <strong>{fmtMoney(sp.productionCostPerUnit)}</strong></span>
+                  <span>필요레벨: <strong>Lv.{sp.requiredLevel}</strong></span>
+                </div>
+              </div>
+            </div>
+          {/if}
+        {/if}
+      </div>
+    </div>
+
   </div>
   {/if}
   {/if}
@@ -771,12 +867,33 @@
 
   .production-card { grid-column: 1 / -1; margin-top: 1.5rem; }
   .prod-list { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1rem; }
-  .prod-item { display: grid; grid-template-columns: 2rem 1fr 1fr 1fr 1fr auto; gap: 0.75rem; align-items: center; padding: 0.5rem 0.75rem; background: #f9fafb; border-radius: 8px; font-size: 0.875rem; }
-  .prod-thumb { width: 2rem; height: 2rem; object-fit: cover; border-radius: 4px; background: #e5e7eb; }
+  .prod-item { display: grid; grid-template-columns: 2.5rem 1.5fr 1fr 2fr auto auto; gap: 0.75rem; align-items: center; padding: 0.75rem; background: var(--color-bg-2, #f9fafb); border-radius: 8px; font-size: 0.875rem; border: 1px solid var(--color-border); }
+  .prod-thumb { width: 2.5rem; height: 2.5rem; object-fit: cover; border-radius: 6px; background: #e5e7eb; }
   .prod-info { display: flex; flex-direction: column; gap: 2px; }
   .prod-name { font-weight: 600; }
   .prod-cat { font-size: 0.75rem; color: var(--color-text-gray); }
-  .prod-grade { color: #6b7280; font-size: 0.8rem; }
+  .prod-quality-badge {
+    display: inline-block; font-size: 0.65rem; font-weight: 700; padding: 0.1rem 0.35rem;
+    border-radius: 4px; background: #f3f4f6; color: #6b7280; vertical-align: middle; margin-left: 0.25rem;
+  }
+  .prod-stat { display: flex; flex-direction: column; gap: 2px; }
+  .prod-stat-label { font-size: 0.7rem; color: var(--color-text-gray); }
+  .prod-stat-value { font-size: 0.9rem; font-weight: 700; color: var(--color-text); }
+  .prod-stat-cap { font-size: 0.75rem; font-weight: 500; color: var(--color-text-gray); }
+  .prod-inv-total { font-size: 0.7rem; font-weight: 600; color: var(--color-text-gray); }
+  .prod-grades { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+  .grade { font-size: 0.75rem; font-weight: 600; padding: 0.15rem 0.4rem; border-radius: 4px; }
+  .grade-a { color: #166534; background: #dcfce7; }
+  .grade-b { color: #1e40af; background: #dbeafe; }
+  .grade-c { color: #92400e; background: #fef3c7; }
+  .grade-d { color: #991b1b; background: #fee2e2; }
+  .btn-auto-sell {
+    padding: 0.3rem 0.75rem; border: 1px solid var(--color-border); border-radius: 6px;
+    font-size: 0.8rem; font-weight: 600; cursor: pointer; background: #f3f4f6; color: #6b7280; transition: 0.2s; white-space: nowrap;
+  }
+  .btn-auto-sell.enabled { background: #dcfce7; color: #166534; border-color: #86efac; }
+  .btn-auto-sell:hover:not(:disabled) { opacity: 0.8; }
+  .btn-auto-sell:disabled { opacity: 0.6; cursor: not-allowed; }
   .btn-prod-remove { padding: 0.25rem 0.6rem; background: #fee2e2; color: #dc2626; border: none; border-radius: 6px; cursor: pointer; font-size: 0.8rem; }
   .prod-empty { color: #9ca3af; font-size: 0.875rem; margin: 0.5rem 0; }
   .prod-add h4 { font-size: 0.9rem; font-weight: 600; margin: 0 0 0.5rem; }
