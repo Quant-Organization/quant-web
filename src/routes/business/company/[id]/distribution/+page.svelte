@@ -10,6 +10,7 @@
     type UserWarehouseResponse, type SalesRecordResponse,
     type ShipmentEstimateResponse, type WarehouseInventoryResponse
   } from '$lib/api/distribution';
+  import { friendlyError } from '$lib/api/config';
   import { getCompanyFactories, type FactoryResponse } from '$lib/api/factory';
   import { getInventory, type FactoryProductResponse } from '$lib/api/product';
   import { getCompanyDetail, type CompanyResponse } from '$lib/api/company';
@@ -189,7 +190,7 @@
       showShipmentModal = false;
       toast.success(isKorMarket ? '국내 즉시 판매가 완료되었습니다.' : '선적이 생성되었습니다.');
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : '선적 생성에 실패했습니다.');
+      toast.error(friendlyError(e, '선적 생성에 실패했습니다.'));
     } finally {
       submittingShipment = false;
     }
@@ -203,7 +204,7 @@
       warehouses = warehouses.map(w => w.id === warehouseId ? updated : w);
       toast.success('창고가 업그레이드되었습니다.');
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : '창고 업그레이드에 실패했습니다.');
+      toast.error(friendlyError(e, '창고 업그레이드에 실패했습니다.'));
     } finally {
       upgradingId = null;
     }
@@ -219,7 +220,7 @@
       showCreateWarehouseModal = false;
       toast.success('창고가 생성되었습니다.');
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : '창고 생성에 실패했습니다.');
+      toast.error(friendlyError(e, '창고 생성에 실패했습니다.'));
     } finally {
       creatingWarehouse = false;
     }
@@ -260,7 +261,7 @@
       showSellModal = false;
       toast.success('판매가 완료되었습니다.');
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : '판매에 실패했습니다.');
+      toast.error(friendlyError(e, '판매에 실패했습니다.'));
     } finally {
       sellSubmitting = false;
     }

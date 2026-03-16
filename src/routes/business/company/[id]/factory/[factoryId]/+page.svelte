@@ -21,6 +21,7 @@
     type ProductResponse
   } from '$lib/api/product';
   import { getCompanyDetail } from '$lib/api/company';
+  import { friendlyError } from '$lib/api/config';
   import { getResearchEffects, type CompletedResearchResponse } from '$lib/api/research';
   import SkeletonTable from '$lib/components/SkeletonTable.svelte';
   import { toast } from 'svelte-sonner';
@@ -199,7 +200,7 @@
       selectedProductId = null;
       toast.success('생산 설정이 완료되었습니다.');
     } catch (e: any) {
-      toast.error(e.message || '생산 설정에 실패했습니다.');
+      toast.error(friendlyError(e, '생산 설정에 실패했습니다.'));
     } finally {
       productionLoading = false;
     }
@@ -213,7 +214,7 @@
       await loadFactoryProductions();
       toast.success('생산 항목이 제거되었습니다.');
     } catch (e: any) {
-      toast.error(e.message || '제거에 실패했습니다.');
+      toast.error(friendlyError(e, '생산 중지에 실패했습니다.'));
     } finally {
       productionLoading = false;
     }
@@ -230,7 +231,7 @@
       }
       factory = await getFactoryDetail(factoryId);
     } catch (e: any) {
-      toast.error(e.message || '작업에 실패했습니다.');
+      toast.error(friendlyError(e, '작업에 실패했습니다.'));
     } finally {
       actionLoading = false;
     }
@@ -243,7 +244,7 @@
       await adjustProduction(factory.id, productionPercent);
       factory = await getFactoryDetail(factoryId);
     } catch (e: any) {
-      toast.error(e.message || '생산량 조절에 실패했습니다.');
+      toast.error(friendlyError(e, '생산량 조절에 실패했습니다.'));
     } finally {
       actionLoading = false;
     }
@@ -257,7 +258,7 @@
       await loadFactoryProductions();
       toast.success(!currentEnabled ? '자동판매가 활성화되었습니다.' : '자동판매가 비활성화되었습니다.');
     } catch (e: any) {
-      toast.error(e.message || '자동판매 설정에 실패했습니다.');
+      toast.error(friendlyError(e, '자동판매 설정에 실패했습니다.'));
     } finally {
       productionLoading = false;
     }
@@ -274,7 +275,7 @@
       toast.success('공장이 매각되었습니다.');
       goto(`/business/company/${companyId}/factory`);
     } catch (e: any) {
-      toast.error(e.message || '매각에 실패했습니다.');
+      toast.error(friendlyError(e, '매각에 실패했습니다.'));
       actionLoading = false;
     }
   }

@@ -1,3 +1,24 @@
+const ERROR_MESSAGES: Record<string, string> = {
+	C001: '입력값이 올바르지 않습니다.',
+	C003: '요청한 데이터를 찾을 수 없습니다.',
+	A001: '잔액이 부족합니다.',
+	L001: '레벨이 부족합니다.',
+	L002: '이미 최대 레벨입니다.',
+	F001: '공장을 찾을 수 없습니다.',
+	F003: '재고가 부족합니다.',
+	F004: '창고가 가득 찼습니다.',
+	G001: '접근 권한이 없습니다.',
+	G002: '이미 존재합니다.',
+	G005: '레벨이 부족합니다.',
+};
+
+export function friendlyError(e: unknown, fallback: string): string {
+	if (!(e instanceof Error)) return fallback;
+	const code = (e as Error & { code?: string }).code;
+	if (code && ERROR_MESSAGES[code]) return ERROR_MESSAGES[code];
+	return e.message || fallback;
+}
+
 // API Base URLs — uses environment variables in production
 export const FASTAPI_BASE = import.meta.env.VITE_FASTAPI_URL || '/fastapi';
 export const SPRING_BASE = import.meta.env.VITE_SPRING_API_URL || '';
