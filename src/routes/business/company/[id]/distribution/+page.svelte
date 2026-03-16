@@ -459,11 +459,14 @@
     </div>
     <div class="competitor-list">
       {#each displayedShipments.slice(0, 5) as shipment}
+        {@const totalMs = new Date(shipment.estimatedArrivalDate).getTime() - new Date(shipment.departureDate).getTime()}
+        {@const elapsedMs = Date.now() - new Date(shipment.departureDate).getTime()}
+        {@const progress = totalMs <= 0 ? 100 : Math.min(100, Math.max(5, (elapsedMs / totalMs) * 100))}
         <div class="comp-row">
           <span class="rank">{shipment.targetMarket.flagEmoji}</span>
           <span class="comp-label">{shipment.targetMarket.name}</span>
           <div class="progress-track lg">
-            <div class="progress-fill green" style="width: {shipment.remainingHours <= 0 ? 100 : Math.max(10, 100 - (shipment.remainingHours / 24 / 7) * 100)}%"></div>
+            <div class="progress-fill green" style="width: {progress}%"></div>
           </div>
           <span class="comp-val">{shipment.statusName}</span>
         </div>
