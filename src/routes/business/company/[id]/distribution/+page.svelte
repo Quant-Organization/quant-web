@@ -77,6 +77,12 @@
     return grades;
   })());
 
+  $effect(() => {
+    if (availableGrades.length > 0 && !availableGrades.includes(shipQualityGrade)) {
+      shipQualityGrade = availableGrades[0];
+    }
+  });
+
   // --- 창고 업그레이드 ---
   let upgradingId = $state<number | null>(null);
 
