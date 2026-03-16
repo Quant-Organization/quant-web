@@ -1,5 +1,5 @@
-// API Base URLs — uses Netlify proxy redirects in production
-export const FASTAPI_BASE = '/fastapi';
+// API Base URLs — uses environment variables in production
+export const FASTAPI_BASE = import.meta.env.VITE_FASTAPI_URL || '/fastapi';
 export const SPRING_BASE = import.meta.env.VITE_SPRING_API_URL || '';
 
 function getSpringToken(): string | null {
