@@ -316,35 +316,36 @@
     </div>
   </section>
 
-  <!-- 국가별 수출 테이블 -->
-  <section class="card table-card">
-    <h3>국가별 수출 정보</h3>
-    <div class="table-responsive">
-      <table>
-        <thead>
-          <tr>
-            <th>국가</th>
-            <th>물류비 (컨테이너당)</th>
-            <th>관세율</th>
-            <th>소모 시간</th>
-          </tr>
-        </thead>
-        <tbody>
-          {#each markets as market}
-            <tr>
-              <td><span class="country-cell">{market.flagEmoji} {market.name}</span></td>
-              <td class="font-bold">${(market.shippingCostPerContainer ?? 0).toLocaleString()}</td>
-              <td>{market.tariffRateMin}~{market.tariffRateMax}%</td>
-              <td>{market.deliveryDaysMin}~{market.deliveryDaysMax}일</td>
-            </tr>
-          {/each}
-          {#if markets.length === 0}
-            <tr><td colspan="4" class="empty-cell">시장 정보가 없습니다.</td></tr>
+    <!-- 글로벌 시장 현황 -->
+    <section class="warehouse-section">
+      <h3>글로벌 시장 현황</h3>
+      <div class="warehouse-grid">
+        {#each markets as market}
+          {#if market.code === 'KOR'}
+            <div class="wh-card wh-kor">
+              <div class="wh-header">
+                <span class="wh-flag">{market.flagEmoji}</span>
+                <span class="wh-name">{market.name}</span>
+              </div>
+              <div class="wh-kor-tag">국내 시장 · 즉시 판매</div>
+              <div class="wh-kor-desc">배송비 $0 · 관세 0%</div>
+            </div>
+          {:else}
+            <div class="wh-card">
+              <div class="wh-header">
+                <span class="wh-flag">{market.flagEmoji}</span>
+                <span class="wh-name">{market.name}</span>
+              </div>
+              <div class="wh-market-info">
+                <span>배송비 {formatCurrency(market.shippingCostPerContainer)}/컨테이너</span>
+                <span>관세 {market.tariffRateMin}~{market.tariffRateMax}%</span>
+                <span>배송 {market.deliveryDaysMin}~{market.deliveryDaysMax}일</span>
+              </div>
+            </div>
           {/if}
-        </tbody>
-      </table>
-    </div>
-  </section>
+        {/each}
+      </div>
+    </section>
 
   <!-- 시장 상세 -->
   {#if markets.length > 0}
@@ -446,37 +447,6 @@
     </div>
   </section>
   {/if}
-
-  <!-- 글로벌 시장 현황 -->
-  <section class="warehouse-section">
-    <h3>글로벌 시장 현황</h3>
-    <div class="warehouse-grid">
-      {#each markets as market}
-        {#if market.code === 'KOR'}
-          <div class="wh-card wh-kor">
-            <div class="wh-header">
-              <span class="wh-flag">{market.flagEmoji}</span>
-              <span class="wh-name">{market.name}</span>
-            </div>
-            <div class="wh-kor-tag">국내 시장 · 즉시 판매</div>
-            <div class="wh-kor-desc">배송비 $0 · 관세 0%</div>
-          </div>
-        {:else}
-          <div class="wh-card">
-            <div class="wh-header">
-              <span class="wh-flag">{market.flagEmoji}</span>
-              <span class="wh-name">{market.name}</span>
-            </div>
-            <div class="wh-market-info">
-              <span>배송비 {formatCurrency(market.shippingCostPerContainer)}/컨테이너</span>
-              <span>관세 {market.tariffRateMin}~{market.tariffRateMax}%</span>
-              <span>배송 {market.deliveryDaysMin}~{market.deliveryDaysMax}일</span>
-            </div>
-          </div>
-        {/if}
-      {/each}
-    </div>
-  </section>
 
   <!-- 진행 중인 선적 -->
   {#if shipments.length > 0}
@@ -1089,7 +1059,7 @@
   .inv-qty { color: var(--color-text-gray); white-space: nowrap; }
 
   /* --- 창고 카드 그리드 --- */
-  .warehouse-section { margin-bottom: 1.5rem; }
+  .warehouse-section { margin-bottom: 2.5rem; }
   .warehouse-section h3 { font-size: 1.125rem; font-weight: 700; margin: 0 0 1rem; color: var(--color-text); }
   .warehouse-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: 0.75rem; }
   .wh-card {
