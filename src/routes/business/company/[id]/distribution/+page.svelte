@@ -376,6 +376,39 @@
   </section>
   {/if}
 
+  <!-- 제품별 재고 현황 -->
+  {#if summary?.productInventories && summary.productInventories.length > 0}
+  <section class="card table-card">
+    <h3>제품별 재고 현황</h3>
+    <div class="table-responsive">
+      <table>
+        <thead>
+          <tr>
+            <th>제품</th>
+            <th>A등급</th>
+            <th>B등급</th>
+            <th>C등급</th>
+            <th>D등급</th>
+            <th>합계</th>
+          </tr>
+        </thead>
+        <tbody>
+          {#each summary.productInventories as pi}
+            <tr>
+              <td class="font-bold">{pi.productName}</td>
+              <td>{pi.gradeA.toLocaleString()}</td>
+              <td>{pi.gradeB.toLocaleString()}</td>
+              <td>{pi.gradeC.toLocaleString()}</td>
+              <td>{pi.gradeD.toLocaleString()}</td>
+              <td class="font-bold">{pi.total.toLocaleString()}</td>
+            </tr>
+          {/each}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {/if}
+
   <!-- 최근 판매 기록 -->
   {#if sales.length > 0}
   <section class="card table-card">
