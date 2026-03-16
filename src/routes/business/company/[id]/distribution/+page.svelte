@@ -29,6 +29,7 @@
   // 선택된 국가 상태
   let selectedMarketCode = $state('');
   let selectedMarket = $derived(markets.find(m => m.code === selectedMarketCode) ?? markets[0] ?? null);
+  let isKorMarket = $derived(selectedMarket?.code === 'KOR');
 
   const radius = 40;
   const circumference = 2 * Math.PI * radius;
@@ -180,10 +181,13 @@
         marketCode: selectedMarket.code,
         quantity: shipQuantity
       });
-      shipments = await getShipments().catch(() => shipments);
-      summary = await getDistributionSummary().catch(() => summary);
+      [shipments, summary, sales] = await Promise.all([
+        getShipments().catch(() => shipments),
+        getDistributionSummary().catch(() => summary),
+        getSales().catch(() => sales),
+      ]);
       showShipmentModal = false;
-      toast.success('선적이 생성되었습니다.');
+      toast.success(isKorMarket ? '국내 즉시 판매가 완료되었습니다.' : '선적이 생성되었습니다.');
     } catch (e) {
       toast.error(e instanceof Error ? e.message : '선적 생성에 실패했습니다.');
     } finally {
@@ -500,7 +504,7 @@
   <div class="modal-overlay" onclick={() => { showShipmentModal = false; }}>
     <div class="modal" onclick={(e) => e.stopPropagation()}>
       <div class="modal-header">
-        <h3>새 선적 생성</h3>
+        <h3>{isKorMarket ? '국내 즉시 판매' : '새 선적 생성'}</h3>
         <button class="modal-close" onclick={() => { showShipmentModal = false; }}>✕</button>
       </div>
       <div class="modal-body">
@@ -554,27 +558,39 @@
           <label for="ship-qty">수량</label>
           <input id="ship-qty" type="number" min="1" bind:value={shipQuantity} oninput={() => { shipEstimate = null; }} />
         </div>
-        <button class="estimate-btn" onclick={handleEstimate} disabled={!shipFactoryId || !shipProductId || estimating}>
-          {estimating ? '견적 계산 중...' : '견적 확인'}
-        </button>
-        {#if shipEstimate}
-        <div class="estimate-box">
-          <h4>예상 견적</h4>
-          <div class="estimate-grid">
-            <span>컨테이너 수</span><span>{shipEstimate.containers}개</span>
-            <span>화물 가치</span><span>{formatCurrency(shipEstimate.goodsValue)}</span>
-            <span>물류비</span><span>{formatCurrency(shipEstimate.shippingCost)}</span>
-            <span>예상 관세</span><span>{formatCurrency(shipEstimate.estimatedTariffMin)} ~ {formatCurrency(shipEstimate.estimatedTariffMax)}</span>
-            <span>총 비용</span><span class="font-bold">{formatCurrency(shipEstimate.totalCostMin)} ~ {formatCurrency(shipEstimate.totalCostMax)}</span>
-            <span>배송 기간</span><span>{shipEstimate.estimatedDaysMin}~{shipEstimate.estimatedDaysMax}일</span>
+        {#if isKorMarket}
+          <div class="estimate-box kor-info">
+            <h4>국내 즉시 판매</h4>
+            <div class="estimate-grid">
+              <span>배송비</span><span>$0</span>
+              <span>관세</span><span>0%</span>
+              <span>배송 시간</span><span>즉시</span>
+              <span>창고</span><span>불필요</span>
+            </div>
           </div>
-        </div>
+        {:else}
+          <button class="estimate-btn" onclick={handleEstimate} disabled={!shipFactoryId || !shipProductId || estimating}>
+            {estimating ? '견적 계산 중...' : '견적 확인'}
+          </button>
+          {#if shipEstimate}
+          <div class="estimate-box">
+            <h4>예상 견적</h4>
+            <div class="estimate-grid">
+              <span>컨테이너 수</span><span>{shipEstimate.containers}개</span>
+              <span>화물 가치</span><span>{formatCurrency(shipEstimate.goodsValue)}</span>
+              <span>물류비</span><span>{formatCurrency(shipEstimate.shippingCost)}</span>
+              <span>예상 관세</span><span>{formatCurrency(shipEstimate.estimatedTariffMin)} ~ {formatCurrency(shipEstimate.estimatedTariffMax)}</span>
+              <span>총 비용</span><span class="font-bold">{formatCurrency(shipEstimate.totalCostMin)} ~ {formatCurrency(shipEstimate.totalCostMax)}</span>
+              <span>배송 기간</span><span>{shipEstimate.estimatedDaysMin}~{shipEstimate.estimatedDaysMax}일</span>
+            </div>
+          </div>
+          {/if}
         {/if}
       </div>
       <div class="modal-footer">
         <button class="cancel-modal-btn" onclick={() => { showShipmentModal = false; }}>취소</button>
-        <button class="primary-btn" onclick={handleCreateShipment} disabled={!shipEstimate || submittingShipment}>
-          {submittingShipment ? '생성 중...' : '선적 생성'}
+        <button class="primary-btn" onclick={handleCreateShipment} disabled={(!isKorMarket && !shipEstimate) || !shipFactoryId || !shipProductId || submittingShipment}>
+          {submittingShipment ? '처리 중...' : isKorMarket ? '즉시 판매' : '선적 생성'}
         </button>
       </div>
     </div>

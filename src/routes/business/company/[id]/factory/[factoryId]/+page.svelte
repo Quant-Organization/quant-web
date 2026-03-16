@@ -78,6 +78,7 @@
   let productCategories = $state<string[]>([]);
   let selectedProductCategory = $state<string | null>(null);
   let filteredProducts = $state<ProductResponse[]>([]);
+  let showProductSelector = $state(false);
 
   const companyId = $derived($page.params.id);
   const factoryId = $derived(Number($page.params.factoryId));
@@ -182,11 +183,20 @@
   }
 
   async function handleSetProduction() {
-    if (!selectedProductId || productionLoading) return;
+    if (!selectedProductId || productionLoading || !factory) return;
+    if (factoryProductions.length > 0) {
+      const currentProduct = factoryProductions.find(fp => fp.isActive);
+      if (currentProduct && currentProduct.product.id !== selectedProductId) {
+        const confirmed = confirm(`현재 생산 중인 "${currentProduct.product.name}"이(가) 비활성화됩니다. 계속하시겠습니까?`);
+        if (!confirmed) return;
+      }
+    }
     productionLoading = true;
     try {
-      await setFactoryProduction(factoryId, { productId: selectedProductId, monthlyProduction: newMonthlyProduction });
+      await setFactoryProduction(factoryId, { productId: selectedProductId, monthlyProduction: factory.baseMonthlyProduction });
       await loadFactoryProductions();
+      showProductSelector = false;
+      selectedProductId = null;
       toast.success('생산 설정이 완료되었습니다.');
     } catch (e: any) {
       toast.error(e.message || '생산 설정에 실패했습니다.');
@@ -575,25 +585,15 @@
       <h3>생산 관리</h3>
 
       {#if factoryProductions.length > 0}
-        <div class="prod-list">
-          {#each factoryProductions as fp}
-            <div class="prod-item">
-              <img src={fp.product.imageUrl || ''} alt={fp.product.name} class="prod-thumb" />
-              <div class="prod-info">
-                <span class="prod-name">{fp.product.name} <span class="prod-quality-badge">{fp.baseQualityGrade}</span></span>
-                <span class="prod-cat">{fmtMoney(fp.product.baseUnitPrice)} · 마진 {fmtMoney(fp.product.baseUnitPrice - fp.product.productionCostPerUnit)}</span>
-              </div>
-              <div class="prod-stat">
-                <span class="prod-stat-label">월 생산량</span>
-                <span class="prod-stat-value">{fmtUnit(fp.currentMonthlyProduction)} <span class="prod-stat-cap">/ {fmtUnit(fp.monthlyProductionCapacity)}</span></span>
-              </div>
-              <div class="prod-grades">
-                <span class="grade grade-a">A {fmtSimple(fp.inventoryGradeA)}</span>
-                <span class="grade grade-b">B {fmtSimple(fp.inventoryGradeB)}</span>
-                <span class="grade grade-c">C {fmtSimple(fp.inventoryGradeC)}</span>
-                <span class="grade grade-d">D {fmtSimple(fp.inventoryGradeD)}</span>
-                <span class="prod-inv-total">계 {fmtSimple(fp.currentInventory)}</span>
-              </div>
+        {@const fp = factoryProductions[0]}
+        <div class="prod-current">
+          <div class="prod-current-header">
+            <img src={fp.product.imageUrl || ''} alt={fp.product.name} class="prod-current-thumb" />
+            <div class="prod-current-info">
+              <span class="prod-current-name">{fp.product.name} <span class="prod-quality-badge">{fp.baseQualityGrade}</span></span>
+              <span class="prod-current-price">{fmtMoney(fp.product.baseUnitPrice)} · 마진 {fmtMoney(fp.product.baseUnitPrice - fp.product.productionCostPerUnit)}</span>
+            </div>
+            <div class="prod-current-actions">
               <button
                 class="btn-auto-sell"
                 class:enabled={fp.autoSellEnabled}
@@ -602,52 +602,84 @@
               >
                 {fp.autoSellEnabled ? '자동판매 ON' : '자동판매 OFF'}
               </button>
-              <button class="btn-prod-remove" onclick={() => handleRemoveProduction(fp.product.id)} disabled={productionLoading}>중지</button>
+              <button class="btn-prod-remove" onclick={() => handleRemoveProduction(fp.product.id)} disabled={productionLoading}>생산 중지</button>
             </div>
-          {/each}
+          </div>
+
+          <div class="prod-current-stats">
+            <div class="prod-stat-box">
+              <span class="prod-stat-label">월 생산량</span>
+              <span class="prod-stat-value">{fmtUnit(fp.currentMonthlyProduction)} <span class="prod-stat-cap">/ {fmtUnit(fp.monthlyProductionCapacity)}</span></span>
+            </div>
+            <div class="prod-stat-box">
+              <span class="prod-stat-label">총 재고</span>
+              <span class="prod-stat-value">{fmtSimple(fp.currentInventory)}</span>
+            </div>
+          </div>
+
+          <div class="prod-current-grades">
+            <span class="prod-grades-label">등급별 재고</span>
+            <div class="prod-grades">
+              <span class="grade grade-a">A {fmtSimple(fp.inventoryGradeA)}</span>
+              <span class="grade grade-b">B {fmtSimple(fp.inventoryGradeB)}</span>
+              <span class="grade grade-c">C {fmtSimple(fp.inventoryGradeC)}</span>
+              <span class="grade grade-d">D {fmtSimple(fp.inventoryGradeD)}</span>
+            </div>
+          </div>
+
+          <button class="btn-change-product" onclick={() => { showProductSelector = true; }}>상품 변경</button>
         </div>
       {:else}
-        <p class="prod-empty">현재 생산 중인 상품이 없습니다.</p>
+        <div class="prod-empty-state">
+          <p>현재 생산 중인 상품이 없습니다.</p>
+          <button class="btn-prod-add" onclick={() => { showProductSelector = true; }}>상품 선택</button>
+        </div>
       {/if}
 
-      <div class="prod-add">
-        <h4>상품 추가</h4>
-        <div class="cat-filters">
-          <button class:active={selectedProductCategory === null} onclick={() => selectCategory(null)}>전체</button>
-          {#each productCategories as cat}
-            <button class:active={selectedProductCategory === cat} onclick={() => selectCategory(cat)}>{cat}</button>
-          {/each}
-        </div>
-        <div class="prod-add-row">
-          <select class="prod-select" bind:value={selectedProductId}>
-            <option value={null}>상품 선택...</option>
-            {#each filteredProducts as p}
-              <option value={p.id}>{p.name} (${p.baseUnitPrice})</option>
+      {#if showProductSelector}
+        <div class="prod-selector">
+          <div class="prod-selector-header">
+            <h4>{factoryProductions.length > 0 ? '생산 상품 변경' : '생산 상품 선택'}</h4>
+            {#if factoryProductions.length > 0}
+              <button class="prod-selector-close" onclick={() => { showProductSelector = false; }}>취소</button>
+            {/if}
+          </div>
+          <div class="cat-filters">
+            <button class:active={selectedProductCategory === null} onclick={() => selectCategory(null)}>전체</button>
+            {#each productCategories as cat}
+              <button class:active={selectedProductCategory === cat} onclick={() => selectCategory(cat)}>{cat}</button>
             {/each}
-          </select>
-          <input type="number" class="prod-input" bind:value={newMonthlyProduction} min={1} placeholder="월 생산량" />
-          <button class="btn-prod-add" onclick={handleSetProduction} disabled={!selectedProductId || productionLoading}>
-            {productionLoading ? '처리중...' : '생산 설정'}
-          </button>
-        </div>
-        {#if selectedProductId}
-          {@const sp = filteredProducts.find(p => p.id === selectedProductId)}
-          {#if sp}
-            <div class="prod-detail-panel">
-              <img src={sp.imageUrl || ''} alt={sp.name} class="prod-detail-img" />
-              <div class="prod-detail-info">
-                <p class="prod-detail-name">{sp.name}</p>
-                <p class="prod-detail-desc">{sp.description || ''}</p>
-                <div class="prod-detail-stats">
-                  <span>기본가격: <strong>{fmtMoney(sp.baseUnitPrice)}</strong></span>
-                  <span>생산비용: <strong>{fmtMoney(sp.productionCostPerUnit)}</strong></span>
-                  <span>필요레벨: <strong>Lv.{sp.requiredLevel}</strong></span>
+          </div>
+          <div class="prod-add-row">
+            <select class="prod-select" bind:value={selectedProductId}>
+              <option value={null}>상품 선택...</option>
+              {#each filteredProducts as p}
+                <option value={p.id}>{p.name} ({fmtMoney(p.baseUnitPrice)})</option>
+              {/each}
+            </select>
+            <button class="btn-prod-add" onclick={handleSetProduction} disabled={!selectedProductId || productionLoading}>
+              {productionLoading ? '처리중...' : '생산 시작'}
+            </button>
+          </div>
+          {#if selectedProductId}
+            {@const sp = filteredProducts.find(p => p.id === selectedProductId)}
+            {#if sp}
+              <div class="prod-detail-panel">
+                <img src={sp.imageUrl || ''} alt={sp.name} class="prod-detail-img" />
+                <div class="prod-detail-info">
+                  <p class="prod-detail-name">{sp.name}</p>
+                  <p class="prod-detail-desc">{sp.description || ''}</p>
+                  <div class="prod-detail-stats">
+                    <span>기본가격: <strong>{fmtMoney(sp.baseUnitPrice)}</strong></span>
+                    <span>생산비용: <strong>{fmtMoney(sp.productionCostPerUnit)}</strong></span>
+                    <span>필요레벨: <strong>Lv.{sp.requiredLevel}</strong></span>
+                  </div>
                 </div>
               </div>
-            </div>
+            {/if}
           {/if}
-        {/if}
-      </div>
+        </div>
+      {/if}
     </div>
 
   </div>
@@ -866,12 +898,34 @@
   }
 
   .production-card { grid-column: 1 / -1; margin-top: 1.5rem; }
-  .prod-list { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1rem; }
-  .prod-item { display: grid; grid-template-columns: 2.5rem 1.5fr 1fr 2fr auto auto; gap: 0.75rem; align-items: center; padding: 0.75rem; background: var(--color-bg-2, #f9fafb); border-radius: 8px; font-size: 0.875rem; border: 1px solid var(--color-border); }
-  .prod-thumb { width: 2.5rem; height: 2.5rem; object-fit: cover; border-radius: 6px; background: #e5e7eb; }
-  .prod-info { display: flex; flex-direction: column; gap: 2px; }
-  .prod-name { font-weight: 600; }
-  .prod-cat { font-size: 0.75rem; color: var(--color-text-gray); }
+
+  /* --- 현재 생산 상품 카드 --- */
+  .prod-current { display: flex; flex-direction: column; gap: 1rem; }
+  .prod-current-header { display: flex; align-items: center; gap: 0.75rem; }
+  .prod-current-thumb { width: 3rem; height: 3rem; object-fit: cover; border-radius: 8px; background: #e5e7eb; flex-shrink: 0; }
+  .prod-current-info { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+  .prod-current-name { font-size: 1rem; font-weight: 700; }
+  .prod-current-price { font-size: 0.8rem; color: var(--color-text-gray); }
+  .prod-current-actions { display: flex; gap: 0.5rem; align-items: center; }
+  .prod-current-stats { display: flex; gap: 1.5rem; padding: 0.75rem 1rem; background: var(--color-bg-2, #f9fafb); border-radius: 8px; border: 1px solid var(--color-border); }
+  .prod-stat-box { display: flex; flex-direction: column; gap: 2px; }
+  .prod-current-grades { display: flex; align-items: center; gap: 0.75rem; }
+  .prod-grades-label { font-size: 0.75rem; color: var(--color-text-gray); font-weight: 600; white-space: nowrap; }
+  .btn-change-product {
+    align-self: flex-start; padding: 0.4rem 1rem; background: var(--color-bg-2); color: var(--color-text-gray);
+    border: 1px solid var(--color-border); border-radius: 6px; font-size: 0.8rem; font-weight: 600; cursor: pointer; transition: 0.2s;
+  }
+  .btn-change-product:hover { background: var(--color-border); }
+
+  .prod-empty-state { text-align: center; padding: 2rem 0; }
+  .prod-empty-state p { color: var(--color-text-gray); font-size: 0.875rem; margin-bottom: 1rem; }
+
+  /* --- 상품 선택 패널 --- */
+  .prod-selector { margin-top: 1rem; padding: 1rem; background: var(--color-bg-2, #f9fafb); border-radius: 8px; border: 1px solid var(--color-border); }
+  .prod-selector-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; }
+  .prod-selector-header h4 { font-size: 0.9rem; font-weight: 600; margin: 0; }
+  .prod-selector-close { background: none; border: none; color: var(--color-text-gray); cursor: pointer; font-size: 0.8rem; font-weight: 600; }
+  .prod-selector-close:hover { color: var(--color-text); }
   .prod-quality-badge {
     display: inline-block; font-size: 0.65rem; font-weight: 700; padding: 0.1rem 0.35rem;
     border-radius: 4px; background: #f3f4f6; color: #6b7280; vertical-align: middle; margin-left: 0.25rem;

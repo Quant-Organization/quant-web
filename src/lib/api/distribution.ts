@@ -168,8 +168,8 @@ export function createShipment(req: CreateShipmentRequest) {
 	});
 }
 
-export function getSales(page = 0, size = 20) {
-	return fetchSpring<SalesRecordResponse[]>(`/api/distribution/sales?page=${page}&size=${size}`);
+export function getSales() {
+	return fetchSpring<SalesRecordResponse[]>('/api/distribution/sales');
 }
 
 export function sellProduct(req: SellProductRequest) {
