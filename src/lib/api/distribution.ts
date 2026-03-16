@@ -35,6 +35,8 @@ export interface ShipmentResponse {
 	sourceFactoryId: number;
 	sourceFactoryName: string;
 	targetMarket: MarketResponse;
+	marketCode: string;
+	marketName: string;
 	product: ProductResponse;
 	qualityGrade: string;
 	quantity: number;
@@ -128,10 +130,6 @@ export interface WarehouseInventoryResponse {
 	estimatedValue: number;
 }
 
-export interface CreateWarehouseRequest {
-	marketCode: string;
-}
-
 export function getDistributionSummary() {
 	return fetchSpring<DistributionSummaryResponse>('/api/distribution/summary');
 }
@@ -185,10 +183,9 @@ export function getWarehouses() {
 	return fetchSpring<UserWarehouseResponse[]>('/api/distribution/warehouses');
 }
 
-export function createWarehouse(req: CreateWarehouseRequest) {
-	return fetchSpring<UserWarehouseResponse>('/api/distribution/warehouses', {
-		method: 'POST',
-		body: JSON.stringify(req)
+export function createWarehouse(marketCode: string) {
+	return fetchSpring<UserWarehouseResponse>(`/api/distribution/warehouses?marketCode=${marketCode}`, {
+		method: 'POST'
 	});
 }
 

@@ -210,7 +210,7 @@
     if (!selectedMarketCode) return;
     creatingWarehouse = true;
     try {
-      const newWarehouse = await createWarehouse({ marketCode: selectedMarketCode });
+      const newWarehouse = await createWarehouse(selectedMarketCode);
       warehouses = [...warehouses, newWarehouse];
       showCreateWarehouseModal = false;
       toast.success('창고가 생성되었습니다.');
