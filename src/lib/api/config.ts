@@ -19,7 +19,7 @@ export function friendlyError(e: unknown, fallback: string): string {
 	return e.message || fallback;
 }
 
-// API Base URLs — uses environment variables in production
+// API Base URLs — uses Vercel/Vite proxy in production, env vars for local dev
 export const FASTAPI_BASE = import.meta.env.VITE_FASTAPI_URL || '/fastapi';
 export const SPRING_BASE = import.meta.env.VITE_SPRING_API_URL || '';
 
