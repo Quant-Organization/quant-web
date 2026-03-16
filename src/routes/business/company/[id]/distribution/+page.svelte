@@ -835,6 +835,7 @@
   .progress-fill.green { background-color: #10b981; }
 
   /* --- 5. 경쟁사 현황 --- */
+  .competitor-card { margin-bottom: 2rem; }
   .competitor-card h4 { font-size: 16px; font-weight: 700; margin: 0 0 20px 0; color: var(--color-text); }
 
   .comp-row {
@@ -855,7 +856,6 @@
 
   .loading-text { color: var(--color-text-gray); padding: 2rem; text-align: center; }
   .no-data { color: var(--color-text-gray); font-size: 0.9rem; margin: 0; }
-  .empty-cell { text-align: center; color: var(--color-text-gray); padding: 1.5rem 0; }
   .positive { color: #10b981; font-weight: 600; }
   .negative { color: #ef4444; font-weight: 600; }
   .top-stats-grid { grid-template-columns: repeat(3, 1fr); }
@@ -874,39 +874,6 @@
   }
   .primary-btn:hover { opacity: 0.9; }
   .primary-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-
-  .upgrade-btn {
-    background-color: #f59e0b;
-    color: white;
-    border: none;
-    padding: 8px 14px;
-    border-radius: 6px;
-    font-size: 13px;
-    font-weight: 600;
-    cursor: pointer;
-  }
-  .upgrade-btn:hover { opacity: 0.9; }
-  .upgrade-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-
-  .sell-btn {
-    background-color: #10b981;
-    color: white;
-    border: none;
-    padding: 8px 14px;
-    border-radius: 6px;
-    font-size: 13px;
-    font-weight: 600;
-    cursor: pointer;
-  }
-  .sell-btn:hover { opacity: 0.9; }
-  .sell-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-
-  .warehouse-actions {
-    display: flex;
-    gap: 8px;
-    margin-top: 16px;
-    justify-content: flex-end;
-  }
 
   /* --- 모달 --- */
   .modal-overlay {
@@ -1009,14 +976,6 @@
     padding: 16px;
   }
   .estimate-box h4 { margin: 0 0 12px 0; font-size: 14px; font-weight: 700; color: var(--color-text); }
-  .warehouse-warning { border-color: #fde68a; background: #fffbeb; }
-  .warehouse-warning h4 { color: #92400e; }
-  .warehouse-warning p { font-size: 0.8rem; color: #92400e; margin: 0 0 0.75rem; }
-  .btn-create-warehouse {
-    width: 100%; padding: 0.5rem; background: #fef3c7; color: #92400e; border: 1px solid #fde68a;
-    border-radius: 6px; font-size: 0.85rem; font-weight: 600; cursor: pointer; transition: 0.2s;
-  }
-  .btn-create-warehouse:hover { background: #fde68a; }
   .estimate-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -1069,34 +1028,6 @@
   .wh-header { display: flex; align-items: center; gap: 0.5rem; }
   .wh-flag { font-size: 1.25rem; }
   .wh-name { font-size: 0.875rem; font-weight: 700; flex: 1; }
-  .wh-level {
-    font-size: 0.7rem; font-weight: 700; padding: 0.15rem 0.5rem; border-radius: 10px;
-    background: var(--color-theme-1); color: white;
-  }
-  .wh-active { border-color: #86efac; background: #f0fdf4; }
-  .wh-capacity { display: flex; flex-direction: column; gap: 0.25rem; }
-  .wh-capacity-header { display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--color-text-gray); }
-  .wh-bar-track { height: 6px; background: #e5e7eb; border-radius: 3px; overflow: hidden; }
-  .wh-bar-fill { height: 100%; background: #10b981; border-radius: 3px; transition: width 0.3s; }
-  .wh-meta { display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem; color: var(--color-text-gray); }
-  .wh-upgrade-btn {
-    padding: 0.2rem 0.5rem; background: var(--color-theme-1); color: white; border: none;
-    border-radius: 4px; font-size: 0.7rem; font-weight: 600; cursor: pointer; transition: 0.2s;
-  }
-  .wh-upgrade-btn:hover { opacity: 0.85; }
-  .wh-upgrade-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-  .wh-max-tag {
-    font-size: 0.65rem; font-weight: 700; padding: 0.1rem 0.4rem; border-radius: 4px;
-    background: #fef3c7; color: #92400e;
-  }
-  .wh-empty { border-style: dashed; border-color: #d1d5db; background: var(--color-bg-2, #f9fafb); }
-  .wh-empty-body { text-align: center; padding: 0.5rem 0; }
-  .wh-empty-body p { font-size: 0.8rem; color: var(--color-text-gray); margin: 0 0 0.5rem; }
-  .wh-create-btn {
-    padding: 0.35rem 1rem; background: var(--color-bg-1); color: var(--color-text); border: 1px solid var(--color-border);
-    border-radius: 6px; font-size: 0.8rem; font-weight: 600; cursor: pointer; transition: 0.2s;
-  }
-  .wh-create-btn:hover { background: var(--color-border); }
   .wh-kor { border-color: #93c5fd; background: #eff6ff; }
   .wh-kor-tag { font-size: 0.8rem; font-weight: 700; color: #1e40af; }
   .wh-kor-desc { font-size: 0.7rem; color: #3b82f6; }
