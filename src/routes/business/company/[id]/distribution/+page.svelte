@@ -3,12 +3,10 @@
   import { toast } from 'svelte-sonner';
   import { page } from '$app/stores';
   import {
-    getDistributionSummary, getMarkets, getShipments, getWarehouses, getSales,
-    estimateShipment, createShipment, upgradeWarehouse, sellProduct, getWarehouseInventory,
-    getMarketDetail, createWarehouse, getActiveShipments,
+    getDistributionSummary, getMarkets, getShipments, getSales,
+    estimateShipment, createShipment, getMarketDetail, getActiveShipments,
     type DistributionSummaryResponse, type MarketResponse, type ShipmentResponse,
-    type UserWarehouseResponse, type SalesRecordResponse,
-    type ShipmentEstimateResponse, type WarehouseInventoryResponse
+    type SalesRecordResponse, type ShipmentEstimateResponse
   } from '$lib/api/distribution';
   import { friendlyError } from '$lib/api/config';
   import { getCompanyFactories, type FactoryResponse } from '$lib/api/factory';
@@ -20,7 +18,6 @@
   let summary = $state<DistributionSummaryResponse | null>(null);
   let markets = $state<MarketResponse[]>([]);
   let shipments = $state<ShipmentResponse[]>([]);
-  let warehouses = $state<UserWarehouseResponse[]>([]);
   let sales = $state<SalesRecordResponse[]>([]);
   let loading = $state(true);
   let factories = $state<FactoryResponse[]>([]);
@@ -30,7 +27,6 @@
   // 선택된 국가 상태
   let selectedMarketCode = $state('');
   let selectedMarket = $derived(markets.find(m => m.code === selectedMarketCode) ?? markets[0] ?? null);
-  let isKorMarket = $derived(selectedMarket?.code === 'KOR');
 
   const radius = 40;
   const circumference = 2 * Math.PI * radius;
@@ -40,9 +36,6 @@
     selectedMarket ? Math.round((selectedMarket.availableMarketSize / selectedMarket.totalMarketSize) * 100) : 0
   );
   let dashOffset = $derived(circumference - (availablePercent / 100) * circumference);
-
-  // 선택된 시장의 창고
-  let selectedWarehouse = $derived(warehouses.find(w => w.market.code === selectedMarketCode) ?? null);
 
   $effect(() => {
     if (selectedMarketCode) {
@@ -83,34 +76,17 @@
     }
   });
 
-  // --- 창고 업그레이드 ---
-  let upgradingId = $state<number | null>(null);
-
-  // --- 창고 생성 모달 ---
-  let showCreateWarehouseModal = $state(false);
-  let creatingWarehouse = $state(false);
-
   // --- 활성 선적 필터 ---
   let showActiveOnly = $state(false);
   let activeShipments = $state<ShipmentResponse[]>([]);
 
-  // --- 판매 모달 ---
-  let showSellModal = $state(false);
-  let sellWarehouse = $state<UserWarehouseResponse | null>(null);
-  let warehouseInventory = $state<WarehouseInventoryResponse[]>([]);
-  let sellInventoryItem = $state<WarehouseInventoryResponse | null>(null);
-  let sellQuantity = $state(1);
-  let sellSubmitting = $state(false);
-  let loadingInventory = $state(false);
-
   onMount(async () => {
     const companyId = Number($page.params.id);
     try {
-      const [sum, mks, ships, whs, sls, fcts, inv, actShips, comp] = await Promise.all([
+      const [sum, mks, ships, sls, fcts, inv, actShips, comp] = await Promise.all([
         getDistributionSummary().catch(() => null),
         getMarkets().catch(() => [] as MarketResponse[]),
         getShipments().catch(() => [] as ShipmentResponse[]),
-        getWarehouses().catch(() => [] as UserWarehouseResponse[]),
         getSales().catch(() => [] as SalesRecordResponse[]),
         getCompanyFactories(companyId).catch(() => [] as FactoryResponse[]),
         getInventory().catch(() => [] as FactoryProductResponse[]),
@@ -120,7 +96,6 @@
       summary = sum;
       markets = mks;
       shipments = ships;
-      warehouses = whs;
       sales = sls;
       factories = fcts;
       allInventory = inv;
@@ -194,7 +169,7 @@
         getSales().catch(() => sales),
       ]);
       showShipmentModal = false;
-      toast.success(isKorMarket ? '국내 즉시 판매가 완료되었습니다.' : '선적이 생성되었습니다.');
+      toast.success('선적이 생성되었습니다.');
     } catch (e) {
       toast.error(friendlyError(e, '선적 생성에 실패했습니다.'));
     } finally {
@@ -202,76 +177,7 @@
     }
   }
 
-  // 창고 업그레이드
-  async function handleUpgradeWarehouse(warehouseId: number) {
-    upgradingId = warehouseId;
-    try {
-      const updated = await upgradeWarehouse(warehouseId);
-      warehouses = warehouses.map(w => w.id === warehouseId ? updated : w);
-      toast.success('창고가 업그레이드되었습니다.');
-    } catch (e) {
-      toast.error(friendlyError(e, '창고 업그레이드에 실패했습니다.'));
-    } finally {
-      upgradingId = null;
-    }
-  }
-
-  // 창고 생성
-  async function handleCreateWarehouse() {
-    if (!selectedMarketCode) return;
-    creatingWarehouse = true;
-    try {
-      const newWarehouse = await createWarehouse(selectedMarketCode);
-      warehouses = [...warehouses, newWarehouse];
-      showCreateWarehouseModal = false;
-      toast.success('창고가 생성되었습니다.');
-    } catch (e) {
-      toast.error(friendlyError(e, '창고 생성에 실패했습니다.'));
-    } finally {
-      creatingWarehouse = false;
-    }
-  }
-
   let displayedShipments = $derived(showActiveOnly ? activeShipments : shipments);
-
-  // 판매
-  async function openSellModal(warehouse: UserWarehouseResponse) {
-    sellWarehouse = warehouse;
-    sellInventoryItem = null;
-    sellQuantity = 1;
-    showSellModal = true;
-    loadingInventory = true;
-    try {
-      warehouseInventory = await getWarehouseInventory(warehouse.id);
-    } catch (e) {
-      console.error('재고 로드 실패:', e);
-      warehouseInventory = [];
-    } finally {
-      loadingInventory = false;
-    }
-  }
-
-  async function handleSellProduct() {
-    if (!sellWarehouse || !sellInventoryItem) return;
-    sellSubmitting = true;
-    try {
-      await sellProduct({
-        warehouseId: sellWarehouse.id,
-        productId: sellInventoryItem.productId,
-        qualityGrade: sellInventoryItem.qualityGrade,
-        quantity: sellQuantity
-      });
-      warehouses = await getWarehouses().catch(() => warehouses);
-      sales = await getSales().catch(() => sales);
-      summary = await getDistributionSummary().catch(() => summary);
-      showSellModal = false;
-      toast.success('판매가 완료되었습니다.');
-    } catch (e) {
-      toast.error(friendlyError(e, '판매에 실패했습니다.'));
-    } finally {
-      sellSubmitting = false;
-    }
-  }
 </script>
 
 <div class="page-wrapper">
@@ -297,21 +203,21 @@
     <div class="card stat-card">
       <span class="label">현재 총 재고</span>
       <div class="value-row">
-        <h2 class="value">{(summary?.totalInventory ?? 0).toLocaleString()}</h2>
+        <h2 class="value">{(summary?.totalFactoryInventory ?? 0).toLocaleString()}</h2>
         <span class="unit">units</span>
+      </div>
+    </div>
+    <div class="card stat-card">
+      <span class="label">창고 사용률</span>
+      <div class="value-row">
+        <h2 class="value">{summary?.warehouseUsagePercent ?? 0}</h2>
+        <span class="unit">%</span>
       </div>
     </div>
     <div class="card stat-card">
       <span class="label">월간 총 수출액</span>
       <div class="value-row">
         <h2 class="value">{formatCurrency(summary?.monthlyExportRevenue ?? 0)}</h2>
-      </div>
-    </div>
-    <div class="card stat-card">
-      <span class="label">총 직원 수</span>
-      <div class="value-row">
-        <h2 class="value">{(company?.totalEmployees ?? 0).toLocaleString()}</h2>
-        <span class="unit">명</span>
       </div>
     </div>
   </section>
@@ -321,28 +227,17 @@
       <h3>글로벌 시장 현황</h3>
       <div class="warehouse-grid">
         {#each markets as market}
-          {#if market.code === 'KOR'}
-            <div class="wh-card wh-kor">
-              <div class="wh-header">
-                <span class="wh-flag">{market.flagEmoji}</span>
-                <span class="wh-name">{market.name}</span>
-              </div>
-              <div class="wh-kor-tag">국내 시장 · 즉시 판매</div>
-              <div class="wh-kor-desc">배송비 $0 · 관세 0%</div>
+          <div class="wh-card">
+            <div class="wh-header">
+              <span class="wh-flag">{market.flagEmoji}</span>
+              <span class="wh-name">{market.name}</span>
             </div>
-          {:else}
-            <div class="wh-card">
-              <div class="wh-header">
-                <span class="wh-flag">{market.flagEmoji}</span>
-                <span class="wh-name">{market.name}</span>
-              </div>
-              <div class="wh-market-info">
-                <span>배송비 {formatCurrency(market.shippingCostPerContainer)}/컨테이너</span>
-                <span>관세 {market.tariffRateMin}~{market.tariffRateMax}%</span>
-                <span>배송 {market.deliveryDaysMin}~{market.deliveryDaysMax}일</span>
-              </div>
+            <div class="wh-market-info">
+              <span>배송비 {formatCurrency(market.shippingCostPerContainer)}/컨테이너</span>
+              <span>관세 {market.tariffRateMin}~{market.tariffRateMax}%</span>
+              <span>배송 {market.deliveryDaysMin}~{market.deliveryDaysMax}일</span>
             </div>
-          {/if}
+          </div>
         {/each}
       </div>
     </section>
@@ -431,16 +326,22 @@
             <span class="inv-val">{(summary?.totalFactoryInventory ?? 0).toLocaleString()} units</span>
           </div>
           <div class="progress-track md">
-            <div class="progress-fill green" style="width: {summary?.totalInventory ? (summary.totalFactoryInventory / summary.totalInventory) * 100 : 0}%"></div>
+            <div class="progress-fill green" style="width: {summary?.totalFactoryWarehouseCapacity ? (summary.totalFactoryInventory / summary.totalFactoryWarehouseCapacity) * 100 : 0}%"></div>
           </div>
         </div>
         <div class="inventory-item">
           <div class="inv-header">
-            <span class="sub-label">창고 재고</span>
-            <span class="inv-val">{(summary?.totalWarehouseInventory ?? 0).toLocaleString()} units</span>
+            <span class="sub-label">창고 사용률</span>
+            <span class="inv-val">{summary?.warehouseUsagePercent ?? 0}%</span>
           </div>
           <div class="progress-track md">
-            <div class="progress-fill green" style="width: {summary?.totalInventory ? (summary.totalWarehouseInventory / summary.totalInventory) * 100 : 0}%"></div>
+            <div class="progress-fill green" style="width: {summary?.warehouseUsagePercent ?? 0}%"></div>
+          </div>
+        </div>
+        <div class="inventory-item">
+          <div class="inv-header">
+            <span class="sub-label">운송 중</span>
+            <span class="inv-val">{(summary?.inTransitQuantity ?? 0).toLocaleString()} units</span>
           </div>
         </div>
       </div>
@@ -515,7 +416,7 @@
   <div class="modal-overlay" onclick={() => { showShipmentModal = false; }}>
     <div class="modal" onclick={(e) => e.stopPropagation()}>
       <div class="modal-header">
-        <h3>{isKorMarket ? '국내 즉시 판매' : '새 선적 생성'}</h3>
+        <h3>새 선적 생성</h3>
         <button class="modal-close" onclick={() => { showShipmentModal = false; }}>✕</button>
       </div>
       <div class="modal-body">
@@ -569,108 +470,27 @@
           <label for="ship-qty">수량</label>
           <input id="ship-qty" type="number" min="1" bind:value={shipQuantity} oninput={() => { shipEstimate = null; }} />
         </div>
-        {#if isKorMarket}
-          <div class="estimate-box kor-info">
-            <h4>국내 즉시 판매</h4>
-            <div class="estimate-grid">
-              <span>배송비</span><span>$0</span>
-              <span>관세</span><span>0%</span>
-              <span>배송 시간</span><span>즉시</span>
-              <span>창고</span><span>불필요</span>
-            </div>
+        <button class="estimate-btn" onclick={handleEstimate} disabled={!shipFactoryId || !shipProductId || estimating}>
+          {estimating ? '견적 계산 중...' : '견적 확인'}
+        </button>
+        {#if shipEstimate}
+        <div class="estimate-box">
+          <h4>예상 견적</h4>
+          <div class="estimate-grid">
+            <span>컨테이너 수</span><span>{shipEstimate.containers}개</span>
+            <span>화물 가치</span><span>{formatCurrency(shipEstimate.goodsValue)}</span>
+            <span>물류비</span><span>{formatCurrency(shipEstimate.shippingCost)}</span>
+            <span>예상 관세</span><span>{formatCurrency(shipEstimate.estimatedTariffMin)} ~ {formatCurrency(shipEstimate.estimatedTariffMax)}</span>
+            <span>총 비용</span><span class="font-bold">{formatCurrency(shipEstimate.totalCostMin)} ~ {formatCurrency(shipEstimate.totalCostMax)}</span>
+            <span>배송 기간</span><span>{shipEstimate.estimatedDaysMin}~{shipEstimate.estimatedDaysMax}일</span>
           </div>
-        {:else}
-          <button class="estimate-btn" onclick={handleEstimate} disabled={!shipFactoryId || !shipProductId || estimating}>
-            {estimating ? '견적 계산 중...' : '견적 확인'}
-          </button>
-          {#if shipEstimate}
-          <div class="estimate-box">
-            <h4>예상 견적</h4>
-            <div class="estimate-grid">
-              <span>컨테이너 수</span><span>{shipEstimate.containers}개</span>
-              <span>화물 가치</span><span>{formatCurrency(shipEstimate.goodsValue)}</span>
-              <span>물류비</span><span>{formatCurrency(shipEstimate.shippingCost)}</span>
-              <span>예상 관세</span><span>{formatCurrency(shipEstimate.estimatedTariffMin)} ~ {formatCurrency(shipEstimate.estimatedTariffMax)}</span>
-              <span>총 비용</span><span class="font-bold">{formatCurrency(shipEstimate.totalCostMin)} ~ {formatCurrency(shipEstimate.totalCostMax)}</span>
-              <span>배송 기간</span><span>{shipEstimate.estimatedDaysMin}~{shipEstimate.estimatedDaysMax}일</span>
-            </div>
-          </div>
-          {/if}
+        </div>
         {/if}
       </div>
       <div class="modal-footer">
         <button class="cancel-modal-btn" onclick={() => { showShipmentModal = false; }}>취소</button>
-        <button class="primary-btn" onclick={handleCreateShipment} disabled={(!isKorMarket && !shipEstimate) || !shipFactoryId || !shipProductId || submittingShipment}>
-          {submittingShipment ? '처리 중...' : isKorMarket ? '즉시 판매' : '선적 생성'}
-        </button>
-      </div>
-    </div>
-  </div>
-  {/if}
-
-  <!-- 판매 모달 -->
-  {#if showSellModal}
-  <div class="modal-overlay" onclick={() => { showSellModal = false; }}>
-    <div class="modal" onclick={(e) => e.stopPropagation()}>
-      <div class="modal-header">
-        <h3>제품 판매 — {sellWarehouse?.market.flagEmoji} {sellWarehouse?.market.name}</h3>
-        <button class="modal-close" onclick={() => { showSellModal = false; }}>✕</button>
-      </div>
-      <div class="modal-body">
-        {#if loadingInventory}
-          <p class="loading-text">재고 정보를 불러오는 중...</p>
-        {:else if warehouseInventory.length === 0}
-          <p class="no-data">판매 가능한 재고가 없습니다.</p>
-        {:else}
-          <div class="form-group">
-            <label>판매할 제품 선택</label>
-            <div class="inventory-select-list">
-              {#each warehouseInventory as item}
-                <button
-                  class="inventory-item-btn"
-                  class:selected={sellInventoryItem?.id === item.id}
-                  onclick={() => { sellInventoryItem = item; sellQuantity = 1; }}
-                >
-                  <span class="inv-name">{item.productName}</span>
-                  <span class="inv-grade">등급 {item.qualityGrade}</span>
-                  <span class="inv-qty">재고 {(item.quantity ?? 0).toLocaleString()}개</span>
-                </button>
-              {/each}
-            </div>
-          </div>
-          {#if sellInventoryItem}
-          <div class="form-group">
-            <label for="sell-qty">판매 수량 (최대 {(sellInventoryItem.quantity ?? 0).toLocaleString()})</label>
-            <input id="sell-qty" type="number" min="1" max={sellInventoryItem.quantity} bind:value={sellQuantity} />
-          </div>
-          {/if}
-        {/if}
-      </div>
-      <div class="modal-footer">
-        <button class="cancel-modal-btn" onclick={() => { showSellModal = false; }}>취소</button>
-        <button class="primary-btn" onclick={handleSellProduct} disabled={!sellInventoryItem || sellSubmitting || loadingInventory}>
-          {sellSubmitting ? '판매 중...' : '판매 확정'}
-        </button>
-      </div>
-    </div>
-  </div>
-  {/if}
-
-  <!-- 창고 생성 모달 -->
-  {#if showCreateWarehouseModal}
-  <div class="modal-overlay" onclick={() => { showCreateWarehouseModal = false; }}>
-    <div class="modal" onclick={(e) => e.stopPropagation()}>
-      <div class="modal-header">
-        <h3>새 창고 생성</h3>
-        <button class="modal-close" onclick={() => { showCreateWarehouseModal = false; }}>✕</button>
-      </div>
-      <div class="modal-body">
-        <p>선택된 시장: {selectedMarket?.flagEmoji} {selectedMarket?.name}에 새 창고를 생성하시겠습니까?</p>
-      </div>
-      <div class="modal-footer">
-        <button class="cancel-modal-btn" onclick={() => { showCreateWarehouseModal = false; }}>취소</button>
-        <button class="primary-btn" onclick={handleCreateWarehouse} disabled={creatingWarehouse}>
-          {creatingWarehouse ? '생성 중...' : '생성'}
+        <button class="primary-btn" onclick={handleCreateShipment} disabled={!shipEstimate || !shipFactoryId || !shipProductId || submittingShipment}>
+          {submittingShipment ? '처리 중...' : '선적 생성'}
         </button>
       </div>
     </div>
@@ -726,7 +546,6 @@
   td { font-size: 14px; padding: 16px 0; border-bottom: 1px solid var(--color-border); color: var(--color-text); }
   tr:last-child td { border-bottom: none; }
   .font-bold { font-weight: 700; }
-  .country-cell { display: flex; align-items: center; gap: 6px; }
 
   /* --- 4. 상세 그리드 섹션 --- */
   .detail-section { margin-bottom: 24px; }
@@ -988,38 +807,6 @@
   .estimate-grid span:nth-child(odd) { color: var(--color-text-gray); }
   .estimate-grid span:nth-child(even) { font-weight: 600; text-align: right; }
 
-  /* 재고 선택 목록 */
-  .inventory-select-list {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    max-height: 240px;
-    overflow-y: auto;
-  }
-
-  .inventory-item-btn {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 10px 14px;
-    border: 1px solid var(--color-border);
-    border-radius: 8px;
-    background: var(--color-bg-0);
-    cursor: pointer;
-    text-align: left;
-    gap: 8px;
-    font-size: 13px;
-    transition: border-color 0.15s, background 0.15s;
-  }
-  .inventory-item-btn.selected {
-    border-color: var(--color-theme-1);
-    background: var(--color-theme-2, #ecf2fe);
-  }
-  .inventory-item-btn:hover:not(.selected) { border-color: var(--color-theme-1); }
-  .inv-name { font-weight: 600; color: var(--color-text); flex: 1; }
-  .inv-grade { color: var(--color-text-gray); }
-  .inv-qty { color: var(--color-text-gray); white-space: nowrap; }
-
   /* --- 창고 카드 그리드 --- */
   .warehouse-section { margin-bottom: 2.5rem; }
   .warehouse-section h3 { font-size: 1.125rem; font-weight: 700; margin: 0 0 1rem; color: var(--color-text); }
@@ -1031,9 +818,6 @@
   .wh-header { display: flex; align-items: center; gap: 0.5rem; }
   .wh-flag { font-size: 1.25rem; }
   .wh-name { font-size: 0.875rem; font-weight: 700; flex: 1; }
-  .wh-kor { border-color: #93c5fd; background: #eff6ff; }
-  .wh-kor-tag { font-size: 0.8rem; font-weight: 700; color: #1e40af; }
-  .wh-kor-desc { font-size: 0.7rem; color: #3b82f6; }
   .wh-market-info { display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.75rem; color: var(--color-text-gray); }
 
   /* --- 선적 섹션 헤더 --- */

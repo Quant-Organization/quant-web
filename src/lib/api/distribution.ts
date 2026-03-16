@@ -17,11 +17,25 @@ export interface MarketResponse {
 	deliveryDaysMax: number;
 }
 
+export interface ProductInventoryResponse {
+	productId: number;
+	productCode: string;
+	productName: string;
+	category: string;
+	gradeA: number;
+	gradeB: number;
+	gradeC: number;
+	gradeD: number;
+	total: number;
+}
+
 export interface DistributionSummaryResponse {
+	totalFactoryWarehouseCapacity: number;
 	totalFactoryInventory: number;
-	totalWarehouseInventory: number;
-	totalInventory: number;
+	warehouseUsagePercent: number;
+	productInventories: ProductInventoryResponse[];
 	activeShipments: number;
+	inTransitQuantity: number;
 	monthlyExportRevenue: number;
 	monthlyShippingCost: number;
 	monthlyTariffCost: number;
@@ -88,48 +102,6 @@ export interface SalesRecordResponse {
 	netProfit: number;
 }
 
-export interface SalesResultResponse {
-	quantity: number;
-	qualityGrade: string;
-	unitPrice: number;
-	totalRevenue: number;
-	productionCost: number;
-	netProfit: number;
-	marketCode: string;
-	marketName: string;
-}
-
-export interface SellProductRequest {
-	warehouseId: number;
-	productId: number;
-	qualityGrade: string;
-	quantity: number;
-}
-
-export interface UserWarehouseResponse {
-	id: number;
-	market: MarketResponse;
-	level: number;
-	capacity: number;
-	currentInventory: number;
-	availableSpace: number;
-	monthlyRentCost: number;
-	upgradeCost: number;
-	canUpgrade: boolean;
-	isActive: boolean;
-}
-
-export interface WarehouseInventoryResponse {
-	id: number;
-	warehouseId: number;
-	productId: number;
-	productName: string;
-	qualityGrade: string;
-	quantity: number;
-	averageCost: number;
-	estimatedValue: number;
-}
-
 export function getDistributionSummary() {
 	return fetchSpring<DistributionSummaryResponse>('/api/distribution/summary');
 }
@@ -170,31 +142,4 @@ export function createShipment(req: CreateShipmentRequest) {
 
 export function getSales() {
 	return fetchSpring<SalesRecordResponse[]>('/api/distribution/sales');
-}
-
-export function sellProduct(req: SellProductRequest) {
-	return fetchSpring<SalesResultResponse>('/api/distribution/sales', {
-		method: 'POST',
-		body: JSON.stringify(req)
-	});
-}
-
-export function getWarehouses() {
-	return fetchSpring<UserWarehouseResponse[]>('/api/distribution/warehouses');
-}
-
-export function createWarehouse(marketCode: string) {
-	return fetchSpring<UserWarehouseResponse>(`/api/distribution/warehouses?marketCode=${marketCode}`, {
-		method: 'POST'
-	});
-}
-
-export function getWarehouseInventory(warehouseId: number) {
-	return fetchSpring<WarehouseInventoryResponse[]>(`/api/distribution/warehouses/${warehouseId}/inventory`);
-}
-
-export function upgradeWarehouse(warehouseId: number) {
-	return fetchSpring<UserWarehouseResponse>(`/api/distribution/warehouses/${warehouseId}/upgrade`, {
-		method: 'PUT'
-	});
 }
