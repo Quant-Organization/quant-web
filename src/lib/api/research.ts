@@ -13,7 +13,7 @@ export interface ResearchProjectResponse {
 	effectValue: number;
 	effectDescription: string;
 	requiredBudget: number;
-	requiredDays: number;
+	requiredDays: number; // 서버에서 시간(hours) 단위로 반환
 	requiredResearchers: number;
 	prerequisiteProjectId: number | null;
 	imageUrl: string;

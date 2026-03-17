@@ -245,7 +245,7 @@
               <div class="stats-row">
                 <div class="stat-item">
                   <span class="s-label">남은 시간</span>
-                  <span class="s-val">{Math.ceil(research.remainingHours / 24)}일</span>
+                  <span class="s-val">{research.remainingHours >= 24 ? `${Math.ceil(research.remainingHours / 24)}일` : `${Math.ceil(research.remainingHours)}시간`}</span>
                 </div>
                 <div class="stat-item">
                   <span class="s-label">투입 연구원</span>
@@ -350,7 +350,7 @@
                 </div>
                 <div class="p-info-row">
                   <span class="p-effect">효과: {project.effectDescription}</span>
-                  <span class="p-cost">비용: {formatCurrency(project.requiredBudget)} / {project.requiredDays}일</span>
+                  <span class="p-cost">비용: {formatCurrency(project.requiredBudget)} / {project.requiredDays >= 24 ? `${Math.round(project.requiredDays / 24)}일` : `${project.requiredDays}시간`}</span>
                 </div>
                 <div class="p-footer">
                   <button

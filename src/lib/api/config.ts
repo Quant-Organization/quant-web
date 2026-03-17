@@ -10,6 +10,7 @@ const ERROR_MESSAGES: Record<string, string> = {
 	G001: '접근 권한이 없습니다.',
 	G002: '이미 존재합니다.',
 	G005: '레벨이 부족합니다.',
+	G006: '선행 조건을 충족하지 못했습니다.',
 };
 
 export function friendlyError(e: unknown, fallback: string): string {
