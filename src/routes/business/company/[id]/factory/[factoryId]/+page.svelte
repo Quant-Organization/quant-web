@@ -516,159 +516,163 @@
       </div>
     </div>
 
-    <div class="card chart-card">
-      <h3>공장 현황</h3>
-      <div class="chart-stats">
-        <div class="stat-item">
-          <span class="s-lbl">기본 생산량</span>
-          <span class="s-val">{fmtUnit(factory.baseMonthlyProduction)}</span>
+    <div class="col-left">
+      <div class="card chart-card">
+        <h3>공장 현황</h3>
+        <div class="chart-stats">
+          <div class="stat-item">
+            <span class="s-lbl">기본 생산량</span>
+            <span class="s-val">{fmtUnit(factory.baseMonthlyProduction)}</span>
+          </div>
+          <div class="stat-item">
+            <span class="s-lbl">현재 생산량</span>
+            <span class="s-val text-green">{fmtUnit(factory.currentMonthlyProduction)}</span>
+          </div>
+          <div class="stat-item">
+            <span class="s-lbl">효율</span>
+            <span class="s-val">{(factory.efficiency ?? 0).toFixed(1)}%</span>
+          </div>
+          <div class="stat-item">
+            <span class="s-lbl">재고량</span>
+            <span class="s-val">{fmtUnit(factory.currentInventory)}</span>
+          </div>
         </div>
-        <div class="stat-item">
-          <span class="s-lbl">현재 생산량</span>
-          <span class="s-val text-green">{fmtUnit(factory.currentMonthlyProduction)}</span>
-        </div>
-        <div class="stat-item">
-          <span class="s-lbl">효율</span>
-          <span class="s-val">{(factory.efficiency ?? 0).toFixed(1)}%</span>
-        </div>
-        <div class="stat-item">
-          <span class="s-lbl">재고량</span>
-          <span class="s-val">{fmtUnit(factory.currentInventory)}</span>
+
+        <div class="chart-container">
+          <svg viewBox="0 0 600 200" class="factory-chart-svg">
+            {#each chartMetrics as m, i}
+              {@const y = 20 + i * 44}
+              {@const barAreaW = 370}
+              <text x={82} y={y + 19} class="chart-bar-label">{m.label}</text>
+              <rect x={90} y={y} width={barAreaW} height={28} rx="6" class="chart-bar-bg" />
+              <rect x={90} y={y} width={Math.max(barAreaW * (Math.abs(m.value) / 100), 4)} height={28} rx="6" fill={m.color} opacity="0.85">
+                <animate attributeName="width" from="0" to={Math.max(barAreaW * (Math.abs(m.value) / 100), 4)} dur="0.6s" fill="freeze" />
+              </rect>
+              <text x={102} y={y + 19} class="chart-bar-pct">{Math.abs(m.value).toFixed(1)}%</text>
+              <text x={472} y={y + 19} class="chart-bar-value">{m.display}</text>
+            {/each}
+          </svg>
         </div>
       </div>
 
-      <div class="chart-container">
-        <svg viewBox="0 0 600 200" class="factory-chart-svg">
-          {#each chartMetrics as m, i}
-            {@const y = 20 + i * 44}
-            {@const barAreaW = 370}
-            <text x={82} y={y + 19} class="chart-bar-label">{m.label}</text>
-            <rect x={90} y={y} width={barAreaW} height={28} rx="6" class="chart-bar-bg" />
-            <rect x={90} y={y} width={Math.max(barAreaW * (Math.abs(m.value) / 100), 4)} height={28} rx="6" fill={m.color} opacity="0.85">
-              <animate attributeName="width" from="0" to={Math.max(barAreaW * (Math.abs(m.value) / 100), 4)} dur="0.6s" fill="freeze" />
-            </rect>
-            <text x={102} y={y + 19} class="chart-bar-pct">{Math.abs(m.value).toFixed(1)}%</text>
-            <text x={472} y={y + 19} class="chart-bar-value">{m.display}</text>
-          {/each}
-        </svg>
-      </div>
-    </div>
-
-    <div class="card control-card">
-      <h3>생산량 조절</h3>
-      <p class="card-desc">생산 비율을 조절하여 생산량과 운영비를 관리하세요.</p>
-
-      <div class="slider-wrapper">
-        <div class="slider-labels">
-          <span>0%</span>
-          <span>100%</span>
-        </div>
-        <input
-          type="range"
-          min={0}
-          max={100}
-          step="5"
-          bind:value={productionPercent}
-          style="background: linear-gradient(to right, #0f4c81 0%, #0f4c81 {sliderPercent}%, var(--color-border) {sliderPercent}%, var(--color-border) 100%);"
-        />
-      </div>
-
-      <div class="stats-grid">
-        <div class="s-box">
-          <span class="l">생산성/인당</span>
-          <span class="v">{factory.employeeCount > 0 ? fmtUnit(Math.round(factory.currentMonthlyProduction / factory.employeeCount)) : '0'} <span class="unit">Units</span></span>
-        </div>
-        <div class="s-box">
-          <span class="l">평균 임금</span>
-          <span class="v">{factory.employeeCount > 0 ? fmtMoney(Math.round(factory.monthlyLaborCost / factory.employeeCount)) : '-'}</span>
-        </div>
-        <div class="s-box">
-          <span class="l">총 인건비</span>
-          <span class="v">{fmtMoney(factory.monthlyLaborCost)}</span>
-        </div>
-        <div class="s-box">
-          <button class="btn-adjust" onclick={handleAdjustProduction} disabled={actionLoading}>
-            {actionLoading ? '처리중...' : '적용'}
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <div class="card rnd-card">
-      <h3>적용된 R&D 효과</h3>
-      {#if rndEffects.length > 0}
-        <div class="rnd-list">
-          {#each rndEffects as effect}
-            <div class="rnd-item">
-              <div class="rnd-icon">
-                {#if effect.effectType === 'REDUCE_LABOR' || effect.effectType === 'INCREASE_PRODUCTION' || effect.effectType === 'INCREASE_MAX_PRODUCTION'}📈
-                {:else if effect.effectType === 'REDUCE_ELECTRICITY_COST' || effect.effectType === 'REDUCE_MATERIAL_COST' || effect.effectType === 'REDUCE_SHIPPING_COST'}💰
-                {:else if effect.effectType === 'REDUCE_DEFECT_RATE' || effect.effectType === 'INCREASE_PRODUCT_PRICE' || effect.effectType === 'INCREASE_BRAND_VALUE' || effect.effectType === 'INCREASE_QUALITY_SCORE'}✨
-                {:else if effect.effectType === 'INCREASE_WAREHOUSE_CAPACITY'}📦
-                {:else if effect.effectType === 'UNLOCK_PRODUCT'}🔓
-                {:else if effect.effectType === 'INCREASE_AUTO_SELL_LIMIT'}🏷️
-                {:else}🔬
-                {/if}
-              </div>
-              <div class="rnd-info">
-                <div class="rnd-head">
-                  <span class="rnd-name">{effect.project.name}</span>
-                  <span class="rnd-badge" class:active={effect.isActive}>{effect.isActive ? '활성' : '비활성'}</span>
+      <div class="card rnd-card">
+        <h3>적용된 R&D 효과</h3>
+        {#if rndEffects.length > 0}
+          <div class="rnd-list">
+            {#each rndEffects as effect}
+              <div class="rnd-item">
+                <div class="rnd-icon">
+                  {#if effect.effectType === 'REDUCE_LABOR' || effect.effectType === 'INCREASE_PRODUCTION' || effect.effectType === 'INCREASE_MAX_PRODUCTION'}📈
+                  {:else if effect.effectType === 'REDUCE_ELECTRICITY_COST' || effect.effectType === 'REDUCE_MATERIAL_COST' || effect.effectType === 'REDUCE_SHIPPING_COST'}💰
+                  {:else if effect.effectType === 'REDUCE_DEFECT_RATE' || effect.effectType === 'INCREASE_PRODUCT_PRICE' || effect.effectType === 'INCREASE_BRAND_VALUE' || effect.effectType === 'INCREASE_QUALITY_SCORE'}✨
+                  {:else if effect.effectType === 'INCREASE_WAREHOUSE_CAPACITY'}📦
+                  {:else if effect.effectType === 'UNLOCK_PRODUCT'}🔓
+                  {:else if effect.effectType === 'INCREASE_AUTO_SELL_LIMIT'}🏷️
+                  {:else}🔬
+                  {/if}
                 </div>
-                <div class="rnd-desc text-green">{effect.effectDescription || effect.effectTypeName}</div>
-                <div class="rnd-meta">효과 +{effect.effectValue}% · {effect.completedDate?.split('T')[0] ?? ''}</div>
+                <div class="rnd-info">
+                  <div class="rnd-head">
+                    <span class="rnd-name">{effect.project.name}</span>
+                    <span class="rnd-badge" class:active={effect.isActive}>{effect.isActive ? '활성' : '비활성'}</span>
+                  </div>
+                  <div class="rnd-desc text-green">{effect.effectDescription || effect.effectTypeName}</div>
+                  <div class="rnd-meta">효과 +{effect.effectValue}% · {effect.completedDate?.split('T')[0] ?? ''}</div>
+                </div>
               </div>
-            </div>
-          {/each}
-        </div>
-      {:else}
-        <div class="rnd-empty">적용된 R&D 효과가 없습니다. R&D 센터에서 연구를 진행해보세요.</div>
-      {/if}
-    </div>
-
-    <div class="card finance-card-side">
-      <h3>재무 상태</h3>
-      <div class="f-col">
-        <h4>월 운영비 상세</h4>
-        <div class="f-item"><span>인건비</span> <span>{fmtMoney(factory.monthlyLaborCost)}</span></div>
-        <div class="f-item"><span>자재비</span> <span>{fmtMoney(factory.monthlyMaterialCost)}</span></div>
-        <div class="f-item"><span>전기세</span> <span>{fmtMoney(factory.monthlyElectricityCost)}</span></div>
-        <div class="f-divider"></div>
-        <div class="f-item total"><span>총계</span> <span class="text-red">-{fmtMoney(totalOpex)}</span></div>
+            {/each}
+          </div>
+        {:else}
+          <div class="rnd-empty">적용된 R&D 효과가 없습니다. R&D 센터에서 연구를 진행해보세요.</div>
+        {/if}
       </div>
-      <div class="f-separator"></div>
-      <div class="f-col">
-        <h4>수익성 지표</h4>
-        <div class="f-item"><span>월 매출</span> <span>{fmtMoney(factory.monthlyRevenue)}</span></div>
-        <div class="f-item"><span>운영비</span> <span class="text-red">-{fmtMoney(totalOpex)}</span></div>
-        <div class="f-divider"></div>
-        <div class="f-item total">
-          <span>월 순수익</span>
-          <span class="text-profit">{factory.monthlyNetIncome >= 0 ? '+' : ''}{fmtMoney(factory.monthlyNetIncome)}</span>
+
+      <div class="card upgrade-card">
+        <div class="upgrade-card-header">
+          <h3>설비 현황</h3>
+          <button class="btn-open-upgrade" onclick={() => { showUpgradeModal = true; }}>업그레이드</button>
+        </div>
+        <div class="upgrade-summary">
+          <div class="us-item"><span class="us-icon">&#9881;&#65039;</span><span class="us-label">생산 라인</span><span class="us-value">{prodLineLabels[factory.productionLineType] ?? '-'}</span></div>
+          <div class="us-item"><span class="us-icon">&#127959;&#65039;</span><span class="us-label">부지</span><span class="us-value">{factory.landExpansionLevel}단계</span></div>
+          <div class="us-item"><span class="us-icon">&#127970;</span><span class="us-label">건물</span><span class="us-value">{factory.buildingExpansionLevel}단계</span></div>
+          <div class="us-item"><span class="us-icon">&#9749;</span><span class="us-label">휴게실</span><span class="us-value">{factory.loungeLevel}단계</span></div>
+          <div class="us-item"><span class="us-icon">&#9889;</span><span class="us-label">에너지</span><span class="us-value">{energyLabels[factory.energyOption] ?? '-'}</span></div>
+          <div class="us-item"><span class="us-icon">&#128274;</span><span class="us-label">보안</span><span class="us-value">{securityLabels[factory.securityOption] ?? '-'}</span></div>
         </div>
       </div>
     </div>
 
-    <div class="card upgrade-card">
-      <div class="upgrade-card-header">
-        <h3>설비 현황</h3>
-        <button class="btn-open-upgrade" onclick={() => { showUpgradeModal = true; }}>업그레이드</button>
-      </div>
-      <div class="upgrade-summary">
-        <div class="us-item"><span class="us-icon">&#9881;&#65039;</span><span class="us-label">생산 라인</span><span class="us-value">{prodLineLabels[factory.productionLineType] ?? '-'}</span></div>
-        <div class="us-item"><span class="us-icon">&#127959;&#65039;</span><span class="us-label">부지</span><span class="us-value">{factory.landExpansionLevel}단계</span></div>
-        <div class="us-item"><span class="us-icon">&#127970;</span><span class="us-label">건물</span><span class="us-value">{factory.buildingExpansionLevel}단계</span></div>
-        <div class="us-item"><span class="us-icon">&#9749;</span><span class="us-label">휴게실</span><span class="us-value">{factory.loungeLevel}단계</span></div>
-        <div class="us-item"><span class="us-icon">&#9889;</span><span class="us-label">에너지</span><span class="us-value">{energyLabels[factory.energyOption] ?? '-'}</span></div>
-        <div class="us-item"><span class="us-icon">&#128274;</span><span class="us-label">보안</span><span class="us-value">{securityLabels[factory.securityOption] ?? '-'}</span></div>
-      </div>
-    </div>
+    <div class="col-right">
+      <div class="card control-card">
+        <h3>생산량 조절</h3>
+        <p class="card-desc">생산 비율을 조절하여 생산량과 운영비를 관리하세요.</p>
 
-    <div class="action-buttons">
-      <button class="btn btn-yellow" onclick={handleTogglePause} disabled={actionLoading}>
-        {isRunning ? '일시중지' : '재가동'}
-      </button>
-      <button class="btn btn-red" onclick={handleDeleteFactory} disabled={actionLoading}>공장 매각</button>
+        <div class="slider-wrapper">
+          <div class="slider-labels">
+            <span>0%</span>
+            <span>100%</span>
+          </div>
+          <input
+            type="range"
+            min={0}
+            max={100}
+            step="5"
+            bind:value={productionPercent}
+            style="background: linear-gradient(to right, #0f4c81 0%, #0f4c81 {sliderPercent}%, var(--color-border) {sliderPercent}%, var(--color-border) 100%);"
+          />
+        </div>
+
+        <div class="stats-grid">
+          <div class="s-box">
+            <span class="l">생산성/인당</span>
+            <span class="v">{factory.employeeCount > 0 ? fmtUnit(Math.round(factory.currentMonthlyProduction / factory.employeeCount)) : '0'} <span class="unit">Units</span></span>
+          </div>
+          <div class="s-box">
+            <span class="l">평균 임금</span>
+            <span class="v">{factory.employeeCount > 0 ? fmtMoney(Math.round(factory.monthlyLaborCost / factory.employeeCount)) : '-'}</span>
+          </div>
+          <div class="s-box">
+            <span class="l">총 인건비</span>
+            <span class="v">{fmtMoney(factory.monthlyLaborCost)}</span>
+          </div>
+          <div class="s-box">
+            <button class="btn-adjust" onclick={handleAdjustProduction} disabled={actionLoading}>
+              {actionLoading ? '처리중...' : '적용'}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card finance-card-side">
+        <h3>재무 상태</h3>
+        <div class="f-col">
+          <h4>월 운영비 상세</h4>
+          <div class="f-item"><span>인건비</span> <span>{fmtMoney(factory.monthlyLaborCost)}</span></div>
+          <div class="f-item"><span>자재비</span> <span>{fmtMoney(factory.monthlyMaterialCost)}</span></div>
+          <div class="f-item"><span>전기세</span> <span>{fmtMoney(factory.monthlyElectricityCost)}</span></div>
+          <div class="f-divider"></div>
+          <div class="f-item total"><span>총계</span> <span class="text-red">-{fmtMoney(totalOpex)}</span></div>
+        </div>
+        <div class="f-separator"></div>
+        <div class="f-col">
+          <h4>수익성 지표</h4>
+          <div class="f-item"><span>월 매출</span> <span>{fmtMoney(factory.monthlyRevenue)}</span></div>
+          <div class="f-item"><span>운영비</span> <span class="text-red">-{fmtMoney(totalOpex)}</span></div>
+          <div class="f-divider"></div>
+          <div class="f-item total">
+            <span>월 순수익</span>
+            <span class="text-profit">{factory.monthlyNetIncome >= 0 ? '+' : ''}{fmtMoney(factory.monthlyNetIncome)}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="action-buttons">
+        <button class="btn btn-yellow" onclick={handleTogglePause} disabled={actionLoading}>
+          {isRunning ? '일시중지' : '재가동'}
+        </button>
+        <button class="btn btn-red" onclick={handleDeleteFactory} disabled={actionLoading}>공장 매각</button>
+      </div>
     </div>
 
     {#if showUpgradeModal}
@@ -919,6 +923,7 @@
     display: grid;
     grid-template-columns: 1.6fr 1fr;
     gap: 20px;
+    align-items: start;
   }
 
   .card {
@@ -1031,7 +1036,8 @@
   .rnd-empty { text-align: center; padding: 24px 0; color: var(--color-text-gray); font-size: 13px; }
   .rnd-head { display: flex; align-items: center; gap: 8px; }
 
-  /* --- Cards in grid flow naturally: left (1.6fr) / right (1fr) --- */
+  /* --- Column Layout --- */
+  .col-left, .col-right { display: flex; flex-direction: column; gap: 20px; }
 
   /* --- Upgrade Summary Card --- */
   .upgrade-card-header {
@@ -1197,7 +1203,7 @@
   }
 
   /* Buttons */
-  .action-buttons { display: flex; gap: 10px; align-self: start; }
+  .action-buttons { display: flex; gap: 10px; }
   .btn {
     flex: 1; padding: 12px; border: none; border-radius: 8px;
     font-size: 14px; font-weight: 700; cursor: pointer; transition: 0.2s;
