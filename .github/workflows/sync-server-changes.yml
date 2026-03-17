@@ -15,6 +15,7 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  id-token: write
 
 jobs:
   claude-sync:
@@ -38,8 +39,7 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          model: claude-sonnet-4-20250514
-          max_turns: 30
+          claude_args: "--model claude-sonnet-4-20250514 --max-turns 30 --allowedTools Read,Write,Edit,Bash,Glob,Grep"
 
           prompt: |
             ## 서버 API 변경 동기화
@@ -92,8 +92,6 @@ jobs:
             - UI 텍스트는 모두 한국어
 
             ${{ github.event.inputs.prompt || '' }}
-
-          allowed_tools: "Read,Write,Edit,Bash,Glob,Grep"
 
       # 변경사항 확인
       - name: Check for changes
