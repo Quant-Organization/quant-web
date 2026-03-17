@@ -89,6 +89,12 @@ function invalidateCacheByBase(base: string): void {
 	}
 }
 
+/** Clear all cached responses and in-flight trackers (call on logout). */
+export function clearAllCaches(): void {
+	responseCache.clear();
+	inflightRequests.clear();
+}
+
 async function requestWithSmartCache<T = unknown>(
 	base: string,
 	path: string,

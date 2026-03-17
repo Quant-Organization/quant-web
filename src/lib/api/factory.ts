@@ -114,3 +114,18 @@ export function adjustProduction(id: number, percentage: number) {
 export function deleteFactory(id: number) {
 	return fetchSpring(`/api/factories/${id}`, { method: 'DELETE' });
 }
+
+export type UpgradeType = 'PRODUCTION_LINE' | 'LAND' | 'BUILDING' | 'LOUNGE' | 'ENERGY' | 'SECURITY';
+
+export interface UpgradeFactoryResponse {
+	success: boolean;
+	factory: FactoryResponse;
+	message: string;
+}
+
+export function upgradeFactory(id: number, upgradeType: UpgradeType) {
+	return fetchSpring<UpgradeFactoryResponse>(`/api/factories/${id}/upgrade`, {
+		method: 'PUT',
+		body: JSON.stringify({ upgradeType })
+	});
+}

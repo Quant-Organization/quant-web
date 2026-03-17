@@ -8,7 +8,9 @@
     resumeFactory,
     adjustProduction,
     deleteFactory,
-    type FactoryResponse
+    upgradeFactory,
+    type FactoryResponse,
+    type UpgradeType
   } from '$lib/api/factory';
   import {
     getFactoryProduction,
@@ -137,6 +139,90 @@
   let totalOpex = $derived(factory
     ? factory.monthlyLaborCost + factory.monthlyMaterialCost + factory.monthlyElectricityCost
     : 0);
+
+  // 업그레이드 state
+  let upgradingType = $state<UpgradeType | null>(null);
+
+  const prodLineLabels: Record<string, string> = { NORMAL: '일반', AUTOMATED: '자동', ADVANCED: '첨단' };
+  const energyLabels: Record<string, string> = { STANDARD: '표준', EFFICIENT: '고효율', RENEWABLE: '재생 에너지' };
+  const securityLabels: Record<string, string> = { STANDARD: '표준', ADVANCED: '고급', PREMIUM: '프리미엄' };
+
+  const prodLineOrder = ['NORMAL', 'AUTOMATED', 'ADVANCED'];
+  const energyOrder = ['STANDARD', 'EFFICIENT', 'RENEWABLE'];
+  const securityOrder = ['STANDARD', 'ADVANCED', 'PREMIUM'];
+
+  function isMaxLevel(type: UpgradeType): boolean {
+    if (!factory) return true;
+    switch (type) {
+      case 'PRODUCTION_LINE': return factory.productionLineType === 'ADVANCED';
+      case 'LAND': return factory.landExpansionLevel >= 2;
+      case 'BUILDING': return factory.buildingExpansionLevel >= 2;
+      case 'LOUNGE': return factory.loungeLevel >= 2;
+      case 'ENERGY': return factory.energyOption === 'RENEWABLE';
+      case 'SECURITY': return factory.securityOption === 'PREMIUM';
+      default: return true;
+    }
+  }
+
+  function currentLevelText(type: UpgradeType): string {
+    if (!factory) return '-';
+    switch (type) {
+      case 'PRODUCTION_LINE': return prodLineLabels[factory.productionLineType] ?? factory.productionLineType;
+      case 'LAND': return `${factory.landExpansionLevel}단계`;
+      case 'BUILDING': return `${factory.buildingExpansionLevel}단계`;
+      case 'LOUNGE': return `${factory.loungeLevel}단계`;
+      case 'ENERGY': return energyLabels[factory.energyOption] ?? factory.energyOption;
+      case 'SECURITY': return securityLabels[factory.securityOption] ?? factory.securityOption;
+      default: return '-';
+    }
+  }
+
+  function nextLevelText(type: UpgradeType): string {
+    if (!factory) return '-';
+    switch (type) {
+      case 'PRODUCTION_LINE': {
+        const idx = prodLineOrder.indexOf(factory.productionLineType);
+        return idx < prodLineOrder.length - 1 ? prodLineLabels[prodLineOrder[idx + 1]] : '-';
+      }
+      case 'LAND': return factory.landExpansionLevel < 2 ? `${factory.landExpansionLevel + 1}단계` : '-';
+      case 'BUILDING': return factory.buildingExpansionLevel < 2 ? `${factory.buildingExpansionLevel + 1}단계` : '-';
+      case 'LOUNGE': return factory.loungeLevel < 2 ? `${factory.loungeLevel + 1}단계` : '-';
+      case 'ENERGY': {
+        const idx = energyOrder.indexOf(factory.energyOption);
+        return idx < energyOrder.length - 1 ? energyLabels[energyOrder[idx + 1]] : '-';
+      }
+      case 'SECURITY': {
+        const idx = securityOrder.indexOf(factory.securityOption);
+        return idx < securityOrder.length - 1 ? securityLabels[securityOrder[idx + 1]] : '-';
+      }
+      default: return '-';
+    }
+  }
+
+  async function handleUpgrade(type: UpgradeType) {
+    if (!factory || upgradingType) return;
+    const confirmed = confirm(`${upgradeItems.find(u => u.type === type)?.label ?? type}을(를) 업그레이드하시겠습니까?`);
+    if (!confirmed) return;
+    upgradingType = type;
+    try {
+      const res = await upgradeFactory(factory.id, type);
+      factory = res.factory;
+      toast.success(res.message);
+    } catch (e: any) {
+      toast.error(friendlyError(e, '업그레이드에 실패했습니다.'));
+    } finally {
+      upgradingType = null;
+    }
+  }
+
+  const upgradeItems: { type: UpgradeType; label: string; icon: string; desc: string }[] = [
+    { type: 'PRODUCTION_LINE', label: '생산 라인', icon: '⚙️', desc: '생산 처리율 향상' },
+    { type: 'LAND', label: '부지 확장', icon: '🏗️', desc: '생산량 증가' },
+    { type: 'BUILDING', label: '건물 확장', icon: '🏢', desc: '생산량 증가' },
+    { type: 'LOUNGE', label: '휴게실', icon: '☕', desc: '효율 증가' },
+    { type: 'ENERGY', label: '에너지', icon: '⚡', desc: '전기세 절감' },
+    { type: 'SECURITY', label: '보안', icon: '🔒', desc: '보안 수준 향상' },
+  ];
 
   onMount(async () => {
     try {
@@ -513,6 +599,8 @@
                 {:else if effect.effectType === 'REDUCE_ELECTRICITY_COST' || effect.effectType === 'REDUCE_MATERIAL_COST' || effect.effectType === 'REDUCE_SHIPPING_COST'}💰
                 {:else if effect.effectType === 'REDUCE_DEFECT_RATE' || effect.effectType === 'INCREASE_PRODUCT_PRICE' || effect.effectType === 'INCREASE_BRAND_VALUE' || effect.effectType === 'INCREASE_QUALITY_SCORE'}✨
                 {:else if effect.effectType === 'INCREASE_WAREHOUSE_CAPACITY'}📦
+                {:else if effect.effectType === 'UNLOCK_PRODUCT'}🔓
+                {:else if effect.effectType === 'INCREASE_AUTO_SELL_LIMIT'}🏷️
                 {:else}🔬
                 {/if}
               </div>
@@ -530,6 +618,43 @@
       {:else}
         <div class="rnd-empty">적용된 R&D 효과가 없습니다. R&D 센터에서 연구를 진행해보세요.</div>
       {/if}
+    </div>
+
+    <div class="card upgrade-card">
+      <h3>설비 업그레이드</h3>
+      <div class="upgrade-grid">
+        {#each upgradeItems as item}
+          {@const maxed = isMaxLevel(item.type)}
+          <div class="upgrade-item" class:maxed>
+            <div class="upgrade-icon">{item.icon}</div>
+            <div class="upgrade-info">
+              <span class="upgrade-label">{item.label}</span>
+              <span class="upgrade-desc">{item.desc}</span>
+              <div class="upgrade-levels">
+                <span class="upgrade-current">{currentLevelText(item.type)}</span>
+                {#if !maxed}
+                  <span class="upgrade-arrow">→</span>
+                  <span class="upgrade-next">{nextLevelText(item.type)}</span>
+                {/if}
+              </div>
+            </div>
+            <button
+              class="btn-upgrade"
+              class:maxed
+              onclick={() => handleUpgrade(item.type)}
+              disabled={maxed || !!upgradingType}
+            >
+              {#if maxed}
+                MAX
+              {:else if upgradingType === item.type}
+                처리중...
+              {:else}
+                업그레이드
+              {/if}
+            </button>
+          </div>
+        {/each}
+      </div>
     </div>
 
     <div class="card finance-container">
@@ -837,6 +962,43 @@
   .rnd-meta { font-size: 11px; color: var(--color-text-gray); margin-top: 2px; }
   .rnd-empty { text-align: center; padding: 24px 0; color: var(--color-text-gray); font-size: 13px; }
   .rnd-head { display: flex; align-items: center; gap: 8px; }
+
+  /* --- Upgrade Card --- */
+  .upgrade-card { grid-column: 1 / -1; }
+  .upgrade-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .upgrade-item {
+    display: flex; align-items: center; gap: 12px;
+    padding: 14px 16px; border: 1px solid var(--color-border); border-radius: 10px;
+    background: var(--color-bg-2, #f9fafb); transition: border-color 0.2s;
+  }
+  .upgrade-item:not(.maxed):hover { border-color: var(--color-theme-1); }
+  .upgrade-item.maxed { opacity: 0.6; }
+  .upgrade-icon {
+    width: 40px; height: 40px; border-radius: 8px; background: #eef2ff;
+    display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0;
+  }
+  .upgrade-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+  .upgrade-label { font-size: 14px; font-weight: 700; }
+  .upgrade-desc { font-size: 11px; color: var(--color-text-gray); }
+  .upgrade-levels { display: flex; align-items: center; gap: 6px; margin-top: 2px; }
+  .upgrade-current { font-size: 12px; font-weight: 600; color: var(--color-text-gray); }
+  .upgrade-arrow { font-size: 11px; color: var(--color-text-gray); }
+  .upgrade-next { font-size: 12px; font-weight: 700; color: var(--color-theme-1); }
+  .btn-upgrade {
+    padding: 6px 14px; border: none; border-radius: 6px; font-size: 12px; font-weight: 700;
+    background: var(--color-theme-1); color: white; cursor: pointer; white-space: nowrap;
+    transition: background 0.2s;
+  }
+  .btn-upgrade:hover:not(:disabled) { background: #0c3b66; }
+  .btn-upgrade:disabled { opacity: 0.6; cursor: not-allowed; }
+  .btn-upgrade.maxed { background: #d1d5db; color: #6b7280; }
+
+  @media (max-width: 1024px) {
+    .upgrade-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 600px) {
+    .upgrade-grid { grid-template-columns: 1fr; }
+  }
 
   /* --- Finance & Actions --- */
   .finance-container {

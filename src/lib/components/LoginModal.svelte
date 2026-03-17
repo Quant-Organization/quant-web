@@ -10,6 +10,22 @@
     import logo from '$lib/images/quant-logo.svg';
     import { get } from 'svelte/store';
 
+    import type { FastAPIToken } from '$lib/api/auth';
+
+    /** FastAPI 로그인/회원가입을 1회 재시도 후 토큰 저장. 실패 시 toast 경고. */
+    async function loginFastAPI(call: () => Promise<FastAPIToken>) {
+        for (let attempt = 0; attempt < 2; attempt++) {
+            try {
+                const res = await call();
+                localStorage.setItem('fastapi_token', res.access_token);
+                return;
+            } catch {
+                if (attempt === 0) await new Promise(r => setTimeout(r, 500));
+            }
+        }
+        toast.warning('주식/코인 서버 연결에 실패했습니다. 일부 기능이 제한될 수 있습니다.');
+    }
+
     let mode: 'login' | 'register' = $state('login');
     let username = $state('');
     let password = $state('');
@@ -44,12 +60,7 @@
             if (mode === 'login') {
                 const springRes = await springLogin(username, password);
                 localStorage.setItem('spring_token', springRes.token);
-                try {
-                    const fastRes = await fastAPILogin(username, password);
-                    localStorage.setItem('fastapi_token', fastRes.access_token);
-                } catch {
-                    toast.warning('주식/코인 서버 연결에 실패했습니다. 일부 기능이 제한될 수 있습니다.');
-                }
+                await loginFastAPI(() => fastAPILogin(username, password));
                 auth.login(springRes.token, {
                     id: springRes.id,
                     username: springRes.username,
@@ -62,10 +73,7 @@
             } else {
                 const springRes = await springRegister(username, password, playerName);
                 localStorage.setItem('spring_token', springRes.token);
-                try {
-                    const fastRes = await fastAPIRegister(username, email, password);
-                    localStorage.setItem('fastapi_token', fastRes.access_token);
-                } catch { /* may already exist */ }
+                await loginFastAPI(() => fastAPIRegister(username, email, password));
                 auth.login(springRes.token, {
                     id: springRes.id,
                     username: springRes.username,

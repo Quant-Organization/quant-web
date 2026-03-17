@@ -1,4 +1,5 @@
 import { writable, derived } from 'svelte/store';
+import { clearAllCaches } from '$lib/api/config';
 
 export interface User {
 	id: number;
@@ -42,6 +43,7 @@ function createAuthStore() {
 			localStorage.removeItem('spring_token');
 			localStorage.removeItem('fastapi_token');
 		}
+		clearAllCaches();
 	}
 
 	const isLoggedIn = derived(token, ($token) => !!$token);

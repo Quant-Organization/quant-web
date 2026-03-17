@@ -41,10 +41,8 @@
 		}
 
 		const onAuthRequired = () => {
-			// 만료된 토큰 정리 후 재로그인 요청
+			// 만료된 토큰 정리 후 재로그인 요청 (auth.logout이 모든 토큰 + 캐시 정리)
 			auth.logout();
-			localStorage.removeItem('spring_token');
-			localStorage.removeItem('fastapi_token');
 			loginModalAuthRequired.set(true);
 			showLoginModal.set(true);
 		};
