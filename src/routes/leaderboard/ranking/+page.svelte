@@ -3,6 +3,11 @@
   import { toast } from 'svelte-sonner';
   import { getTopRankers, getMyRank, type LeaderboardEntry } from '$lib/api/leaderboard';
   import SkeletonTable from '$lib/components/SkeletonTable.svelte';
+  import { Badge } from '$lib/components/ui/badge';
+  import { Button } from '$lib/components/ui/button';
+  import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '$lib/components/ui/tooltip';
+  import { Separator } from '$lib/components/ui/separator';
+  import { Card, CardContent } from '$lib/components/ui/card';
 
   // --- State ---
   let players = $state<LeaderboardEntry[]>([]);
@@ -27,21 +32,26 @@
         ? (myRank.rankChange > 0 ? `↑${myRank.rankChange}위 상승` : `↓${Math.abs(myRank.rankChange)}위 하락`)
         : '-',
       subValueColor: myRank && myRank.rankChange > 0 ? 'green' : myRank && myRank.rankChange < 0 ? 'red' : 'gray',
-      iconType: 'medal' as const
+      iconType: 'medal' as const,
+      tooltip: myRank
+        ? `현재 ${myRank.rank}위 · ${myRank.rankChange > 0 ? `${myRank.rankChange}위 상승` : myRank.rankChange < 0 ? `${Math.abs(myRank.rankChange)}위 하락` : '변동 없음'}`
+        : '로그인 후 확인 가능합니다'
     },
     {
       label: '1위 총 자산',
       mainValue: players[0] ? formatAsset(players[0].totalAssetValue) : '-',
       subValue: players[0] ? (players[0].playerName ?? players[0].username) : '',
       subValueColor: 'gray' as const,
-      iconType: 'chart' as const
+      iconType: 'chart' as const,
+      tooltip: players[0] ? `정확한 자산: $${players[0].totalAssetValue.toLocaleString()}` : '-'
     },
     {
       label: '상위 플레이어',
       mainValue: players[0] ? (players[0].playerName ?? players[0].username) : '-',
       subValue: players[0] ? (players[0].title ?? '') : '',
       subValueColor: 'gray' as const,
-      iconType: 'crown' as const
+      iconType: 'crown' as const,
+      tooltip: players[0] ? `레벨 ${players[0].level}` : '-'
     }
   ]);
 
@@ -98,113 +108,126 @@
   {:else if error}
     <div class="error-state">{error}</div>
   {:else}
-    <section class="stats-grid">
-      {#each topStats as stat}
-        <div class="stat-card">
-          <div class="stat-content">
-            <span class="stat-label">{stat.label}</span>
-            <div class="stat-values">
-              <span class="main-val">{stat.mainValue}</span>
-              {#if stat.subValue}
-                <span class="sub-val {stat.subValueColor}">{stat.subValue}</span>
-              {/if}
+    <TooltipProvider>
+      <section class="stats-grid">
+        {#each topStats as stat}
+          <Card class="stat-card-wrapper">
+            <CardContent class="stat-card-content">
+              <div class="stat-content">
+                <span class="stat-label">{stat.label}</span>
+                <Tooltip>
+                  <TooltipTrigger>
+                    <div class="stat-values">
+                      <span class="main-val">{stat.mainValue}</span>
+                      {#if stat.subValue}
+                        <span class="sub-val {stat.subValueColor}">{stat.subValue}</span>
+                      {/if}
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>{stat.tooltip}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+              <div class="stat-icon">
+                {#if stat.iconType === 'medal'}
+                  <div class="circle-icon gold">🥇</div>
+                {:else if stat.iconType === 'crown'}
+                  <div class="circle-icon green">👑</div>
+                {/if}
+              </div>
+            </CardContent>
+          </Card>
+        {/each}
+      </section>
+
+      <Separator class="my-separator" />
+
+      <section class="ranking-container">
+
+        <div class="ranking-controls">
+          <h2>실시간 랭킹</h2>
+          <div class="control-right">
+            <div class="search-box">
+              <svg class="search-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+              </svg>
+              <input type="text" placeholder="플레이어 검색" bind:value={searchText} />
             </div>
+            <Button variant="outline" class="filter-btn-override">
+              <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/>
+              </svg>
+              필터
+            </Button>
           </div>
-          <div class="stat-icon">
-            {#if stat.iconType === 'medal'}
-              <div class="circle-icon gold">🥇</div>
-            {:else if stat.iconType === 'crown'}
-              <div class="circle-icon green">👑</div>
+        </div>
+
+        <div class="ranking-table">
+          <div class="table-header">
+            <div class="col-rank">순위</div>
+            <div class="col-player">플레이어</div>
+            <div class="col-tag">칭호</div>
+            <div class="col-assets">총 자산 가치</div>
+            <div class="col-return">순위 변동</div>
+          </div>
+
+          <div class="table-body">
+            {#if filteredPlayers.length === 0}
+              <div class="empty-row">검색 결과가 없습니다.</div>
             {/if}
-          </div>
-        </div>
-      {/each}
-    </section>
+            {#each filteredPlayers as player}
+              <div class="table-row" class:my-rank={myRank?.username === player.username}>
 
-    <section class="ranking-container">
-
-      <div class="ranking-controls">
-        <h2>실시간 랭킹</h2>
-        <div class="control-right">
-          <div class="search-box">
-            <svg class="search-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-            </svg>
-            <input type="text" placeholder="플레이어 검색" bind:value={searchText} />
-          </div>
-          <button class="filter-btn">
-            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/>
-            </svg>
-            필터
-          </button>
-        </div>
-      </div>
-
-      <div class="ranking-table">
-        <div class="table-header">
-          <div class="col-rank">순위</div>
-          <div class="col-player">플레이어</div>
-          <div class="col-tag">칭호</div>
-          <div class="col-assets">총 자산 가치</div>
-          <div class="col-return">순위 변동</div>
-        </div>
-
-        <div class="table-body">
-          {#if filteredPlayers.length === 0}
-            <div class="empty-row">검색 결과가 없습니다.</div>
-          {/if}
-          {#each filteredPlayers as player}
-            <div class="table-row" class:my-rank={myRank?.username === player.username}>
-
-              <div class="col-rank">
-                <div class="rank-circle {getRankColorClass(player.rank)}">
-                  {player.rank}
+                <div class="col-rank">
+                  <div class="rank-circle {getRankColorClass(player.rank)}">
+                    {player.rank}
+                  </div>
+                  <div class="rank-change {player.rankChange > 0 ? 'up' : player.rankChange < 0 ? 'down' : 'neutral'}">
+                    {#if player.rankChange > 0}
+                      ↑{player.rankChange}
+                    {:else if player.rankChange < 0}
+                      ↓{Math.abs(player.rankChange)}
+                    {:else}
+                      -
+                    {/if}
+                  </div>
                 </div>
-                <div class="rank-change {player.rankChange > 0 ? 'up' : player.rankChange < 0 ? 'down' : 'neutral'}">
+
+                <div class="col-player flex-align">
+                  <img src={getAvatarUrl(player.username)} alt="avatar" class="avatar" />
+                  <div class="player-info">
+                    <span class="p-name">{player.playerName ?? player.username}</span>
+                    <span class="p-level">Level {player.level}{player.title ? ` · ${player.title}` : ''}</span>
+                  </div>
+                </div>
+
+                <div class="col-tag">
+                  {#if player.title}
+                    <Badge variant="outline">{player.title}</Badge>
+                  {/if}
+                </div>
+
+                <div class="col-assets font-bold">
+                  {formatAsset(player.totalAssetValue)}
+                </div>
+
+                <div class="col-return font-bold {player.rankChange > 0 ? 'text-green' : player.rankChange < 0 ? 'text-red' : ''}">
                   {#if player.rankChange > 0}
-                    ↑{player.rankChange}
+                    +{player.rankChange}
                   {:else if player.rankChange < 0}
-                    ↓{Math.abs(player.rankChange)}
+                    {player.rankChange}
                   {:else}
                     -
                   {/if}
                 </div>
-              </div>
 
-              <div class="col-player flex-align">
-                <img src={getAvatarUrl(player.username)} alt="avatar" class="avatar" />
-                <div class="player-info">
-                  <span class="p-name">{player.playerName ?? player.username}</span>
-                  <span class="p-level">Level {player.level}{player.title ? ` · ${player.title}` : ''}</span>
-                </div>
               </div>
-
-              <div class="col-tag">
-                {#if player.title}
-                  <span class="badge">{player.title}</span>
-                {/if}
-              </div>
-
-              <div class="col-assets font-bold">
-                {formatAsset(player.totalAssetValue)}
-              </div>
-
-              <div class="col-return font-bold {player.rankChange > 0 ? 'text-green' : player.rankChange < 0 ? 'text-red' : ''}">
-                {#if player.rankChange > 0}
-                  +{player.rankChange}
-                {:else if player.rankChange < 0}
-                  {player.rankChange}
-                {:else}
-                  -
-                {/if}
-              </div>
-
-            </div>
-          {/each}
+            {/each}
+          </div>
         </div>
-      </div>
-    </section>
+      </section>
+    </TooltipProvider>
   {/if}
 </div>
 
@@ -249,15 +272,18 @@
     margin-bottom: var(--spacing-lg);
   }
 
-  .stat-card {
-    background: var(--color-bg-1);
-    border-radius: var(--card-border-radius);
-    padding: var(--card-padding);
-    border: 1px solid var(--color-border);
-    box-shadow: var(--card-shadow);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
+  /* Override Card padding/layout to match original stat-card */
+  :global(.stat-card-wrapper) {
+    background: var(--color-bg-1) !important;
+    border-color: var(--color-border) !important;
+    box-shadow: var(--card-shadow) !important;
+  }
+
+  :global(.stat-card-content) {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    padding: var(--card-padding) !important;
   }
 
   .stat-label {
@@ -272,6 +298,7 @@
     display: flex;
     align-items: baseline;
     gap: 0.5rem;
+    cursor: default;
   }
 
   .main-val {
@@ -289,16 +316,22 @@
   .sub-val.gray { color: var(--stat-label-color); font-weight: 400; }
 
   .circle-icon {
-    width: 48px;
-    height: 48px;
+    width: 3rem;
+    height: 3rem;
     border-radius: 50%;
     display: flex;
     justify-content: center;
     align-items: center;
-    font-size: 24px;
+    font-size: 1.5rem;
   }
   .circle-icon.gold { background-color: #fef9c3; }
   .circle-icon.green { background-color: #dcfce7; }
+
+  /* Separator spacing */
+  :global(.my-separator) {
+    margin-top: 0 !important;
+    margin-bottom: var(--spacing-lg) !important;
+  }
 
   .ranking-container {
     background: var(--color-bg-1);
@@ -309,7 +342,7 @@
   }
 
   .ranking-controls {
-    padding: 20px 24px;
+    padding: 1.25rem 1.5rem;
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -317,37 +350,38 @@
   }
 
   .ranking-controls h2 {
-    font-size: 20px;
+    font-size: 1.25rem;
     font-weight: 700;
     margin: 0;
   }
 
   .control-right {
     display: flex;
-    gap: 12px;
+    gap: 0.75rem;
+    align-items: center;
   }
 
   .search-box {
     position: relative;
-    width: 240px;
+    width: 15rem;
   }
 
   .search-icon {
     position: absolute;
-    left: 12px;
+    left: 0.75rem;
     top: 50%;
     transform: translateY(-50%);
-    width: 16px;
-    height: 16px;
+    width: 1rem;
+    height: 1rem;
     color: var(--color-text-gray);
   }
 
   .search-box input {
     width: 100%;
-    padding: 10px 10px 10px 36px;
+    padding: 0.625rem 0.625rem 0.625rem 2.25rem;
     border: 1px solid var(--color-border);
-    border-radius: 8px;
-    font-size: 14px;
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
     box-sizing: border-box;
     outline: none;
     background: var(--color-bg-1);
@@ -356,20 +390,19 @@
   .search-box input:focus { border-color: var(--color-theme-1); }
   .search-box input::placeholder { color: var(--color-text-gray); }
 
-  .filter-btn {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 8px 16px;
-    background: var(--color-bg-2);
-    border: 1px solid var(--color-border);
-    border-radius: 8px;
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--color-text-gray);
-    cursor: pointer;
+  /* Button override for filter */
+  :global(.filter-btn-override) {
+    display: flex !important;
+    align-items: center !important;
+    gap: 0.375rem !important;
+    font-size: 0.875rem !important;
+    font-weight: 600 !important;
+    color: var(--color-text-gray) !important;
   }
-  .filter-btn svg { width: 16px; height: 16px; }
+  :global(.filter-btn-override svg) {
+    width: 1rem;
+    height: 1rem;
+  }
 
   .ranking-table {
     width: 100%;
@@ -379,20 +412,20 @@
     display: grid;
     grid-template-columns: 80px 3fr 1.5fr 1.5fr 1.5fr;
     align-items: center;
-    padding: 0 24px;
+    padding: 0 1.5rem;
   }
 
   .table-header {
     background-color: var(--color-bg-2);
-    height: 48px;
+    height: 3rem;
     border-bottom: 1px solid var(--color-border);
     color: var(--color-text-gray);
-    font-size: 13px;
+    font-size: 0.8125rem;
     font-weight: 600;
   }
 
   .table-row {
-    height: 80px;
+    height: 5rem;
     border-bottom: 1px solid var(--color-border);
     transition: background-color 0.2s;
   }
@@ -401,10 +434,10 @@
   .table-row.my-rank { background-color: #eff6ff; }
 
   .empty-row {
-    padding: 40px;
+    padding: 2.5rem;
     text-align: center;
     color: var(--color-text-gray);
-    font-size: 14px;
+    font-size: 0.875rem;
   }
 
   .col-rank {
@@ -412,38 +445,38 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 4px;
+    gap: 0.25rem;
   }
 
   .rank-circle {
-    width: 32px;
-    height: 32px;
+    width: 2rem;
+    height: 2rem;
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
     font-weight: 700;
-    font-size: 14px;
+    font-size: 0.875rem;
   }
   .rank-1 { background-color: #fef9c3; color: #b45309; }
   .rank-2 { background-color: #e5e7eb; color: #4b5563; }
   .rank-3 { background-color: #ffedd5; color: #c2410c; }
-  .rank-default { background-color: transparent; color: var(--color-text); font-size: 16px; }
+  .rank-default { background-color: transparent; color: var(--color-text); font-size: 1rem; }
 
   .rank-change {
-    font-size: 11px;
+    font-size: 0.6875rem;
     font-weight: 700;
   }
   .rank-change.up { color: #22c55e; }
   .rank-change.down { color: #ef4444; }
   .rank-change.neutral { color: var(--color-text-gray); }
 
-  .col-player { padding-right: 16px; }
-  .flex-align { display: flex; align-items: center; gap: 12px; }
+  .col-player { padding-right: 1rem; }
+  .flex-align { display: flex; align-items: center; gap: 0.75rem; }
 
   .avatar {
-    width: 48px;
-    height: 48px;
+    width: 3rem;
+    height: 3rem;
     border-radius: 50%;
     background-color: #e0f2fe;
     object-fit: cover;
@@ -456,27 +489,16 @@
   }
   .p-name {
     font-weight: 700;
-    font-size: 15px;
+    font-size: 0.9375rem;
     margin-bottom: 2px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  .p-level { font-size: 12px; color: var(--color-text-gray); }
+  .p-level { font-size: 0.75rem; color: var(--color-text-gray); }
 
-  .badge {
-    display: inline-block;
-    padding: 4px 12px;
-    border-radius: 20px;
-    font-size: 12px;
-    font-weight: 700;
-    border: 1px solid var(--color-text);
-    color: var(--color-text);
-    background: var(--color-bg-1);
-  }
-
-  .col-assets { color: var(--color-text); font-size: 15px; }
-  .col-return { font-size: 15px; }
+  .col-assets { color: var(--color-text); font-size: 0.9375rem; }
+  .col-return { font-size: 0.9375rem; }
 
   .font-bold { font-weight: 700; }
   .text-green { color: #22c55e; }
@@ -490,13 +512,13 @@
     .ranking-controls {
       flex-direction: column;
       align-items: flex-start;
-      gap: 16px;
+      gap: 1rem;
     }
     .control-right { width: 100%; }
     .search-box { flex: 1; width: auto; }
 
     .ranking-table {
-      min-width: 600px;
+      min-width: 37.5rem;
     }
     .ranking-container {
       overflow-x: auto;

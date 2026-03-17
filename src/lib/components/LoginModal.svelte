@@ -9,6 +9,9 @@
     import { toast } from 'svelte-sonner';
     import logo from '$lib/images/quant-logo.svg';
     import { get } from 'svelte/store';
+    import { Tabs, TabsList, TabsTrigger } from '$lib/components/ui/tabs';
+    import { Button } from '$lib/components/ui/button';
+    import { Alert, AlertDescription } from '$lib/components/ui/alert';
 
     let mode: 'login' | 'register' = $state('login');
     let username = $state('');
@@ -116,13 +119,21 @@
             </div>
 
             {#if $loginModalAuthRequired}
-                <div class="session-expired-msg">세션이 만료되었습니다. 다시 로그인해 주세요.</div>
+                <Alert class="session-alert mb-4">
+                    <AlertDescription>세션이 만료되었습니다. 다시 로그인해 주세요.</AlertDescription>
+                </Alert>
             {/if}
 
-            <div class="tab-row">
-                <button class="tab" class:active={mode === 'login'} onclick={() => { mode = 'login'; error = ''; }}>로그인</button>
-                <button class="tab" class:active={mode === 'register'} onclick={() => { mode = 'register'; error = ''; }}>회원가입</button>
-            </div>
+            <Tabs
+                value={mode}
+                onValueChange={(v) => { mode = v as 'login' | 'register'; error = ''; }}
+                class="tabs-container"
+            >
+                <TabsList class="tabs-list-custom w-full">
+                    <TabsTrigger value="login" class="tabs-trigger-custom flex-1">로그인</TabsTrigger>
+                    <TabsTrigger value="register" class="tabs-trigger-custom flex-1">회원가입</TabsTrigger>
+                </TabsList>
+            </Tabs>
 
             <form onsubmit={(e) => { e.preventDefault(); handleSubmit(); }}>
                 <div class="field">
@@ -144,11 +155,17 @@
                     </div>
                 {/if}
                 {#if error}
-                    <div class="error-msg">{error}</div>
+                    <Alert variant="destructive" class="mb-4">
+                        <AlertDescription>{error}</AlertDescription>
+                    </Alert>
                 {/if}
-                <button type="submit" class="submit-btn" disabled={loading}>
+                <Button
+                    type="submit"
+                    disabled={loading}
+                    class="w-full submit-btn-custom"
+                >
                     {loading ? '처리 중...' : mode === 'login' ? '로그인' : '회원가입'}
-                </button>
+                </Button>
             </form>
         </div>
     </div>
@@ -207,35 +224,6 @@
     }
     .subtitle { color: #9ca3af; font-size: 0.85rem; margin-top: 0.2rem; }
 
-    .tab-row {
-        display: flex;
-        margin-bottom: 1.5rem;
-        border-bottom: 2px solid #e5e7eb;
-    }
-    .tab {
-        flex: 1;
-        background: none;
-        border: none;
-        padding: 0.7rem 0;
-        font-size: 0.95rem;
-        font-weight: 500;
-        color: #9ca3af;
-        cursor: pointer;
-        position: relative;
-        transition: color 0.2s;
-    }
-    .tab.active { color: var(--color-theme-1, #00529B); font-weight: 700; }
-    .tab.active::after {
-        content: '';
-        position: absolute;
-        bottom: -2px;
-        left: 0;
-        width: 100%;
-        height: 2px;
-        background: var(--color-theme-1, #00529B);
-        border-radius: 2px 2px 0 0;
-    }
-
     .field { margin-bottom: 1.1rem; }
     .field label {
         display: block;
@@ -262,43 +250,81 @@
         box-shadow: 0 0 0 3px rgba(0, 82, 155, 0.08);
     }
 
-    .error-msg {
-        color: #ef4444;
-        font-size: 0.82rem;
-        margin-bottom: 1rem;
-        padding: 0.5rem 0.75rem;
-        background: #fef2f2;
-        border-radius: 6px;
-        border-left: 3px solid #ef4444;
+    /* Tabs customization */
+    :global(.tabs-container) {
+        margin-bottom: 1.5rem;
+    }
+    :global(.tabs-list-custom) {
+        background: transparent !important;
+        border-bottom: 2px solid #e5e7eb;
+        border-radius: 0 !important;
+        height: auto !important;
+        padding: 0 !important;
+        display: flex;
+        width: 100%;
+    }
+    :global(.tabs-trigger-custom) {
+        background: none !important;
+        border: none !important;
+        border-radius: 0 !important;
+        padding: 0.7rem 0 !important;
+        font-size: 0.95rem !important;
+        font-weight: 500 !important;
+        color: #9ca3af !important;
+        position: relative;
+        box-shadow: none !important;
+        height: auto !important;
+        transition: color 0.2s;
+    }
+    :global(.tabs-trigger-custom[data-state=active]) {
+        color: var(--color-theme-1, #00529B) !important;
+        font-weight: 700 !important;
+        background: none !important;
+        box-shadow: none !important;
+    }
+    :global(.tabs-trigger-custom[data-state=active])::after {
+        content: '';
+        position: absolute;
+        bottom: -2px;
+        left: 0;
+        width: 100%;
+        height: 2px;
+        background: var(--color-theme-1, #00529B);
+        border-radius: 2px 2px 0 0;
     }
 
-    .session-expired-msg {
-        color: #d97706;
-        font-size: 0.85rem;
+    /* Button customization */
+    :global(.submit-btn-custom) {
+        background: var(--color-theme-1, #00529B) !important;
+        color: white !important;
+        border-radius: 8px !important;
+        font-size: 0.95rem !important;
+        font-weight: 700 !important;
+        padding: 0.8rem !important;
+        height: auto !important;
+        margin-top: 0.25rem;
+        font-family: var(--font-body) !important;
+        transition: background 0.2s, transform 0.1s !important;
+    }
+    :global(.submit-btn-custom:hover:not(:disabled)) {
+        background: var(--color-theme-1-dark, #004480) !important;
+    }
+    :global(.submit-btn-custom:active:not(:disabled)) {
+        transform: scale(0.98);
+    }
+
+    /* Session alert customization */
+    :global(.session-alert) {
+        color: #d97706 !important;
+        background: #fffbeb !important;
+        border-color: #f59e0b !important;
+        border-left: 3px solid #f59e0b !important;
+        border-radius: 8px !important;
+    }
+    :global(.session-alert [data-slot=alert-description]) {
+        color: #d97706 !important;
         font-weight: 600;
-        margin-bottom: 1rem;
-        padding: 0.6rem 0.85rem;
-        background: #fffbeb;
-        border-radius: 8px;
-        border-left: 3px solid #f59e0b;
+        font-size: 0.85rem;
         text-align: center;
     }
-
-    .submit-btn {
-        width: 100%;
-        padding: 0.8rem;
-        background: var(--color-theme-1, #00529B);
-        color: white;
-        border: none;
-        border-radius: 8px;
-        font-size: 0.95rem;
-        font-weight: 700;
-        cursor: pointer;
-        transition: background 0.2s, transform 0.1s;
-        margin-top: 0.25rem;
-        font-family: var(--font-body);
-    }
-    .submit-btn:hover:not(:disabled) { background: var(--color-theme-1-dark, #004480); }
-    .submit-btn:active:not(:disabled) { transform: scale(0.98); }
-    .submit-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 </style>

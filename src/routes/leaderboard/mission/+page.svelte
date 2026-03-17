@@ -4,6 +4,10 @@
     import type { UserMission, Mission } from '$lib/api/mission';
     import SkeletonTable from '$lib/components/SkeletonTable.svelte';
     import { toast } from 'svelte-sonner';
+    import { Tabs, TabsList, TabsTrigger } from '$lib/components/ui/tabs';
+    import { Badge } from '$lib/components/ui/badge';
+    import { Progress } from '$lib/components/ui/progress';
+    import { Button } from '$lib/components/ui/button';
 
     let missions: UserMission[] = $state([]);
     let allMissions: Mission[] = $state([]);
@@ -14,11 +18,11 @@
     let activeTab: 'my' | 'catalog' = $state('my');
     let sortMode: 'recommended' | 'difficultyAsc' | 'difficultyDesc' = $state('recommended');
 
-    const difficultyConfig: Record<string, { color: string; bg: string; order: number }> = {
-        EASY: { color: '#059669', bg: '#ecfdf5', order: 0 },
-        NORMAL: { color: '#2563eb', bg: '#eff6ff', order: 1 },
-        MEDIUM: { color: '#d97706', bg: '#fffbeb', order: 2 },
-        HARD: { color: '#dc2626', bg: '#fef2f2', order: 3 },
+    const difficultyConfig: Record<string, { order: number }> = {
+        EASY: { order: 0 },
+        NORMAL: { order: 1 },
+        MEDIUM: { order: 2 },
+        HARD: { order: 3 },
     };
 
     const statusLabel: Record<string, string> = {
@@ -102,6 +106,25 @@
         if (sortMode === 'difficultyDesc') return difficultyOrder(b.difficulty) - difficultyOrder(a.difficulty);
         return a.id - b.id;
     }));
+
+    function difficultyBadgeClass(difficulty: string): string {
+        switch (difficulty) {
+            case 'EASY': return 'bg-emerald-50 text-emerald-600 border-emerald-200';
+            case 'NORMAL': return 'bg-blue-50 text-blue-600 border-blue-200';
+            case 'MEDIUM': return 'bg-amber-50 text-amber-600 border-amber-200';
+            case 'HARD': return 'bg-red-50 text-red-600 border-red-200';
+            default: return '';
+        }
+    }
+
+    function statusBadgeClass(status: string): string {
+        switch (status) {
+            case 'IN_PROGRESS': return 'bg-blue-50 text-blue-600 border-blue-200';
+            case 'COMPLETED': return 'bg-amber-50 text-amber-600 border-amber-200';
+            case 'CLAIMED': return 'bg-emerald-50 text-emerald-600 border-emerald-200';
+            default: return '';
+        }
+    }
 </script>
 
 <div class="page-container">
@@ -134,9 +157,13 @@
         {/if}
     </header>
 
-    <nav class="tab-bar">
-        <button class="tab-btn" class:active={activeTab === 'my'} onclick={() => activeTab = 'my'}>내 미션</button>
-        <button class="tab-btn" class:active={activeTab === 'catalog'} onclick={() => activeTab = 'catalog'}>전체 미션</button>
+    <div class="tabs-row">
+        <Tabs value={activeTab} onValueChange={(v) => activeTab = v as 'my' | 'catalog'}>
+            <TabsList>
+                <TabsTrigger value="my">내 미션</TabsTrigger>
+                <TabsTrigger value="catalog">전체 미션</TabsTrigger>
+            </TabsList>
+        </Tabs>
         <div class="sort-wrap">
             <label for="mission-sort" class="sort-label">정렬</label>
             <select id="mission-sort" class="sort-select" bind:value={sortMode}>
@@ -145,7 +172,7 @@
                 <option value="difficultyDesc">난이도 높은순</option>
             </select>
         </div>
-    </nav>
+    </div>
 
     {#if loading}
         <SkeletonTable rows={6} cols={3} showStats={true} />
@@ -157,13 +184,12 @@
         {:else}
             <div class="mission-grid">
                 {#each sortedCatalogMissions as m}
-                    {@const diff = difficultyConfig[m.difficulty] ?? { color: '#666', bg: '#f3f4f6', order: 99 }}
                     {@const myMission = missions.find(um => um.mission.id === m.id)}
                     <div class="mission-card" class:claimed={myMission?.status === 'CLAIMED'}>
                         <div class="card-top">
                             <div class="card-title-row">
                                 <h3 class="mission-name">{m.name}</h3>
-                                <span class="diff-badge" style="color: {diff.color}; background: {diff.bg};">{m.difficulty}</span>
+                                <Badge variant="outline" class={difficultyBadgeClass(m.difficulty)}>{m.difficulty}</Badge>
                             </div>
                             <p class="mission-desc">{m.description}</p>
                         </div>
@@ -171,16 +197,16 @@
                             <div class="reward-row">
                                 <span class="reward-label">보상</span>
                                 <span class="reward-value">{formatReward(m.rewardCash, m.rewardFame, m.rewardExperience)}</span>
-                                {#if m.rewardItem}<span class="reward-item-badge">{m.rewardItem}</span>{/if}
-                                {#if m.rewardTitle}<span class="reward-title-badge">{m.rewardTitle}</span>{/if}
+                                {#if m.rewardItem}<Badge variant="secondary" class="text-xs">{m.rewardItem}</Badge>{/if}
+                                {#if m.rewardTitle}<Badge variant="secondary" class="text-xs">{m.rewardTitle}</Badge>{/if}
                             </div>
                             <div class="status-row">
                                 {#if myMission}
-                                    <span class="status-badge" class:status-claimed={myMission.status === 'CLAIMED'} class:status-progress={myMission.status === 'IN_PROGRESS'} class:status-done={myMission.status === 'COMPLETED'}>
+                                    <Badge variant="outline" class={statusBadgeClass(myMission.status)}>
                                         {statusLabel[myMission.status] ?? myMission.status}
-                                    </span>
+                                    </Badge>
                                 {:else}
-                                    <span class="status-badge">미시작</span>
+                                    <Badge variant="secondary">미시작</Badge>
                                 {/if}
                             </div>
                         </div>
@@ -193,12 +219,11 @@
     {:else}
         <div class="mission-grid">
             {#each sortedMissions as um}
-                {@const diff = difficultyConfig[um.mission.difficulty] ?? { color: '#666', bg: '#f3f4f6', order: 99 }}
                 <div class="mission-card" class:claimed={um.status === 'CLAIMED'}>
                     <div class="card-top">
                         <div class="card-title-row">
                             <h3 class="mission-name">{um.mission.name}</h3>
-                            <span class="diff-badge" style="color: {diff.color}; background: {diff.bg};">{um.mission.difficulty}</span>
+                            <Badge variant="outline" class={difficultyBadgeClass(um.mission.difficulty)}>{um.mission.difficulty}</Badge>
                         </div>
                         <p class="mission-desc">{um.mission.description}</p>
                     </div>
@@ -208,13 +233,10 @@
                             <span class="progress-label">진행도</span>
                             <span class="progress-value">{(um.progressPercentage ?? 0).toFixed(0)}%</span>
                         </div>
-                        <div class="progress-bar-bg">
-                            <div
-                                class="progress-bar-fill"
-                                class:fill-complete={um.progressPercentage >= 100}
-                                style="width: {Math.min(um.progressPercentage, 100)}%"
-                            ></div>
-                        </div>
+                        <Progress
+                            value={Math.min(um.progressPercentage, 100)}
+                            class={um.progressPercentage >= 100 ? 'progress-complete' : ''}
+                        />
                         <div class="progress-sub">
                             {um.currentValue.toLocaleString()} / {um.mission.targetValue.toLocaleString()} {um.mission.targetType}
                         </div>
@@ -225,27 +247,27 @@
                             <span class="reward-label">보상</span>
                             <span class="reward-value">{formatReward(um.mission.rewardCash, um.mission.rewardFame, um.mission.rewardExperience)}</span>
                             {#if um.mission.rewardItem}
-                                <span class="reward-item-badge">{um.mission.rewardItem}</span>
+                                <Badge variant="secondary" class="text-xs">{um.mission.rewardItem}</Badge>
                             {/if}
                             {#if um.mission.rewardTitle}
-                                <span class="reward-title-badge">{um.mission.rewardTitle}</span>
+                                <Badge variant="secondary" class="text-xs">{um.mission.rewardTitle}</Badge>
                             {/if}
                         </div>
 
                         <div class="status-row">
                             {#if um.canClaim}
                                 {@const missionId = um.mission.id}
-                                <button
-                                    class="btn-claim"
+                                <Button
+                                    class="w-full"
                                     disabled={claimingId === missionId}
                                     onclick={() => handleClaim(missionId)}
                                 >
                                     {claimingId === missionId ? '처리 중...' : '보상 수령'}
-                                </button>
+                                </Button>
                             {:else}
-                                <span class="status-badge" class:status-claimed={um.status === 'CLAIMED'} class:status-progress={um.status === 'IN_PROGRESS'} class:status-done={um.status === 'COMPLETED'}>
+                                <Badge variant="outline" class={statusBadgeClass(um.status)}>
                                     {statusLabel[um.status] ?? um.status}
-                                </span>
+                                </Badge>
                             {/if}
                         </div>
                     </div>
@@ -276,10 +298,15 @@
 
     .stats-cards { display: flex; gap: 1rem; flex-wrap: wrap; }
 
-    .tab-bar { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; border-bottom: 2px solid var(--color-border); }
-    .tab-btn { padding: 0.5rem 1.25rem; border: none; background: none; cursor: pointer; font-size: 0.95rem; color: var(--color-text-gray); border-bottom: 2px solid transparent; margin-bottom: -2px; }
-    .tab-btn.active { color: var(--color-theme-1); border-bottom-color: var(--color-theme-1); font-weight: 600; }
-    .sort-wrap { margin-left: auto; display: flex; align-items: center; gap: 0.5rem; padding-bottom: 0.4rem; }
+    .tabs-row {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+        flex-wrap: wrap;
+    }
+
+    .sort-wrap { margin-left: auto; display: flex; align-items: center; gap: 0.5rem; }
     .sort-label { font-size: 0.82rem; color: var(--color-text-gray); font-weight: 600; }
     .sort-select {
         border: 1px solid var(--color-border);
@@ -301,7 +328,7 @@
     .stat-label { display: block; color: #666; font-size: 0.85rem; margin-bottom: 0.2rem; }
     .stat-value { display: block; font-size: 1.4rem; font-weight: 700; }
 
-    .loading-state, .error-state, .empty-state {
+    .error-state, .empty-state {
         display: flex; align-items: center; justify-content: center;
         min-height: 40vh; font-size: 1rem; color: var(--color-text-gray);
     }
@@ -337,15 +364,6 @@
 
     .mission-name { font-size: 1rem; font-weight: 700; margin: 0; flex: 1; }
 
-    .diff-badge {
-        border-radius: 20px;
-        padding: 0.2rem 0.7rem;
-        font-size: 0.75rem;
-        font-weight: 700;
-        white-space: nowrap;
-        flex-shrink: 0;
-    }
-
     .mission-desc { font-size: 0.85rem; color: var(--color-text-gray); margin: 0; line-height: 1.5; }
 
     .progress-section { display: flex; flex-direction: column; gap: 0.4rem; }
@@ -358,22 +376,6 @@
 
     .progress-label { font-size: 0.8rem; color: var(--color-text-gray); font-weight: 600; }
     .progress-value { font-size: 0.85rem; font-weight: 700; color: var(--color-theme-1); }
-
-    .progress-bar-bg {
-        height: 8px;
-        background: #e5e7eb;
-        border-radius: 4px;
-        overflow: hidden;
-    }
-
-    .progress-bar-fill {
-        height: 100%;
-        background: var(--color-theme-1);
-        border-radius: 4px;
-        transition: width 0.4s ease;
-    }
-
-    .progress-bar-fill.fill-complete { background: var(--color-positive); }
 
     .progress-sub { font-size: 0.75rem; color: var(--color-text-gray); }
 
@@ -389,42 +391,7 @@
     .reward-label { font-size: 0.8rem; color: var(--color-text-gray); font-weight: 600; }
     .reward-value { font-size: 0.9rem; font-weight: 700; color: #111; }
 
-    .reward-item-badge, .reward-title-badge {
-        background: #ECF2FE;
-        color: var(--color-theme-1);
-        border-radius: 4px;
-        padding: 0.15rem 0.5rem;
-        font-size: 0.72rem;
-        font-weight: 600;
+    :global(.progress-complete [data-slot="progress-indicator"]) {
+        background-color: var(--color-positive);
     }
-
-    .btn-claim {
-        width: 100%;
-        background: var(--color-theme-1);
-        color: white;
-        border: none;
-        padding: 0.7rem 1rem;
-        border-radius: 8px;
-        font-size: 0.95rem;
-        font-weight: 700;
-        cursor: pointer;
-        transition: background 0.15s;
-    }
-    .btn-claim:hover { background: #0b3d75; }
-    .btn-claim:disabled { opacity: 0.6; cursor: not-allowed; }
-
-    .status-badge {
-        display: inline-block;
-        padding: 0.35rem 0.85rem;
-        border-radius: 20px;
-        font-size: 0.82rem;
-        font-weight: 700;
-        background: #f3f4f6;
-        color: #666;
-    }
-
-    .status-badge.status-progress { background: #ECF2FE; color: var(--color-theme-1); }
-    .status-badge.status-done { background: #fffbeb; color: #d97706; }
-    .status-badge.status-claimed { background: #ecfdf5; color: #059669; }
-
 </style>

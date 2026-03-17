@@ -10,6 +10,10 @@
     import { loadCompanyCurrencies } from '$lib/api/market';
     import { getCachedCurrency, displayPrice, formatPrice, type CurrencyCode } from '$lib/utils/currency';
     import SkeletonDashboard from '$lib/components/SkeletonDashboard.svelte';
+    import { Tabs, TabsList, TabsTrigger } from '$lib/components/ui/tabs';
+    import { Badge } from '$lib/components/ui/badge';
+    import { Progress } from '$lib/components/ui/progress';
+    import { Separator } from '$lib/components/ui/separator';
 
     let portfolio = $state<PortfolioDashboard | null>(null);
     let profile = $state<ProfileStats | null>(null);
@@ -215,6 +219,8 @@
         </div>
     </section>
 
+    <Separator />
+
     <!-- Performance Returns -->
     {#if portfolio?.performance}
     <section class="perf-row">
@@ -234,26 +240,22 @@
     </section>
     {/if}
 
+    <Separator />
+
     <!-- Main Content -->
     <div class="main-grid">
         <!-- Left: Holdings Table -->
         <section class="holdings-section">
             <div class="holdings-header">
                 <h2 class="section-title">보유 자산</h2>
-                <div class="tab-group">
-                    {#each [
-                        { key: 'all', label: '전체' },
-                        { key: 'stock', label: '주식' },
-                        { key: 'etf', label: 'ETF' },
-                        { key: 'crypto', label: '코인' }
-                    ] as tab}
-                        <button
-                            class="tab-pill"
-                            class:active={holdingTab === tab.key}
-                            onclick={() => holdingTab = tab.key as 'all' | 'stock' | 'crypto' | 'etf'}
-                        >{tab.label}</button>
-                    {/each}
-                </div>
+                <Tabs value={holdingTab} onValueChange={(v) => holdingTab = v as 'all' | 'stock' | 'crypto' | 'etf'}>
+                    <TabsList class="h-auto gap-1 bg-[#f1f5f9] p-[0.1875rem] rounded-lg">
+                        <TabsTrigger value="all" class="rounded-md px-3 py-1.5 text-[0.8125rem] font-semibold data-[state=active]:bg-white data-[state=active]:text-[var(--color-theme-1)] data-[state=active]:shadow-sm">전체</TabsTrigger>
+                        <TabsTrigger value="stock" class="rounded-md px-3 py-1.5 text-[0.8125rem] font-semibold data-[state=active]:bg-white data-[state=active]:text-[var(--color-theme-1)] data-[state=active]:shadow-sm">주식</TabsTrigger>
+                        <TabsTrigger value="etf" class="rounded-md px-3 py-1.5 text-[0.8125rem] font-semibold data-[state=active]:bg-white data-[state=active]:text-[var(--color-theme-1)] data-[state=active]:shadow-sm">ETF</TabsTrigger>
+                        <TabsTrigger value="crypto" class="rounded-md px-3 py-1.5 text-[0.8125rem] font-semibold data-[state=active]:bg-white data-[state=active]:text-[var(--color-theme-1)] data-[state=active]:shadow-sm">코인</TabsTrigger>
+                    </TabsList>
+                </Tabs>
             </div>
 
             {#if holdings.length === 0}
@@ -276,9 +278,13 @@
                         {#each holdings as h}
                         <tr class="holding-row" onclick={() => goToHolding(h)}>
                             <td class="col-name">
-                                <span class="type-badge" class:stock={h.type === 'stock'} class:crypto={h.type === 'crypto'} class:etf={h.type === 'etf'}>
-                                    {h.type === 'stock' ? '주식' : h.type === 'etf' ? 'ETF' : '코인'}
-                                </span>
+                                {#if h.type === 'stock'}
+                                    <Badge variant="outline" class="mr-1.5 bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-50 text-[0.6875rem] font-bold px-1.5 py-0.5 rounded">주식</Badge>
+                                {:else if h.type === 'etf'}
+                                    <Badge variant="outline" class="mr-1.5 bg-teal-50 text-teal-600 border-teal-200 hover:bg-teal-50 text-[0.6875rem] font-bold px-1.5 py-0.5 rounded">ETF</Badge>
+                                {:else}
+                                    <Badge variant="outline" class="mr-1.5 bg-amber-50 text-amber-600 border-amber-200 hover:bg-amber-50 text-[0.6875rem] font-bold px-1.5 py-0.5 rounded">코인</Badge>
+                                {/if}
                                 <span class="holding-name">{h.name}</span>
                             </td>
                             <td class="col-num">{displayPrice(h.currentPrice, h.currency)}</td>
@@ -329,9 +335,11 @@
                 <div class="trades-list">
                     {#each portfolio.recent_trades as trade}
                         <div class="trade-row">
-                            <span class="trade-type" class:buy={trade.type === 'BUY'} class:sell={trade.type === 'SELL'}>
-                                {trade.type === 'BUY' ? '매수' : '매도'}
-                            </span>
+                            {#if trade.type === 'BUY'}
+                                <Badge variant="outline" class="bg-red-50 text-red-600 border-red-200 hover:bg-red-50 text-[0.75rem] font-bold px-1.5 py-0.5 rounded justify-center">매수</Badge>
+                            {:else}
+                                <Badge variant="outline" class="bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-50 text-[0.75rem] font-bold px-1.5 py-0.5 rounded justify-center">매도</Badge>
+                            {/if}
                             <span class="trade-name">{trade.company_name}</span>
                             <span class="trade-qty">{trade.quantity}주</span>
                             <span class="trade-amount">{displayPrice(trade.total_amount, getCachedCurrency(trade.company_id))}</span>
@@ -348,14 +356,13 @@
                 <div class="category-list">
                     {#each allocationCategories as cat}
                         {@const total = allocationCategories.reduce((s, c) => s + c.value, 0) || 1}
+                        {@const pctVal = Math.min((cat.value / total) * 100, 100)}
                         <div class="category-row">
                             <div class="category-info">
                                 <span class="category-label">{cat.label}</span>
-                                <span class="category-pct">{((cat.value / total) * 100).toFixed(1)}%</span>
+                                <span class="category-pct">{pctVal.toFixed(1)}%</span>
                             </div>
-                            <div class="category-bar-bg">
-                                <div class="category-bar" style="width: {Math.min((cat.value / total) * 100, 100)}%"></div>
-                            </div>
+                            <Progress value={pctVal} class="h-1.5 bg-slate-100 [&>[data-slot=progress-indicator]]:bg-[var(--color-theme-1)]" />
                             <span class="category-value">{formatPrice(cat.value, 'KRW')}</span>
                         </div>
                     {/each}
@@ -374,9 +381,7 @@
                                 <span class="category-label">{sector.sector}</span>
                                 <span class="category-pct">{sector.percentage.toFixed(1)}%</span>
                             </div>
-                            <div class="category-bar-bg">
-                                <div class="category-bar" style="width: {Math.min(sector.percentage, 100)}%"></div>
-                            </div>
+                            <Progress value={Math.min(sector.percentage, 100)} class="h-1.5 bg-slate-100 [&>[data-slot=progress-indicator]]:bg-[var(--color-theme-1)]" />
                         </div>
                     {/each}
                 </div>
@@ -505,31 +510,6 @@
         margin: 0;
     }
 
-    .tab-group {
-        display: flex;
-        gap: 0.375rem;
-        background: #f1f5f9;
-        padding: 0.1875rem;
-        border-radius: 0.5rem;
-    }
-
-    .tab-pill {
-        padding: 0.375rem 0.75rem;
-        border: none;
-        border-radius: 0.375rem;
-        font-size: 0.8125rem;
-        font-weight: 600;
-        color: var(--color-text-gray);
-        background: transparent;
-        cursor: pointer;
-    }
-
-    .tab-pill.active {
-        background: #fff;
-        color: var(--color-theme-1);
-        box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-    }
-
     .holdings-table-wrap {
         overflow-x: auto;
     }
@@ -580,19 +560,6 @@
     .holding-row:hover {
         background: #f8fafc;
     }
-
-    .type-badge {
-        display: inline-block;
-        font-size: 0.6875rem;
-        font-weight: 700;
-        padding: 0.125rem 0.375rem;
-        border-radius: 0.25rem;
-        margin-right: 0.375rem;
-    }
-
-    .type-badge.stock { background: #eff6ff; color: #2563eb; }
-    .type-badge.etf { background: #f0fdfa; color: #0d9488; }
-    .type-badge.crypto { background: #fffbeb; color: #d97706; }
 
     .holding-name {
         font-weight: 600;
@@ -692,17 +659,6 @@
         border-bottom: 1px solid #f3f4f6;
     }
 
-    .trade-type {
-        font-weight: 700;
-        font-size: 0.75rem;
-        padding: 0.15rem 0.4rem;
-        border-radius: 0.25rem;
-        text-align: center;
-    }
-
-    .trade-type.buy { color: #dc2626; background: #fef2f2; }
-    .trade-type.sell { color: #2563eb; background: #eff6ff; }
-
     .trade-name {
         color: var(--color-text-gray);
         font-size: 0.75rem;
@@ -734,20 +690,6 @@
 
     .category-label { color: var(--color-text-gray); }
     .category-pct { font-weight: 600; color: #0f172a; }
-
-    .category-bar-bg {
-        height: 0.375rem;
-        background: #f1f5f9;
-        border-radius: 0.1875rem;
-        overflow: hidden;
-    }
-
-    .category-bar {
-        height: 100%;
-        background: var(--color-theme-1);
-        border-radius: 0.1875rem;
-        transition: width 0.5s ease;
-    }
 
     .category-value {
         font-size: 0.75rem;

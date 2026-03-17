@@ -1,5 +1,8 @@
 <script lang="ts">
     import { toast } from 'svelte-sonner';
+    import { Tabs, TabsList, TabsTrigger } from '$lib/components/ui/tabs';
+    import { Button } from '$lib/components/ui/button';
+    import { Alert, AlertDescription } from '$lib/components/ui/alert';
 
     interface Props {
         currentPrice: number;
@@ -31,6 +34,12 @@
     let errorMsg = $state('');
 
     let total = $derived(currentPrice * Math.max(0, qty));
+
+    function handleTabChange(value: string) {
+        tab = value as 'buy' | 'sell' | 'reserve';
+        qty = 0;
+        errorMsg = '';
+    }
 
     function setPercent(percent: number) {
         if (tab === 'buy') {
@@ -90,37 +99,21 @@
 </script>
 
 <aside class="panel" style="height: fit-content;">
-    <div class="tabs">
-        <button
-            class="tab-btn"
-            class:active={tab === 'buy'}
-            onclick={() => { tab = 'buy'; qty = 0; errorMsg = ''; }}
-        >
-            매수
-        </button>
-        <button
-            class="tab-btn"
-            class:active={tab === 'sell'}
-            onclick={() => { tab = 'sell'; qty = 0; errorMsg = ''; }}
-        >
-            매도
-        </button>
-        {#if showReserve}
-            <button
-                class="tab-btn"
-                class:active={tab === 'reserve'}
-                onclick={() => { tab = 'reserve'; qty = 0; errorMsg = ''; }}
-            >
-                예약
-            </button>
-        {/if}
-    </div>
+    <Tabs value={tab} onValueChange={handleTabChange} class="tabs-wrapper">
+        <TabsList class="tabs-list-custom">
+            <TabsTrigger value="buy" class="tab-trigger-custom">매수</TabsTrigger>
+            <TabsTrigger value="sell" class="tab-trigger-custom">매도</TabsTrigger>
+            {#if showReserve}
+                <TabsTrigger value="reserve" class="tab-trigger-custom">예약</TabsTrigger>
+            {/if}
+        </TabsList>
+    </Tabs>
 
     <span class="label">현재가 ({currency === '$' ? 'USD' : 'KRW'})</span>
     <div class="price-box">
-        <button class="step" onclick={() => adjustPrice(-1)}>−</button>
+        <Button variant="ghost" size="icon" class="step" onclick={() => adjustPrice(-1)}>−</Button>
         <span class="price-display">{formatTotal(currentPrice)}</span>
-        <button class="step" onclick={() => adjustPrice(1)}>+</button>
+        <Button variant="ghost" size="icon" class="step" onclick={() => adjustPrice(1)}>+</Button>
     </div>
 
     <span class="label">수량 {unit ? `(${unit})` : ''}</span>
@@ -139,10 +132,10 @@
     </div>
 
     <div class="percent">
-        <button onclick={() => setPercent(10)}>10%</button>
-        <button onclick={() => setPercent(25)}>25%</button>
-        <button onclick={() => setPercent(50)}>50%</button>
-        <button onclick={() => setPercent(100)}>최대</button>
+        <Button variant="ghost" size="sm" class="percent-btn" onclick={() => setPercent(10)}>10%</Button>
+        <Button variant="ghost" size="sm" class="percent-btn" onclick={() => setPercent(25)}>25%</Button>
+        <Button variant="ghost" size="sm" class="percent-btn" onclick={() => setPercent(50)}>50%</Button>
+        <Button variant="ghost" size="sm" class="percent-btn" onclick={() => setPercent(100)}>최대</Button>
     </div>
 
     <div class="summary">
@@ -159,20 +152,22 @@
     </div>
 
     {#if errorMsg}
-        <p class="error">{errorMsg}</p>
+        <Alert variant="destructive" class="error-alert">
+            <AlertDescription>{errorMsg}</AlertDescription>
+        </Alert>
     {/if}
 
     {#if tab !== 'reserve'}
-        <button
+        <Button
+            variant={tab === 'sell' ? 'destructive' : 'default'}
             class="submit-btn"
-            class:sell-btn={tab === 'sell'}
             onclick={submitOrder}
             disabled={submitting || qty <= 0 || currentPrice === 0}
         >
             {submitting ? '처리 중...' : tab === 'buy' ? '매수' : '매도'}
-        </button>
+        </Button>
     {:else}
-        <button class="submit-btn" disabled>예약 기능 준비 중</button>
+        <Button class="submit-btn" disabled>예약 기능 준비 중</Button>
     {/if}
 </aside>
 
@@ -189,31 +184,42 @@
         box-sizing: border-box;
     }
 
-    .tabs {
-        display: flex;
-        gap: 0;
+    /* Tabs wrapper: full width, rounded top, no gap */
+    :global(.tabs-wrapper) {
+        gap: 0 !important;
         margin-bottom: 2rem;
-        border-radius: 0.75rem 0.75rem 0 0;
+    }
+
+    :global(.tabs-list-custom) {
+        width: 100% !important;
+        height: auto !important;
+        border-radius: 0.75rem 0.75rem 0 0 !important;
+        background: transparent !important;
+        padding: 0 !important;
+        gap: 0 !important;
         overflow: hidden;
     }
 
-    .tab-btn {
-        flex: 1;
-        background: transparent;
-        border: none;
-        padding: 0.75rem 0.375rem;
-        font-weight: 700;
-        color: #64748b;
-        cursor: pointer;
-        position: relative;
-        transition: all 0.2s ease;
-        border-bottom: 2px solid transparent;
+    :global(.tab-trigger-custom) {
+        flex: 1 !important;
+        height: auto !important;
+        padding: 0.75rem 0.375rem !important;
+        font-weight: 700 !important;
+        font-size: 0.9375rem !important;
+        color: #64748b !important;
+        border-radius: 0 !important;
+        border: none !important;
+        border-bottom: 2px solid transparent !important;
+        background: transparent !important;
+        box-shadow: none !important;
+        transition: all 0.2s ease !important;
     }
 
-    .tab-btn.active {
-        color: #2563eb;
-        background: #ECF2FE;
-        border-bottom: 2px solid #2563eb;
+    :global(.tab-trigger-custom[data-state="active"]) {
+        color: #2563eb !important;
+        background: #ECF2FE !important;
+        border-bottom: 2px solid #2563eb !important;
+        box-shadow: none !important;
     }
 
     .label {
@@ -259,18 +265,16 @@
         opacity: 0.5;
     }
 
-    .price-box .step {
-        width: 2.75rem;
-        height: 2.75rem;
-        border-radius: 0.5rem;
-        background: transparent;
-        border: none;
-        font-size: 1.375rem;
-        font-weight: 700;
-        cursor: pointer;
-        color: #64748b;
+    :global(.price-box > .step) {
+        width: 2.75rem !important;
+        height: 2.75rem !important;
+        border-radius: 0.5rem !important;
+        font-size: 1.375rem !important;
+        font-weight: 700 !important;
+        color: #64748b !important;
         position: relative;
         z-index: 1;
+        background: transparent !important;
     }
 
     .price-display {
@@ -345,15 +349,14 @@
         margin: 0 0.875rem 2rem 0.875rem;
     }
 
-    .percent button {
-        flex: 1;
-        border: none;
-        padding: 0.5rem 0.375rem;
-        border-radius: 0.5rem;
-        font-weight: 700;
-        background: rgba(236, 236, 236, 0.2);
-        color: #102a43;
-        cursor: pointer;
+    :global(.percent-btn) {
+        flex: 1 !important;
+        padding: 0.5rem 0.375rem !important;
+        border-radius: 0.5rem !important;
+        font-weight: 700 !important;
+        background: rgba(236, 236, 236, 0.2) !important;
+        color: #102a43 !important;
+        height: auto !important;
     }
 
     .summary {
@@ -412,34 +415,27 @@
         color: #102a43;
     }
 
-    .error {
-        color: #dc2626;
-        font-size: 0.8125rem;
-        margin: 0 0.875rem 0.75rem 0.875rem;
-        font-weight: 600;
+    :global(.error-alert) {
+        margin: 0 0.875rem 0.75rem 0.875rem !important;
+        border-radius: 0.5rem !important;
     }
 
-    .submit-btn {
-        width: calc(100% - 1.75rem);
-        padding: 1rem;
-        background: var(--color-theme-1);
-        color: white;
-        font-weight: 800;
-        border-radius: 0.75rem;
-        border: none;
-        cursor: pointer;
-        font-size: 1.5rem;
-        margin: 0 0.875rem 1rem;
-        transition: opacity 0.2s;
+    :global(.submit-btn) {
+        width: calc(100% - 1.75rem) !important;
+        padding: 1rem !important;
+        font-weight: 800 !important;
+        border-radius: 0.75rem !important;
+        font-size: 1.5rem !important;
+        height: auto !important;
+        margin: 0 0.875rem 1rem !important;
+        transition: opacity 0.2s !important;
+        display: flex !important;
     }
 
-    .submit-btn:disabled {
-        opacity: 0.5;
-        cursor: not-allowed;
-    }
-
-    .submit-btn.sell-btn {
-        background: #ef4444;
+    /* buy variant override to use theme color */
+    :global(.submit-btn[data-slot="button"]:not([class*="destructive"])) {
+        background: var(--color-theme-1) !important;
+        color: white !important;
     }
 
     input[type="number"]::-webkit-outer-spin-button,
