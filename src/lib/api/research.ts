@@ -91,6 +91,12 @@ export function hireResearcher(centerId: number, count: number) {
 	});
 }
 
+export function fireResearcher(centerId: number, count: number) {
+	return fetchSpring<ResearchCenterResponse>(`/api/research/centers/${centerId}/fire?count=${count}`, {
+		method: 'POST'
+	});
+}
+
 export function setInvestment(centerId: number, monthlyInvestment: number) {
 	return fetchSpring<ResearchCenterResponse>(`/api/research/centers/${centerId}/investment`, {
 		method: 'PUT',

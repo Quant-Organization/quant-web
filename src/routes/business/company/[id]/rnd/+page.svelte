@@ -4,7 +4,7 @@
   import { page } from '$app/state';
   import {
     getResearchProjects, getResearchProjectsByCategory, getResearchCenters, createResearchCenter, getActiveResearch, startResearch, cancelResearch, setInvestment,
-    hireResearcher, getCompletedResearch, getResearchEffects,
+    hireResearcher, fireResearcher, getCompletedResearch, getResearchEffects,
     type ResearchProjectResponse, type ResearchCenterResponse, type UserResearchResponse, type CompletedResearchResponse
   } from '$lib/api/research';
   import { friendlyError } from '$lib/api/config';
@@ -64,6 +64,11 @@
   let showHireModal = $state(false);
   let hireCount = $state(1);
   let hiring = $state(false);
+
+  // 연구원 해고 모달
+  let showFireModal = $state(false);
+  let fireCount = $state(1);
+  let firing = $state(false);
 
   onMount(async () => {
     const companyId = Number(page.params.id);
@@ -164,6 +169,21 @@
     }
   }
 
+  async function handleFireResearcher() {
+    if (!center) return;
+    firing = true;
+    try {
+      const updated = await fireResearcher(center.id, fireCount);
+      center = updated;
+      showFireModal = false;
+      toast.success(`연구원 ${fireCount}명이 해고되었습니다. 고용비의 50%가 환급되었습니다.`);
+    } catch (e) {
+      toast.error(friendlyError(e, '연구원 해고에 실패했습니다.'));
+    } finally {
+      firing = false;
+    }
+  }
+
   function formatCurrency(n: number) {
     n = n ?? 0;
     if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
@@ -211,9 +231,14 @@
     <div class="card stat-card">
       <span class="label">연구원</span>
       <h2 class="value">{center?.totalResearchers ?? 0}명 <span class="sub-value">(가용 {center?.availableResearchers ?? 0}명)</span></h2>
-      <button class="hire-btn" onclick={() => { hireCount = 1; showHireModal = true; }} disabled={!center}>
-        + 연구원 고용
-      </button>
+      <div class="researcher-buttons">
+        <button class="hire-btn" onclick={() => { hireCount = 1; showHireModal = true; }} disabled={!center}>
+          + 연구원 고용
+        </button>
+        <button class="fire-btn" onclick={() => { fireCount = 1; showFireModal = true; }} disabled={!center || (center?.availableResearchers ?? 0) === 0}>
+          - 연구원 해고
+        </button>
+      </div>
     </div>
 
     <div class="card slider-card">
@@ -480,6 +505,48 @@
         <button class="cancel-modal-btn" onclick={() => { showHireModal = false; }}>취소</button>
         <button class="primary-btn" onclick={handleHireResearcher} disabled={hiring || hireCount < 1}>
           {hiring ? '고용 중...' : '고용 확정'}
+        </button>
+      </div>
+    </div>
+  </div>
+  {/if}
+
+  <!-- 연구원 해고 모달 -->
+  {#if showFireModal}
+  <div class="modal-overlay" onclick={() => { showFireModal = false; }}>
+    <div class="modal" onclick={(e) => e.stopPropagation()}>
+      <div class="modal-header">
+        <h3>연구원 해고</h3>
+        <button class="modal-close" onclick={() => { showFireModal = false; }}>✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="center-info-row">
+          <span>총 연구원</span>
+          <span class="info-val">{center?.totalResearchers ?? 0}명</span>
+        </div>
+        <div class="center-info-row">
+          <span>가용 연구원 (해고 가능)</span>
+          <span class="info-val">{center?.availableResearchers ?? 0}명</span>
+        </div>
+        <div class="form-group" style="margin-top: 8px;">
+          <label for="fire-count">해고할 연구원 수</label>
+          <input
+            id="fire-count"
+            type="number"
+            min="1"
+            max={center?.availableResearchers ?? 0}
+            bind:value={fireCount}
+          />
+          <span class="fire-refund">환급액: {formatCurrency(fireCount * 25000)} (1인당 $25K 환급)</span>
+        </div>
+        <div class="warning-message">
+          <p>⚠️ 가용 연구원만 해고 가능합니다. 연구 중인 연구원은 해고할 수 없습니다.</p>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="cancel-modal-btn" onclick={() => { showFireModal = false; }}>취소</button>
+        <button class="fire-confirm-btn" onclick={handleFireResearcher} disabled={firing || fireCount < 1 || fireCount > (center?.availableResearchers ?? 0)}>
+          {firing ? '해고 중...' : '해고 확정'}
         </button>
       </div>
     </div>
@@ -895,9 +962,14 @@
     margin-bottom: 0;
   }
 
-  /* --- 연구원 고용 버튼 --- */
-  .hire-btn {
+  /* --- 연구원 관리 버튼 --- */
+  .researcher-buttons {
+    display: flex;
+    gap: 8px;
     margin-top: 10px;
+  }
+
+  .hire-btn {
     background-color: var(--color-theme-1);
     color: white;
     border: none;
@@ -906,12 +978,54 @@
     font-size: 12px;
     font-weight: 600;
     cursor: pointer;
-    align-self: flex-start;
+    flex: 1;
   }
   .hire-btn:hover { opacity: 0.9; }
   .hire-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .fire-btn {
+    background-color: #ef4444;
+    color: white;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    flex: 1;
+  }
+  .fire-btn:hover { opacity: 0.9; }
+  .fire-btn:disabled { opacity: 0.5; cursor: not-allowed; }
   .sub-value { font-size: 14px; font-weight: 500; color: var(--color-text-gray); }
   .hire-cost { display: block; margin-top: 6px; font-size: 12px; color: var(--color-text-gray); }
+
+  /* --- 해고 관련 스타일 --- */
+  .fire-refund { display: block; margin-top: 6px; font-size: 12px; color: var(--color-text-gray); }
+  .warning-message {
+    background: #fef3cd;
+    border: 1px solid #ffc107;
+    border-radius: 6px;
+    padding: 8px 12px;
+    margin-top: 8px;
+  }
+  .warning-message p {
+    font-size: 12px;
+    color: #856404;
+    margin: 0;
+    font-weight: 600;
+  }
+  .fire-confirm-btn {
+    background-color: #ef4444;
+    color: white;
+    border: none;
+    padding: 8px 18px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .fire-confirm-btn:hover { opacity: 0.9; }
+  .fire-confirm-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
   /* --- 탭 --- */
   .tab-bar {
