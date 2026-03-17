@@ -1,0 +1,142 @@
+name: Sync Server API Changes
+
+on:
+  repository_dispatch:
+    types: [server-api-changed]
+
+  # 수동 트리거
+  workflow_dispatch:
+    inputs:
+      prompt:
+        description: 'Claude에게 전달할 추가 지시사항'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  claude-sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - run: npm ci
+
+      # Claude Code로 프론트엔드 코드 수정
+      - name: Run Claude Code
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          model: claude-sonnet-4-20250514
+          max_turns: 30
+
+          prompt: |
+            ## 서버 API 변경 동기화
+
+            서버(Spring Boot) 레포에서 API 변경이 감지되어 배포 완료되었습니다.
+            프론트엔드 코드를 서버 변경에 맞게 수정해주세요.
+
+            ### 서버 커밋 정보
+            - 커밋: `${{ github.event.client_payload.commit_sha }}`
+            - 작성자: ${{ github.event.client_payload.author }}
+            - 메시지: ${{ github.event.client_payload.commit_message }}
+
+            ### 서버 코드 변경 diff
+            ```diff
+            ${{ github.event.client_payload.api_diff }}
+            ```
+
+            ### 변경된 DTO 전체 내용 (타입 참고용)
+            ```java
+            ${{ github.event.client_payload.dto_contents }}
+            ```
+
+            ### 작업 지침
+
+            **1단계: 분석**
+            - 위 diff에서 변경/추가/삭제된 API 엔드포인트 파악
+            - Spring `@RequestMapping`, `@GetMapping`, `@PostMapping` 등에서 경로 확인
+            - DTO 클래스에서 요청/응답 타입 필드 확인
+
+            **2단계: API 모듈 수정 (`src/lib/api/`)**
+            - 새 엔드포인트 → 해당 모듈에 함수 추가 (fetchSpring 또는 fetchFastAPI 사용)
+            - 변경된 요청/응답 필드 → TypeScript 타입 업데이트
+            - 삭제된 엔드포인트 → 프론트 호출 코드 제거
+            - API 함수 패턴 참고: 기존 `src/lib/api/*.ts` 파일들의 패턴을 따를 것
+
+            **3단계: 컴포넌트 수정**
+            - 변경된 API를 사용하는 Svelte 컴포넌트도 함께 수정
+            - 새 필드가 추가된 경우 UI에도 반영
+
+            **4단계: 검증**
+            - `npm run check`로 TypeScript 에러 없는지 확인
+            - 에러가 있으면 수정 후 재검증
+
+            ### 프로젝트 규칙
+            - SvelteKit 2 + Svelte 5 (runes: $state, $derived, $props)
+            - Spring API 호출: `fetchSpring<T>(path, options)` (src/lib/api/config.ts)
+            - FastAPI 호출: `fetchFastAPI<T>(path, options)` (src/lib/api/config.ts)
+            - TypeScript strict mode, `type` 사용 (interface 대신)
+            - CSS: rem 단위, CSS 변수(var(--color-*)), 스코프드 스타일
+            - UI 텍스트는 모두 한국어
+
+            ${{ github.event.inputs.prompt || '' }}
+
+          allowed_tools: "Read,Write,Edit,Bash,Glob,Grep"
+
+      # 변경사항 확인
+      - name: Check for changes
+        id: changes
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+            echo "Claude Code가 변경할 내용이 없다고 판단했습니다."
+          fi
+
+      # PR 생성
+      - name: Create Pull Request
+        if: steps.changes.outputs.has_changes == 'true'
+        id: pr
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "sync: 서버 API 변경 반영 (${{ github.event.client_payload.commit_sha }})"
+          title: "🔄 서버 API 변경 자동 반영 (${{ github.event.client_payload.commit_sha }})"
+          branch: auto-sync/server-${{ github.run_number }}
+          delete-branch: true
+          body: |
+            ## 서버 변경 자동 동기화
+
+            서버 커밋 `${{ github.event.client_payload.commit_sha }}`의 배포 완료 후 자동 생성된 PR입니다.
+
+            **커밋 메시지:**
+            > ${{ github.event.client_payload.commit_message }}
+
+            **작성자:** ${{ github.event.client_payload.author }}
+
+            ---
+
+            ### 변경 내역
+            서버의 controller/dto/entity 변경에 따라 프론트엔드 API 모듈 및 컴포넌트를 자동 수정했습니다.
+
+            ⚠️ **Claude Code가 자동 수정한 PR입니다. 머지 전 반드시 리뷰하세요.**
+          labels: |
+            auto-sync
+            claude-code
+
+      - name: PR URL
+        if: steps.changes.outputs.has_changes == 'true'
+        run: echo "PR created - ${{ steps.pr.outputs.pull-request-url }}"
