@@ -3,20 +3,25 @@
   import { toast } from 'svelte-sonner';
   import { page } from '$app/state';
   import {
-    getResearchProjects, getResearchProjectsByCategory, getResearchCenters, getActiveResearch, startResearch, cancelResearch, setInvestment,
+    getResearchProjects, getResearchProjectsByCategory, getResearchCenters, createResearchCenter, getActiveResearch, startResearch, cancelResearch, setInvestment,
     hireResearcher, getCompletedResearch, getResearchEffects,
     type ResearchProjectResponse, type ResearchCenterResponse, type UserResearchResponse, type CompletedResearchResponse
   } from '$lib/api/research';
+  import { friendlyError } from '$lib/api/config';
+
+  async function fetchCenter(): Promise<ResearchCenterResponse | null> {
+    try { const list = await getResearchCenters(); return list[0] ?? null; }
+    catch { return null; }
+  }
   import SkeletonTable from '$lib/components/SkeletonTable.svelte';
 
-  let centers = $state<ResearchCenterResponse[]>([]);
+  let center = $state<ResearchCenterResponse | null>(null);
   let projects = $state<ResearchProjectResponse[]>([]);
   let activeResearch = $state<UserResearchResponse[]>([]);
   let completedResearch = $state<CompletedResearchResponse[]>([]);
   let researchEffects = $state<CompletedResearchResponse[]>([]);
   let loading = $state(true);
 
-  let center = $derived(centers[0] ?? null);
   let investAmount = $state(600);
 
   // 탭: 'active' | 'completed' | 'effects'
@@ -37,7 +42,23 @@
 
   // 카테고리 필터
   let selectedCategory = $state<string | null>(null);
-  let allCategories = $state<string[]>([]);
+  let allCategories = $state<{ code: string; name: string }[]>([]);
+
+  // 연구소 생성
+  let creating = $state(false);
+  async function handleCreateCenter() {
+    const companyId = Number(page.params.id);
+    creating = true;
+    try {
+      const newCenter = await createResearchCenter(companyId);
+      center = newCenter;
+      toast.success('연구소가 생성되었습니다.');
+    } catch (e) {
+      toast.error(friendlyError(e, '연구소 생성에 실패했습니다.'));
+    } finally {
+      creating = false;
+    }
+  }
 
   // 연구원 고용 모달
   let showHireModal = $state(false);
@@ -47,20 +68,28 @@
   onMount(async () => {
     const companyId = Number(page.params.id);
     try {
-      const [ctrs, projs, active, completed, effects] = await Promise.all([
-        getResearchCenters().catch(() => [] as ResearchCenterResponse[]),
+      const [ctr, projs, active, completed, effects] = await Promise.all([
+        fetchCenter(),
         getResearchProjects().catch(() => [] as ResearchProjectResponse[]),
         getActiveResearch().catch(() => [] as UserResearchResponse[]),
         getCompletedResearch().catch(() => [] as CompletedResearchResponse[]),
         getResearchEffects(companyId).catch(() => [] as CompletedResearchResponse[])
       ]);
-      centers = ctrs;
+      center = ctr;
       projects = projs;
-      allCategories = [...new Set(projs.map(p => p.categoryName || p.category))];
+      const seen = new Set<string>();
+      allCategories = projs.reduce((acc, p) => {
+        const code = p.category;
+        if (!seen.has(code)) {
+          seen.add(code);
+          acc.push({ code, name: p.categoryName || code });
+        }
+        return acc;
+      }, [] as { code: string; name: string }[]);
       activeResearch = active;
       completedResearch = completed;
       researchEffects = effects;
-      if (ctrs[0]) investAmount = Math.round(ctrs[0].monthlyInvestment / 1000);
+      if (ctr) investAmount = Math.round(ctr.monthlyInvestment / 1000);
     } catch (e) {
       console.error('R&D 데이터 로드 실패:', e);
     } finally {
@@ -69,15 +98,23 @@
   });
 
   async function handleStart(project: ResearchProjectResponse) {
-    if (!center) return;
+    if (!center) {
+      toast.error('연구소가 없습니다. 연구소를 먼저 생성해주세요.');
+      console.error('handleStart: center is null', { center });
+      return;
+    }
     startingId = project.id;
+    console.log('Starting research:', { centerId: center.id, projectId: project.id, researchers: project.requiredResearchers });
     try {
       await startResearch({ researchCenterId: center.id, projectId: project.id, assignedResearchers: project.requiredResearchers });
-      activeResearch = await getActiveResearch();
-      projects = await getResearchProjects();
+      [activeResearch, projects, center] = await Promise.all([
+        getActiveResearch(),
+        getResearchProjects(),
+        fetchCenter()
+      ]);
       toast.success('연구가 시작되었습니다.');
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : '연구 시작에 실패했습니다.');
+      toast.error(friendlyError(e, '연구 시작에 실패했습니다.'));
     } finally {
       startingId = null;
     }
@@ -87,11 +124,14 @@
     cancelingId = research.id;
     try {
       await cancelResearch(research.id);
-      activeResearch = await getActiveResearch();
-      projects = await getResearchProjects();
+      [activeResearch, projects, center] = await Promise.all([
+        getActiveResearch(),
+        getResearchProjects(),
+        fetchCenter()
+      ]);
       toast.success('연구가 취소되었습니다.');
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : '연구 취소에 실패했습니다.');
+      toast.error(friendlyError(e, '연구 취소에 실패했습니다.'));
     } finally {
       cancelingId = null;
     }
@@ -103,7 +143,7 @@
     if (!center) return;
     try {
       const updated = await setInvestment(center.id, investAmount * 1000);
-      centers = centers.map(c => c.id === updated.id ? updated : c);
+      center = updated;
     } catch (e) {
       console.error('투자액 변경 실패:', e);
     }
@@ -113,12 +153,12 @@
     if (!center) return;
     hiring = true;
     try {
-      await hireResearcher(center.id, hireCount);
-      centers = await getResearchCenters().catch(() => centers);
+      const updated = await hireResearcher(center.id, hireCount);
+      center = updated;
       showHireModal = false;
       toast.success('연구원이 고용되었습니다.');
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : '연구원 고용에 실패했습니다.');
+      toast.error(friendlyError(e, '연구원 고용에 실패했습니다.'));
     } finally {
       hiring = false;
     }
@@ -150,6 +190,16 @@
 
   {#if loading}
     <SkeletonTable rows={4} cols={3} />
+  {:else if !center}
+    <div class="card create-center-card">
+      <div class="create-center-content">
+        <h2>연구소가 없습니다</h2>
+        <p>R&D 센터를 생성하여 기술 연구를 시작하세요. 연구소 생성 시 연구원 10명이 기본 제공됩니다.</p>
+        <button class="create-center-btn" onclick={handleCreateCenter} disabled={creating}>
+          {creating ? '생성 중...' : 'R&D 센터 생성'}
+        </button>
+      </div>
+    </div>
   {:else}
 
   <section class="top-stats-grid">
@@ -159,8 +209,8 @@
     </div>
 
     <div class="card stat-card">
-      <span class="label">총 연구원 수</span>
-      <h2 class="value">{center?.totalResearchers ?? 0}명</h2>
+      <span class="label">연구원</span>
+      <h2 class="value">{center?.totalResearchers ?? 0}명 <span class="sub-value">(가용 {center?.availableResearchers ?? 0}명)</span></h2>
       <button class="hire-btn" onclick={() => { hireCount = 1; showHireModal = true; }} disabled={!center}>
         + 연구원 고용
       </button>
@@ -329,9 +379,9 @@
         {#each allCategories as cat}
           <button
             class="cat-btn"
-            class:active={selectedCategory === cat}
-            onclick={() => handleCategoryFilter(cat)}
-          >{cat}</button>
+            class:active={selectedCategory === cat.code}
+            onclick={() => handleCategoryFilter(cat.code)}
+          >{cat.name}</button>
         {/each}
       </div>
 
@@ -341,10 +391,13 @@
           <div class="category-group">
             <h4 class="category-title">{category}</h4>
             {#each categoryProjects as project}
-              <div class="project-item-card">
+              {@const active = activeResearch.find(r => r.project.id === project.id)}
+              <div class="project-item-card" class:in-progress={!!active}>
                 <div class="p-header">
                   <h4>{project.name} Lv.{project.level}</h4>
-                  {#if project.isCompleted}
+                  {#if active}
+                    <span class="badge progress">연구 중</span>
+                  {:else if project.isCompleted}
                     <span class="badge done">완료</span>
                   {/if}
                 </div>
@@ -352,15 +405,39 @@
                   <span class="p-effect">효과: {project.effectDescription}</span>
                   <span class="p-cost">비용: {formatCurrency(project.requiredBudget)} / {project.requiredDays >= 24 ? `${Math.round(project.requiredDays / 24)}일` : `${project.requiredDays}시간`}</span>
                 </div>
-                <div class="p-footer">
-                  <button
-                    class="start-btn"
-                    onclick={() => handleStart(project)}
-                    disabled={!project.canStart || startingId === project.id}
-                  >
-                    {startingId === project.id ? '시작 중...' : project.isCompleted ? '완료됨' : '연구 시작'}
-                  </button>
-                </div>
+                {#if active}
+                  <div class="p-progress-section">
+                    <div class="p-progress-bar">
+                      <div class="p-progress-fill" style="width: {active.progressPercent}%"></div>
+                    </div>
+                    <div class="p-progress-info">
+                      <span>{active.progressPercent}%</span>
+                      <span>남은 시간: {active.remainingHours >= 24 ? `${Math.ceil(active.remainingHours / 24)}일` : `${Math.ceil(active.remainingHours)}시간`}</span>
+                    </div>
+                  </div>
+                  <div class="p-footer">
+                    <span class="p-assigned">투입 연구원: {active.assignedResearchers}명</span>
+                    <button class="cancel-btn sm" onclick={() => handleCancel(active)} disabled={cancelingId === active.id}>
+                      {cancelingId === active.id ? '취소 중...' : '연구 취소'}
+                    </button>
+                  </div>
+                {:else}
+                  <div class="p-info-row">
+                    <span class="p-researchers">필요 인력: {project.requiredResearchers}명</span>
+                    {#if center && project.requiredResearchers > (center.availableResearchers ?? 0) && !project.isCompleted}
+                      <span class="p-warn">가용 인력 부족</span>
+                    {/if}
+                  </div>
+                  <div class="p-footer">
+                    <button
+                      class="start-btn"
+                      onclick={() => handleStart(project)}
+                      disabled={!project.canStart || startingId === project.id}
+                    >
+                      {startingId === project.id ? '시작 중...' : project.isCompleted ? '완료됨' : '연구 시작'}
+                    </button>
+                  </div>
+                {/if}
               </div>
             {/each}
           </div>
@@ -396,6 +473,7 @@
         <div class="form-group" style="margin-top: 8px;">
           <label for="hire-count">고용할 연구원 수</label>
           <input id="hire-count" type="number" min="1" bind:value={hireCount} />
+          <span class="hire-cost">비용: {formatCurrency(hireCount * 50000)} (1인당 $50K)</span>
         </div>
       </div>
       <div class="modal-footer">
@@ -428,6 +506,20 @@
   }
 
   /* --- 1. 헤더 --- */
+  /* --- Create Center --- */
+  .create-center-card {
+    text-align: center; padding: 3rem 2rem;
+  }
+  .create-center-content h2 { font-size: 1.25rem; font-weight: 700; margin: 0 0 0.75rem; }
+  .create-center-content p { font-size: 0.875rem; color: var(--color-text-gray); margin: 0 0 1.5rem; }
+  .create-center-btn {
+    padding: 0.75rem 2rem; background: var(--color-theme-1); color: white;
+    border: none; border-radius: 0.5rem; font-size: 0.9375rem; font-weight: 700;
+    cursor: pointer; transition: background 0.2s;
+  }
+  .create-center-btn:hover { background: #0c3b66; }
+  .create-center-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
   .page-header h1 {
     font-size: 28px;
     font-weight: 700;
@@ -712,11 +804,30 @@
     font-size: 13px;
     color: var(--color-text-gray);
   }
+  .p-researchers { font-size: 13px; color: var(--color-text-gray); }
+  .p-warn { font-size: 12px; color: #ef4444; font-weight: 600; }
+  .project-item-card.in-progress { border-color: rgba(0, 82, 155, 0.3); background: rgba(66, 134, 245, 0.03); }
+  .badge.progress { background: #dbeafe; color: #1e40af; }
+  .p-progress-section { margin: 8px 0; }
+  .p-progress-bar {
+    width: 100%; height: 6px; background: var(--color-border); border-radius: 3px; overflow: hidden;
+  }
+  .p-progress-fill {
+    height: 100%; background: var(--color-theme-1); border-radius: 3px;
+    transition: width 0.3s ease; min-width: 2px;
+  }
+  .p-progress-info {
+    display: flex; justify-content: space-between; font-size: 12px;
+    color: var(--color-text-gray); margin-top: 4px; font-weight: 600;
+  }
+  .p-assigned { font-size: 12px; color: var(--color-text-gray); }
+  .cancel-btn.sm { font-size: 12px; padding: 4px 10px; }
 
   .p-footer {
     display: flex;
     justify-content: flex-end;
     align-items: center;
+    gap: 12px;
   }
 
   .start-btn {
@@ -799,6 +910,8 @@
   }
   .hire-btn:hover { opacity: 0.9; }
   .hire-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .sub-value { font-size: 14px; font-weight: 500; color: var(--color-text-gray); }
+  .hire-cost { display: block; margin-top: 6px; font-size: 12px; color: var(--color-text-gray); }
 
   /* --- 탭 --- */
   .tab-bar {

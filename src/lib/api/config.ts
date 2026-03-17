@@ -1,16 +1,64 @@
 const ERROR_MESSAGES: Record<string, string> = {
+	// Common
 	C001: '입력값이 올바르지 않습니다.',
+	C002: '서버 내부 오류가 발생했습니다.',
 	C003: '요청한 데이터를 찾을 수 없습니다.',
+	C004: '로그인이 필요합니다.',
+	C005: '접근 권한이 없습니다.',
+	// User
+	U001: '사용자를 찾을 수 없습니다.',
+	U002: '이미 사용 중인 아이디입니다.',
+	U003: '아이디 또는 비밀번호가 올바르지 않습니다.',
+	// Account
 	A001: '잔액이 부족합니다.',
+	A002: '계좌를 찾을 수 없습니다.',
+	// Level
 	L001: '레벨이 부족합니다.',
 	L002: '이미 최대 레벨입니다.',
+	// Assets
+	AS001: '자산을 찾을 수 없습니다.',
+	AS002: '이미 보유 중인 자산입니다.',
+	AS003: '보유하지 않은 자산입니다.',
+	// Region
+	RG001: '지역을 찾을 수 없습니다.',
+	// Company & Factory
+	CO001: '회사를 찾을 수 없습니다.',
+	CO002: '이미 회사를 보유하고 있습니다.',
+	CO003: '유효하지 않은 회사 유형입니다.',
+	CO004: '이미 사용 중인 회사 이름입니다.',
 	F001: '공장을 찾을 수 없습니다.',
+	F002: '유효하지 않은 공장 등급입니다.',
 	F003: '재고가 부족합니다.',
 	F004: '창고가 가득 찼습니다.',
+	// Loan
+	LO001: '대출을 찾을 수 없습니다.',
+	LO002: '이미 상환된 대출입니다.',
+	LO003: '유효하지 않은 대출 금액입니다.',
+	// Auction
+	AU001: '경매를 찾을 수 없습니다.',
+	AU002: '진행 중이지 않은 경매입니다.',
+	AU003: '입찰 금액이 너무 낮습니다.',
+	AU004: '이미 최고 입찰자입니다.',
+	// Mission
+	M001: '미션을 찾을 수 없습니다.',
+	M002: '아직 완료되지 않은 미션입니다.',
+	M003: '이미 보상을 수령한 미션입니다.',
+	// R&D
+	R001: '연구 프로젝트를 찾을 수 없습니다.',
+	R002: '이미 진행 중인 연구입니다.',
+	R003: '이미 완료된 연구입니다.',
+	R004: '가용 연구원이 부족합니다.',
+	// Export
+	E001: '수출 주문을 찾을 수 없습니다.',
+	// General
 	G001: '접근 권한이 없습니다.',
 	G002: '이미 존재합니다.',
+	G003: '잘못된 요청입니다.',
+	G004: '유효하지 않은 상태입니다.',
 	G005: '레벨이 부족합니다.',
 	G006: '선행 조건을 충족하지 못했습니다.',
+	G007: '동시 수정이 감지되었습니다. 다시 시도해주세요.',
+	G008: '이미 결제되었습니다.',
 };
 
 export function friendlyError(e: unknown, fallback: string): string {
@@ -21,7 +69,7 @@ export function friendlyError(e: unknown, fallback: string): string {
 }
 
 // API Base URLs — uses Vercel/Vite proxy in production, env vars for local dev
-export const FASTAPI_BASE = import.meta.env.VITE_FASTAPI_URL || '/fastapi';
+export const FASTAPI_BASE = '/fastapi';
 export const SPRING_BASE = import.meta.env.VITE_SPRING_API_URL || '';
 
 function getSpringToken(): string | null {

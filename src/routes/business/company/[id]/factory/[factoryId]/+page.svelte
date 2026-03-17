@@ -142,6 +142,7 @@
 
   // 업그레이드 state
   let upgradingType = $state<UpgradeType | null>(null);
+  let showUpgradeModal = $state(false);
 
   const prodLineLabels: Record<string, string> = { NORMAL: '일반', AUTOMATED: '자동', ADVANCED: '첨단' };
   const energyLabels: Record<string, string> = { STANDARD: '표준', EFFICIENT: '고효율', RENEWABLE: '재생 에너지' };
@@ -151,58 +152,72 @@
   const energyOrder = ['STANDARD', 'EFFICIENT', 'RENEWABLE'];
   const securityOrder = ['STANDARD', 'ADVANCED', 'PREMIUM'];
 
-  function isMaxLevel(type: UpgradeType): boolean {
-    if (!factory) return true;
-    switch (type) {
-      case 'PRODUCTION_LINE': return factory.productionLineType === 'ADVANCED';
-      case 'LAND': return factory.landExpansionLevel >= 2;
-      case 'BUILDING': return factory.buildingExpansionLevel >= 2;
-      case 'LOUNGE': return factory.loungeLevel >= 2;
-      case 'ENERGY': return factory.energyOption === 'RENEWABLE';
-      case 'SECURITY': return factory.securityOption === 'PREMIUM';
-      default: return true;
-    }
-  }
+  // 업그레이드 모달 옵션
+  const prodLineUpgradeOpts = [
+    { key: 'NORMAL', label: '일반 생산 라인', cost: '+5B 건설비', effect: '+0% 처리율' },
+    { key: 'AUTOMATED', label: '자동 생산 라인', cost: '+8B 건설비', effect: '+5% 처리율' },
+    { key: 'ADVANCED', label: '첨단 생산 라인', cost: '+12B 건설비', effect: '+10% 처리율' },
+  ];
+  const facilityUpgradeGroups = [
+    { label: '부지 면적 확대', type: 'LAND' as UpgradeType, options: [
+      { level: 1, label: '1단계', cost: '+1B 건설비', effect: '+5% 생산량' },
+      { level: 2, label: '2단계', cost: '+3B 건설비', effect: '+10% 생산량' },
+    ]},
+    { label: '건축 면적 확대', type: 'BUILDING' as UpgradeType, options: [
+      { level: 1, label: '1단계', cost: '+2B 건설비', effect: '+5% 생산량' },
+      { level: 2, label: '2단계', cost: '+5B 건설비', effect: '+10% 생산량' },
+    ]},
+    { label: '직원 휴게실', type: 'LOUNGE' as UpgradeType, options: [
+      { level: 1, label: '1단계', cost: '+1B 건설비', effect: '+5% 직원 수용량' },
+      { level: 2, label: '2단계', cost: '+3B 건설비', effect: '+10% 직원 수용량' },
+    ]},
+  ];
+  const energyUpgradeOpts = [
+    { key: 'STANDARD', label: '표준(기본)', cost: '+0B 건설비', effect: '-0% 전기세' },
+    { key: 'EFFICIENT', label: '고효율 에너지', cost: '+1B 건설비', effect: '-10% 전기세' },
+    { key: 'RENEWABLE', label: '재생 에너지', cost: '+3B 건설비', effect: '-20% 전기세' },
+  ];
+  const securityUpgradeOpts = [
+    { key: 'STANDARD', label: '표준(기본)', cost: '+0B 건설비', effect: '-0% 연구 실패율' },
+    { key: 'ADVANCED', label: '고효율 보안', cost: '+0.8B 건설비', effect: '-5% 연구 실패율' },
+    { key: 'PREMIUM', label: 'AI 보안 시스템', cost: '+2B 건설비', effect: '-10% 연구 실패율' },
+  ];
 
-  function currentLevelText(type: UpgradeType): string {
-    if (!factory) return '-';
-    switch (type) {
-      case 'PRODUCTION_LINE': return prodLineLabels[factory.productionLineType] ?? factory.productionLineType;
-      case 'LAND': return `${factory.landExpansionLevel}단계`;
-      case 'BUILDING': return `${factory.buildingExpansionLevel}단계`;
-      case 'LOUNGE': return `${factory.loungeLevel}단계`;
-      case 'ENERGY': return energyLabels[factory.energyOption] ?? factory.energyOption;
-      case 'SECURITY': return securityLabels[factory.securityOption] ?? factory.securityOption;
-      default: return '-';
-    }
-  }
+  type OptionStatus = 'current' | 'past' | 'next' | 'locked';
 
-  function nextLevelText(type: UpgradeType): string {
-    if (!factory) return '-';
+  function getOrderedStatus(order: string[], currentKey: string, key: string): OptionStatus {
+    const ci = order.indexOf(currentKey), i = order.indexOf(key);
+    if (i < ci) return 'past';
+    if (i === ci) return 'current';
+    if (i === ci + 1) return 'next';
+    return 'locked';
+  }
+  function getProdLineStatus(key: string): OptionStatus {
+    return factory ? getOrderedStatus(prodLineOrder, factory.productionLineType, key) : 'locked';
+  }
+  function getEnergyStatus(key: string): OptionStatus {
+    return factory ? getOrderedStatus(energyOrder, factory.energyOption, key) : 'locked';
+  }
+  function getSecurityStatus(key: string): OptionStatus {
+    return factory ? getOrderedStatus(securityOrder, factory.securityOption, key) : 'locked';
+  }
+  function getFacilityStatus(type: UpgradeType, level: number): OptionStatus {
+    if (!factory) return 'locked';
+    let cur: number;
     switch (type) {
-      case 'PRODUCTION_LINE': {
-        const idx = prodLineOrder.indexOf(factory.productionLineType);
-        return idx < prodLineOrder.length - 1 ? prodLineLabels[prodLineOrder[idx + 1]] : '-';
-      }
-      case 'LAND': return factory.landExpansionLevel < 2 ? `${factory.landExpansionLevel + 1}단계` : '-';
-      case 'BUILDING': return factory.buildingExpansionLevel < 2 ? `${factory.buildingExpansionLevel + 1}단계` : '-';
-      case 'LOUNGE': return factory.loungeLevel < 2 ? `${factory.loungeLevel + 1}단계` : '-';
-      case 'ENERGY': {
-        const idx = energyOrder.indexOf(factory.energyOption);
-        return idx < energyOrder.length - 1 ? energyLabels[energyOrder[idx + 1]] : '-';
-      }
-      case 'SECURITY': {
-        const idx = securityOrder.indexOf(factory.securityOption);
-        return idx < securityOrder.length - 1 ? securityLabels[securityOrder[idx + 1]] : '-';
-      }
-      default: return '-';
+      case 'LAND': cur = factory.landExpansionLevel; break;
+      case 'BUILDING': cur = factory.buildingExpansionLevel; break;
+      case 'LOUNGE': cur = factory.loungeLevel; break;
+      default: return 'locked';
     }
+    if (level < cur) return 'past';
+    if (level === cur) return 'current';
+    if (level === cur + 1) return 'next';
+    return 'locked';
   }
 
   async function handleUpgrade(type: UpgradeType) {
     if (!factory || upgradingType) return;
-    const confirmed = confirm(`${upgradeItems.find(u => u.type === type)?.label ?? type}을(를) 업그레이드하시겠습니까?`);
-    if (!confirmed) return;
     upgradingType = type;
     try {
       const res = await upgradeFactory(factory.id, type);
@@ -214,15 +229,6 @@
       upgradingType = null;
     }
   }
-
-  const upgradeItems: { type: UpgradeType; label: string; icon: string; desc: string }[] = [
-    { type: 'PRODUCTION_LINE', label: '생산 라인', icon: '⚙️', desc: '생산 처리율 향상' },
-    { type: 'LAND', label: '부지 확장', icon: '🏗️', desc: '생산량 증가' },
-    { type: 'BUILDING', label: '건물 확장', icon: '🏢', desc: '생산량 증가' },
-    { type: 'LOUNGE', label: '휴게실', icon: '☕', desc: '효율 증가' },
-    { type: 'ENERGY', label: '에너지', icon: '⚡', desc: '전기세 절감' },
-    { type: 'SECURITY', label: '보안', icon: '🔒', desc: '보안 수준 향상' },
-  ];
 
   onMount(async () => {
     try {
@@ -620,92 +626,154 @@
       {/if}
     </div>
 
-    <div class="card upgrade-card">
-      <h3>설비 업그레이드</h3>
-      <div class="upgrade-grid">
-        {#each upgradeItems as item}
-          {@const maxed = isMaxLevel(item.type)}
-          <div class="upgrade-item" class:maxed>
-            <div class="upgrade-icon">{item.icon}</div>
-            <div class="upgrade-info">
-              <span class="upgrade-label">{item.label}</span>
-              <span class="upgrade-desc">{item.desc}</span>
-              <div class="upgrade-levels">
-                <span class="upgrade-current">{currentLevelText(item.type)}</span>
-                {#if !maxed}
-                  <span class="upgrade-arrow">→</span>
-                  <span class="upgrade-next">{nextLevelText(item.type)}</span>
-                {/if}
-              </div>
-            </div>
-            <button
-              class="btn-upgrade"
-              class:maxed
-              onclick={() => handleUpgrade(item.type)}
-              disabled={maxed || !!upgradingType}
-            >
-              {#if maxed}
-                MAX
-              {:else if upgradingType === item.type}
-                처리중...
-              {:else}
-                업그레이드
-              {/if}
-            </button>
-          </div>
-        {/each}
+    <div class="card finance-card-side">
+      <h3>재무 상태</h3>
+      <div class="f-col">
+        <h4>월 운영비 상세</h4>
+        <div class="f-item"><span>인건비</span> <span>{fmtMoney(factory.monthlyLaborCost)}</span></div>
+        <div class="f-item"><span>자재비</span> <span>{fmtMoney(factory.monthlyMaterialCost)}</span></div>
+        <div class="f-item"><span>전기세</span> <span>{fmtMoney(factory.monthlyElectricityCost)}</span></div>
+        <div class="f-divider"></div>
+        <div class="f-item total"><span>총계</span> <span class="text-red">-{fmtMoney(totalOpex)}</span></div>
       </div>
-    </div>
-
-    <div class="card finance-container">
-      <div class="finance-card">
-        <h3>재무 상태</h3>
-        <div class="finance-row">
-
-          <div class="f-col">
-            <h4>월 운영비 상세</h4>
-            <div class="f-item">
-              <span>인건비</span> <span>{fmtMoney(factory.monthlyLaborCost)}</span>
-            </div>
-            <div class="f-item">
-              <span>자재비</span> <span>{fmtMoney(factory.monthlyMaterialCost)}</span>
-            </div>
-            <div class="f-item">
-              <span>전기세</span> <span>{fmtMoney(factory.monthlyElectricityCost)}</span>
-            </div>
-            <div class="f-divider"></div>
-            <div class="f-item total">
-              <span>총계</span> <span class="text-red">-{fmtMoney(totalOpex)}</span>
-            </div>
-          </div>
-
-          <div class="f-col">
-            <h4>수익성 지표</h4>
-            <div class="f-item">
-              <span>월 매출</span> <span>{fmtMoney(factory.monthlyRevenue)}</span>
-            </div>
-            <div class="f-item">
-              <span>운영비</span> <span class="text-red">-{fmtMoney(totalOpex)}</span>
-            </div>
-            <div class="f-divider"></div>
-            <div class="f-item total">
-              <span>월 순수익</span>
-              <span class="text-profit">
-                {factory.monthlyNetIncome >= 0 ? '+' : ''}{fmtMoney(factory.monthlyNetIncome)}
-              </span>
-            </div>
-          </div>
-
+      <div class="f-separator"></div>
+      <div class="f-col">
+        <h4>수익성 지표</h4>
+        <div class="f-item"><span>월 매출</span> <span>{fmtMoney(factory.monthlyRevenue)}</span></div>
+        <div class="f-item"><span>운영비</span> <span class="text-red">-{fmtMoney(totalOpex)}</span></div>
+        <div class="f-divider"></div>
+        <div class="f-item total">
+          <span>월 순수익</span>
+          <span class="text-profit">{factory.monthlyNetIncome >= 0 ? '+' : ''}{fmtMoney(factory.monthlyNetIncome)}</span>
         </div>
       </div>
+    </div>
 
-      <div class="action-buttons">
-        <button class="btn btn-yellow" onclick={handleTogglePause} disabled={actionLoading}>
-          {isRunning ? '일시중지' : '재가동'}
-        </button>
-        <button class="btn btn-red" onclick={handleDeleteFactory} disabled={actionLoading}>공장 매각</button>
+    <div class="card upgrade-card">
+      <div class="upgrade-card-header">
+        <h3>설비 현황</h3>
+        <button class="btn-open-upgrade" onclick={() => { showUpgradeModal = true; }}>업그레이드</button>
+      </div>
+      <div class="upgrade-summary">
+        <div class="us-item"><span class="us-icon">&#9881;&#65039;</span><span class="us-label">생산 라인</span><span class="us-value">{prodLineLabels[factory.productionLineType] ?? '-'}</span></div>
+        <div class="us-item"><span class="us-icon">&#127959;&#65039;</span><span class="us-label">부지</span><span class="us-value">{factory.landExpansionLevel}단계</span></div>
+        <div class="us-item"><span class="us-icon">&#127970;</span><span class="us-label">건물</span><span class="us-value">{factory.buildingExpansionLevel}단계</span></div>
+        <div class="us-item"><span class="us-icon">&#9749;</span><span class="us-label">휴게실</span><span class="us-value">{factory.loungeLevel}단계</span></div>
+        <div class="us-item"><span class="us-icon">&#9889;</span><span class="us-label">에너지</span><span class="us-value">{energyLabels[factory.energyOption] ?? '-'}</span></div>
+        <div class="us-item"><span class="us-icon">&#128274;</span><span class="us-label">보안</span><span class="us-value">{securityLabels[factory.securityOption] ?? '-'}</span></div>
       </div>
     </div>
+
+    <div class="action-buttons">
+      <button class="btn btn-yellow" onclick={handleTogglePause} disabled={actionLoading}>
+        {isRunning ? '일시중지' : '재가동'}
+      </button>
+      <button class="btn btn-red" onclick={handleDeleteFactory} disabled={actionLoading}>공장 매각</button>
+    </div>
+
+    {#if showUpgradeModal}
+      <div class="modal-overlay" onclick={() => { if (!upgradingType) showUpgradeModal = false; }} role="button" tabindex="-1" onkeydown={(e) => e.key === 'Escape' && !upgradingType && (showUpgradeModal = false)}>
+        <div class="um-modal" onclick={(e) => e.stopPropagation()} role="dialog">
+          <div class="um-header">
+            <h3>설비 업그레이드</h3>
+            <button class="um-close" onclick={() => { if (!upgradingType) showUpgradeModal = false; }}>✕</button>
+          </div>
+
+          <div class="um-body">
+            <div class="um-section">
+              <h4>생산 라인 구성</h4>
+              <div class="um-grid col-3">
+                {#each prodLineUpgradeOpts as opt}
+                  {@const st = getProdLineStatus(opt.key)}
+                  <button
+                    class="um-opt" class:selected={st === 'current'} class:past={st === 'past'} class:next={st === 'next'} class:locked={st === 'locked'}
+                    disabled={st !== 'next' || !!upgradingType} onclick={() => handleUpgrade('PRODUCTION_LINE')}
+                  >
+                    <div class="um-opt-title">{opt.label}</div>
+                    <div class="um-opt-cost" class:hl={st === 'current'}>{opt.cost}</div>
+                    <div class="um-opt-effect">{opt.effect}</div>
+                    {#if st === 'current'}<span class="um-badge">현재</span>{/if}
+                    {#if st === 'next' && upgradingType === 'PRODUCTION_LINE'}<span class="um-badge busy">처리중...</span>{/if}
+                  </button>
+                {/each}
+              </div>
+            </div>
+
+            <div class="um-section">
+              <h4>시설 규모</h4>
+              <div class="um-grid col-3">
+                {#each facilityUpgradeGroups as group}
+                  <div class="um-sub-group">
+                    <span class="um-sub-label">{group.label}</span>
+                    <div class="um-sub-opts">
+                      {#each group.options as opt}
+                        {@const st = getFacilityStatus(group.type, opt.level)}
+                        <button
+                          class="um-mini" class:selected={st === 'current'} class:past={st === 'past'} class:next={st === 'next'} class:locked={st === 'locked'}
+                          disabled={st !== 'next' || !!upgradingType} onclick={() => handleUpgrade(group.type)}
+                        >
+                          <div class="um-mini-head">{opt.label}</div>
+                          <div class="um-mini-cost" class:hl={st === 'current'}>{opt.cost}</div>
+                          <div class="um-mini-effect">{opt.effect}</div>
+                          {#if st === 'current'}<span class="um-badge sm">현재</span>{/if}
+                          {#if st === 'next' && upgradingType === group.type}<span class="um-badge sm busy">처리중...</span>{/if}
+                        </button>
+                      {/each}
+                    </div>
+                  </div>
+                {/each}
+              </div>
+            </div>
+
+            <div class="um-section">
+              <h4>에너지 효율 옵션</h4>
+              <div class="um-grid col-3">
+                {#each energyUpgradeOpts as opt}
+                  {@const st = getEnergyStatus(opt.key)}
+                  <button
+                    class="um-opt chk" class:selected={st === 'current'} class:past={st === 'past'} class:next={st === 'next'} class:locked={st === 'locked'}
+                    disabled={st !== 'next' || !!upgradingType} onclick={() => handleUpgrade('ENERGY')}
+                  >
+                    <div class="um-chk-header">
+                      <div class="um-checkbox" class:checked={st === 'current'}></div>
+                      <span class="um-chk-title">{opt.label}</span>
+                    </div>
+                    <div class="um-chk-body">
+                      <div class="um-opt-cost" class:hl={st === 'current'}>{opt.cost}</div>
+                      <div class="um-opt-effect">{opt.effect}</div>
+                    </div>
+                    {#if st === 'next' && upgradingType === 'ENERGY'}<span class="um-badge busy">처리중...</span>{/if}
+                  </button>
+                {/each}
+              </div>
+            </div>
+
+            <div class="um-section">
+              <h4>보안 옵션</h4>
+              <div class="um-grid col-3">
+                {#each securityUpgradeOpts as opt}
+                  {@const st = getSecurityStatus(opt.key)}
+                  <button
+                    class="um-opt chk" class:selected={st === 'current'} class:past={st === 'past'} class:next={st === 'next'} class:locked={st === 'locked'}
+                    disabled={st !== 'next' || !!upgradingType} onclick={() => handleUpgrade('SECURITY')}
+                  >
+                    <div class="um-chk-header">
+                      <div class="um-checkbox" class:checked={st === 'current'}></div>
+                      <span class="um-chk-title">{opt.label}</span>
+                    </div>
+                    <div class="um-chk-body">
+                      <div class="um-opt-cost" class:hl={st === 'current'}>{opt.cost}</div>
+                      <div class="um-opt-effect">{opt.effect}</div>
+                    </div>
+                    {#if st === 'next' && upgradingType === 'SECURITY'}<span class="um-badge busy">처리중...</span>{/if}
+                  </button>
+                {/each}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    {/if}
 
     <div class="card production-card">
       <h3>생산 관리</h3>
@@ -963,76 +1031,176 @@
   .rnd-empty { text-align: center; padding: 24px 0; color: var(--color-text-gray); font-size: 13px; }
   .rnd-head { display: flex; align-items: center; gap: 8px; }
 
-  /* --- Upgrade Card --- */
-  .upgrade-card { grid-column: 1 / -1; }
-  .upgrade-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
-  .upgrade-item {
-    display: flex; align-items: center; gap: 12px;
-    padding: 14px 16px; border: 1px solid var(--color-border); border-radius: 10px;
-    background: var(--color-bg-2, #f9fafb); transition: border-color 0.2s;
-  }
-  .upgrade-item:not(.maxed):hover { border-color: var(--color-theme-1); }
-  .upgrade-item.maxed { opacity: 0.6; }
-  .upgrade-icon {
-    width: 40px; height: 40px; border-radius: 8px; background: #eef2ff;
-    display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0;
-  }
-  .upgrade-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-  .upgrade-label { font-size: 14px; font-weight: 700; }
-  .upgrade-desc { font-size: 11px; color: var(--color-text-gray); }
-  .upgrade-levels { display: flex; align-items: center; gap: 6px; margin-top: 2px; }
-  .upgrade-current { font-size: 12px; font-weight: 600; color: var(--color-text-gray); }
-  .upgrade-arrow { font-size: 11px; color: var(--color-text-gray); }
-  .upgrade-next { font-size: 12px; font-weight: 700; color: var(--color-theme-1); }
-  .btn-upgrade {
-    padding: 6px 14px; border: none; border-radius: 6px; font-size: 12px; font-weight: 700;
-    background: var(--color-theme-1); color: white; cursor: pointer; white-space: nowrap;
-    transition: background 0.2s;
-  }
-  .btn-upgrade:hover:not(:disabled) { background: #0c3b66; }
-  .btn-upgrade:disabled { opacity: 0.6; cursor: not-allowed; }
-  .btn-upgrade.maxed { background: #d1d5db; color: #6b7280; }
+  /* --- Cards in grid flow naturally: left (1.6fr) / right (1fr) --- */
 
-  @media (max-width: 1024px) {
-    .upgrade-grid { grid-template-columns: repeat(2, 1fr); }
+  /* --- Upgrade Summary Card --- */
+  .upgrade-card-header {
+    display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;
   }
-  @media (max-width: 600px) {
-    .upgrade-grid { grid-template-columns: 1fr; }
+  .upgrade-card-header h3 { margin: 0; font-size: 18px; font-weight: 700; }
+  .btn-open-upgrade {
+    padding: 0.5rem 1.25rem; border: none; border-radius: 0.5rem;
+    background: var(--color-theme-1); color: white;
+    font-size: 0.875rem; font-weight: 700; cursor: pointer; transition: background 0.2s;
+  }
+  .btn-open-upgrade:hover { background: #0c3b66; }
+  .upgrade-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  @media (max-width: 1200px) {
+    .upgrade-summary { grid-template-columns: repeat(2, 1fr); }
+  }
+  .us-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 12px; background: var(--color-bg-2, #f9fafb);
+    border: 1px solid var(--color-border); border-radius: 8px; font-size: 13px;
+  }
+  .us-icon { font-size: 16px; flex-shrink: 0; }
+  .us-label { color: var(--color-text-gray); font-weight: 500; flex: 1; }
+  .us-value { font-weight: 700; color: var(--color-theme-1); font-size: 12px; }
+  @media (max-width: 768px) {
+    .upgrade-summary { grid-template-columns: repeat(2, 1fr); }
   }
 
-  /* --- Finance & Actions --- */
-  .finance-container {
-    background: transparent; border: none; padding: 0; box-shadow: none;
-    display: flex; flex-direction: column; gap: 20px;
-  }
-  .finance-card {
-    background: var(--color-bg-1); border: 1px solid var(--color-border); border-radius: 12px; padding: 24px;
-  }
-  .finance-row { display: flex; gap: 32px; }
-  .f-col { flex: 1; }
-  .f-col h4 { font-size: 14px; color: var(--color-text); margin: 0 0 16px 0; font-weight: 600; }
+  /* --- Finance Side Card --- */
+  .finance-card-side { display: flex; flex-direction: column; }
+  .finance-card-side h3 { font-size: 18px; font-weight: 700; margin: 0 0 20px 0; }
+  .f-separator { border-top: 1px solid var(--color-border); margin: 16px 0; }
+  .f-col h4 { font-size: 14px; color: var(--color-text); margin: 0 0 14px 0; font-weight: 600; }
   .f-item { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 8px; color: var(--color-text-gray); }
   .f-item span:last-child { font-weight: 600; color: var(--color-text); font-family: "Roboto", sans-serif; }
-
   .f-divider { border-top: 1px dashed var(--color-border); margin: 12px 0; }
   .f-item.total span:last-child { font-size: 15px; font-weight: 700; }
-
   .text-red { color: #ef4444 !important; }
   .text-profit { color: #13B981 !important; }
 
-  /* Sale Info */
-  .sale-info {
-    display: flex; justify-content: space-between; align-items: center;
-    background: var(--color-bg-2); padding: 16px 20px; border-radius: 8px;
+  /* --- Upgrade Modal (settings-style) --- */
+  .modal-overlay {
+    position: fixed; inset: 0; z-index: 1000;
+    background: rgba(0, 0, 0, 0.4); backdrop-filter: blur(2px);
+    display: flex; align-items: center; justify-content: center;
   }
-  .sale-label { font-size: 14px; color: var(--color-text-gray); }
-  .sale-value { font-size: 18px; font-weight: 700; color: var(--color-text); }
+  .um-modal {
+    background: var(--color-bg-1); border-radius: 12px;
+    width: 720px; max-width: 95vw; max-height: 90vh;
+    overflow-y: auto; box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+  }
+  .um-header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 20px 24px; border-bottom: 1px solid var(--color-border);
+    position: sticky; top: 0; background: var(--color-bg-1); z-index: 1;
+  }
+  .um-header h3 { font-size: 18px; font-weight: 700; margin: 0; }
+  .um-close {
+    width: 32px; height: 32px; border: none; border-radius: 6px;
+    background: var(--color-bg-2); color: var(--color-text-gray);
+    font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+  }
+  .um-close:hover { background: var(--color-border); }
+  .um-body { padding: 24px; display: flex; flex-direction: column; gap: 0; }
+  .um-section { padding-bottom: 24px; margin-bottom: 24px; border-bottom: 1px solid var(--color-border); }
+  .um-section:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+  .um-section h4 { font-size: 15px; font-weight: 700; margin: 0 0 12px 0; color: var(--color-text); }
+
+  /* Option Grid */
+  .um-grid { display: grid; gap: 10px; }
+  .um-grid.col-3 { grid-template-columns: repeat(3, 1fr); }
+
+  /* Option Card */
+  .um-opt {
+    position: relative; text-align: left;
+    background: var(--color-bg-1); border: 2px solid var(--color-border); border-radius: 8px;
+    padding: 16px; cursor: default;
+    transition: border-color 0.2s, background-color 0.2s, box-shadow 0.2s;
+    display: flex; flex-direction: column; min-height: 80px; color: var(--color-text);
+  }
+  .um-opt.selected {
+    border-color: rgba(0, 82, 155, 0.8);
+    background-color: rgba(66, 134, 245, 0.08);
+    box-shadow: inset 0 4px 40px rgba(0, 82, 155, 0.12);
+  }
+  .um-opt.past {
+    opacity: 0.4; border-color: var(--color-border); background: var(--color-bg-2, #f9fafb);
+  }
+  .um-opt.next {
+    cursor: pointer; border-color: var(--color-border);
+    background: linear-gradient(180deg, var(--color-bg-1) 0%, rgba(66, 134, 245, 0.03) 100%);
+  }
+  .um-opt.next:hover:not(:disabled) {
+    border-color: #60a5fa;
+    background: linear-gradient(180deg, rgba(66, 134, 245, 0.06) 0%, rgba(66, 134, 245, 0.02) 100%);
+    box-shadow: 0 2px 8px rgba(0, 82, 155, 0.08);
+  }
+  .um-opt.locked { opacity: 0.35; }
+  .um-opt:disabled { cursor: not-allowed; }
+  .um-opt-title { font-weight: 700; font-size: 14px; margin-bottom: 6px; }
+  .um-opt-cost { font-size: 13px; color: var(--color-text-gray); margin-bottom: 3px; font-weight: 500; }
+  .um-opt-cost.hl { color: var(--color-theme-1); font-weight: 700; }
+  .um-opt-effect { font-size: 12px; color: var(--color-text-gray); }
+
+  /* Sub Groups (facility) */
+  .um-sub-group { display: flex; flex-direction: column; gap: 8px; }
+  .um-sub-label { font-size: 13px; font-weight: 600; color: var(--color-text); }
+  .um-sub-opts { display: flex; gap: 8px; }
+  .um-mini {
+    position: relative; flex: 1; text-align: left;
+    background: var(--color-bg-1); border: 2px solid var(--color-border); border-radius: 6px;
+    padding: 10px; cursor: default;
+    transition: border-color 0.2s, background-color 0.2s, box-shadow 0.2s;
+    color: var(--color-text);
+  }
+  .um-mini.selected {
+    border-color: rgba(0, 82, 155, 0.8);
+    background-color: rgba(66, 134, 245, 0.08);
+    box-shadow: inset 0 4px 40px rgba(0, 82, 155, 0.12);
+  }
+  .um-mini.past {
+    opacity: 0.4; border-color: var(--color-border); background: var(--color-bg-2, #f9fafb);
+  }
+  .um-mini.next { cursor: pointer; }
+  .um-mini.next:hover:not(:disabled) {
+    border-color: #60a5fa; background-color: rgba(66, 134, 245, 0.04);
+    box-shadow: 0 2px 8px rgba(0, 82, 155, 0.08);
+  }
+  .um-mini.locked { opacity: 0.35; }
+  .um-mini:disabled { cursor: not-allowed; }
+  .um-mini-head { font-weight: 700; font-size: 13px; margin-bottom: 4px; }
+  .um-mini-cost { font-size: 11px; color: var(--color-text-gray); margin-bottom: 2px; }
+  .um-mini-cost.hl { color: var(--color-theme-1); font-weight: 700; }
+  .um-mini-effect { font-size: 11px; color: var(--color-text-gray); }
+
+  /* Checkbox style (energy/security) */
+  .um-opt.chk { padding: 16px; gap: 10px; }
+  .um-chk-header { display: flex; align-items: center; gap: 8px; }
+  .um-checkbox {
+    width: 18px; height: 18px; border: 2px solid var(--color-border); border-radius: 4px;
+    background: var(--color-bg-1); flex-shrink: 0;
+  }
+  .um-checkbox.checked {
+    background-color: var(--color-theme-1); border-color: var(--color-theme-1);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white' width='14px' height='14px'%3E%3Cpath d='M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: center;
+  }
+  .um-chk-title { font-weight: 600; font-size: 14px; }
+  .um-chk-body { padding-left: 26px; }
+
+  /* Badge */
+  .um-badge {
+    position: absolute; top: 8px; right: 8px;
+    font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 10px;
+    background: rgba(0, 82, 155, 0.1); color: var(--color-theme-1);
+  }
+  .um-badge.sm { top: 6px; right: 6px; font-size: 9px; padding: 2px 6px; }
+  .um-badge.busy { background: #fef3c7; color: #92400e; }
+
+  @media (max-width: 600px) {
+    .um-grid.col-3 { grid-template-columns: 1fr; }
+    .um-sub-opts { flex-direction: column; }
+  }
 
   /* Buttons */
-  .action-buttons { display: flex; gap: 16px; }
+  .action-buttons { display: flex; gap: 10px; align-self: start; }
   .btn {
-    flex: 1; padding: 14px; border: none; border-radius: 8px;
-    font-size: 16px; font-weight: 700; cursor: pointer; transition: 0.2s;
+    flex: 1; padding: 12px; border: none; border-radius: 8px;
+    font-size: 14px; font-weight: 700; cursor: pointer; transition: 0.2s;
   }
   .btn-yellow { background-color: #fef3c7; color: #92400e; }
   .btn-yellow:hover { background-color: #fde68a; }
@@ -1056,7 +1224,6 @@
     .summary-section { padding: 0; padding-top: 16px; }
   }
   @media (max-width: 600px) {
-    .finance-row { flex-direction: column; gap: 24px; }
     .stats-grid { flex-direction: column; gap: 12px; }
   }
 

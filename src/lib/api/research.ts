@@ -80,16 +80,14 @@ export function getResearchCenters() {
 }
 
 export function createResearchCenter(companyId: number) {
-	return fetchSpring<ResearchCenterResponse>('/api/research/centers', {
-		method: 'POST',
-		body: JSON.stringify({ companyId })
+	return fetchSpring<ResearchCenterResponse>(`/api/research/centers?companyId=${companyId}`, {
+		method: 'POST'
 	});
 }
 
 export function hireResearcher(centerId: number, count: number) {
-	return fetchSpring(`/api/research/centers/${centerId}/hire`, {
-		method: 'POST',
-		body: JSON.stringify({ count })
+	return fetchSpring<ResearchCenterResponse>(`/api/research/centers/${centerId}/hire?count=${count}`, {
+		method: 'POST'
 	});
 }
 
