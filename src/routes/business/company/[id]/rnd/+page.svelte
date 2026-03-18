@@ -224,8 +224,18 @@
 
   <section class="top-stats-grid">
     <div class="card stat-card">
-      <span class="label">월별 투자액</span>
+      <span class="label">투자액</span>
       <h2 class="value">{center ? formatCurrency(center.monthlyInvestment) : '-'}/월</h2>
+      <span class="sub-value">일일 {center ? formatCurrency(center.dailyInvestment) : '-'}</span>
+      {#if center}
+        <div class="investment-status">
+          {#if center.investmentActive}
+            <span class="status-active">✓ 오늘 투자 완료</span>
+          {:else}
+            <span class="status-inactive">○ 투자 대기</span>
+          {/if}
+        </div>
+      {/if}
     </div>
 
     <div class="card stat-card">
@@ -260,7 +270,8 @@
           disabled={!center}
         />
         <p class="slider-info">
-          연구 속도 보너스: ${investAmount}K 투자 시 +{center?.researchSpeedBonus ?? 0}%
+          설정 보너스: ${investAmount}K 투자 시 +{center?.researchSpeedBonus ?? 0}%<br>
+          현재 적용: +{center?.activeSpeedBonus ?? 0}% {center?.investmentActive ? '(활성화)' : '(비활성화)'}
         </p>
       </div>
     </div>
@@ -998,6 +1009,25 @@
   .fire-btn:disabled { opacity: 0.5; cursor: not-allowed; }
   .sub-value { font-size: 14px; font-weight: 500; color: var(--color-text-gray); }
   .hire-cost { display: block; margin-top: 6px; font-size: 12px; color: var(--color-text-gray); }
+
+  /* --- 투자 상태 --- */
+  .investment-status { margin-top: 8px; }
+  .status-active {
+    font-size: 12px;
+    color: #059669;
+    font-weight: 600;
+    background: rgba(5, 150, 105, 0.1);
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+  .status-inactive {
+    font-size: 12px;
+    color: #d97706;
+    font-weight: 600;
+    background: rgba(217, 119, 6, 0.1);
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
 
   /* --- 해고 관련 스타일 --- */
   .fire-refund { display: block; margin-top: 6px; font-size: 12px; color: var(--color-text-gray); }

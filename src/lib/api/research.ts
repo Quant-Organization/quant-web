@@ -27,10 +27,14 @@ export interface ResearchCenterResponse {
 	companyId: number;
 	companyName: string;
 	monthlyInvestment: number;
+	dailyInvestment: number; // 일일 투자액 (월 투자액 / 30)
 	totalResearchers: number;
 	availableResearchers: number;
 	assignedResearchers: number;
-	researchSpeedBonus: number;
+	researchSpeedBonus: number; // 설정된 투자액 기준 보너스 (%)
+	activeSpeedBonus: number; // 실제 적용 중인 보너스 (%)
+	lastInvestmentDate: string | null; // 마지막 투자 성공 날짜
+	investmentActive: boolean; // 오늘 투자 성공 여부
 	level: number;
 }
 
