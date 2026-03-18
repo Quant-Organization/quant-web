@@ -68,7 +68,8 @@
                     level: springRes.level,
                     fame: springRes.fame,
                     investmentStyle: springRes.investmentStyle,
-                    title: springRes.title
+                    title: springRes.title,
+                    role: springRes.role
                 });
             } else {
                 const springRes = await springRegister(username, password, playerName);
@@ -81,7 +82,8 @@
                     level: springRes.level,
                     fame: springRes.fame,
                     investmentStyle: springRes.investmentStyle,
-                    title: springRes.title
+                    title: springRes.title,
+                    role: springRes.role
                 });
             }
             const currentPath = page.url.pathname;

@@ -58,6 +58,30 @@ export interface AuctionWinnerResponse {
 	deliveredAt: string | null;
 }
 
+export interface CreateAuctionRequest {
+	itemType: string;
+	itemId?: number;
+	itemName: string;
+	itemImageUrl?: string;
+	itemDescription?: string;
+	startPrice: number;
+	minBidIncrement?: number;
+	maxWinners?: number;
+	startTime: string;
+	endTime: string;
+}
+
+export interface UpdateAuctionRequest {
+	itemName?: string;
+	itemImageUrl?: string;
+	itemDescription?: string;
+	startPrice?: number;
+	minBidIncrement?: number;
+	maxWinners?: number;
+	startTime?: string;
+	endTime?: string;
+}
+
 export function getActiveAuctions() {
 	return fetchSpring<AuctionResponse[]>('/api/auctions/active');
 }
@@ -91,4 +115,36 @@ export function getMyWins() {
 
 export function payForWin(winnerId: number) {
 	return fetchSpring(`/api/auctions/wins/${winnerId}/pay`, { method: 'POST' });
+}
+
+// === 관리자용 API ===
+
+export function getAllAuctionsAdmin() {
+	return fetchSpring<AuctionResponse[]>('/api/admin/auctions');
+}
+
+export function createAuctionAdmin(request: CreateAuctionRequest) {
+	return fetchSpring<AuctionResponse>('/api/admin/auctions', {
+		method: 'POST',
+		body: JSON.stringify(request)
+	});
+}
+
+export function updateAuctionAdmin(auctionId: number, request: UpdateAuctionRequest) {
+	return fetchSpring<AuctionResponse>(`/api/admin/auctions/${auctionId}`, {
+		method: 'PUT',
+		body: JSON.stringify(request)
+	});
+}
+
+export function cancelAuctionAdmin(auctionId: number) {
+	return fetchSpring<AuctionResponse>(`/api/admin/auctions/${auctionId}/cancel`, {
+		method: 'POST'
+	});
+}
+
+export function deleteAuctionAdmin(auctionId: number) {
+	return fetchSpring<{ success: boolean; message: string }>(`/api/admin/auctions/${auctionId}`, {
+		method: 'DELETE'
+	});
 }

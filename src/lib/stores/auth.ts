@@ -10,6 +10,7 @@ export interface User {
 	fame?: number;
 	investmentStyle?: string;
 	title?: string | null;
+	role?: string;
 }
 
 function createAuthStore() {

@@ -18,6 +18,7 @@ export interface ResearchProjectResponse {
 	prerequisiteProjectId: number | null;
 	imageUrl: string;
 	requiredLevel: number;
+	applicableCompanyType?: string; // NULL이면 모든 기업 공통, 값이 있으면 특정 기업 전용
 	isCompleted: boolean;
 	canStart: boolean;
 }

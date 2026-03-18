@@ -35,6 +35,7 @@ export interface SpringAuthResponse {
 	fame: number;
 	investmentStyle: string;
 	title: string | null;
+	role: string;
 	token: string;
 }
 
