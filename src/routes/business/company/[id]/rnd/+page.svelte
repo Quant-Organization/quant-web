@@ -7,6 +7,7 @@
     hireResearcher, fireResearcher, getCompletedResearch, getResearchEffects,
     type ResearchProjectResponse, type ResearchCenterResponse, type UserResearchResponse, type CompletedResearchResponse
   } from '$lib/api/research';
+  import { getCompanyDetail } from '$lib/api/company';
   import { friendlyError } from '$lib/api/config';
 
   async function fetchCenter(): Promise<ResearchCenterResponse | null> {
@@ -16,6 +17,7 @@
   import SkeletonTable from '$lib/components/SkeletonTable.svelte';
 
   let center = $state<ResearchCenterResponse | null>(null);
+  let companyTypeCode = $state<string | undefined>(undefined);
   let projects = $state<ResearchProjectResponse[]>([]);
   let activeResearch = $state<UserResearchResponse[]>([]);
   let completedResearch = $state<CompletedResearchResponse[]>([]);
@@ -23,6 +25,7 @@
   let loading = $state(true);
 
   let investAmount = $state(600);
+  let investDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
   // 탭: 'active' | 'completed' | 'effects'
   let activeTab = $state<'active' | 'completed' | 'effects'>('active');
@@ -73,17 +76,19 @@
   onMount(async () => {
     const companyId = Number(page.params.id);
     try {
-      const [ctr, projs, active, completed, effects] = await Promise.all([
+      const [company, ctr, allProjs, active, completed, effects] = await Promise.all([
+        getCompanyDetail(companyId),
         fetchCenter(),
         getResearchProjects().catch(() => [] as ResearchProjectResponse[]),
         getActiveResearch().catch(() => [] as UserResearchResponse[]),
         getCompletedResearch().catch(() => [] as CompletedResearchResponse[]),
         getResearchEffects(companyId).catch(() => [] as CompletedResearchResponse[])
       ]);
+      companyTypeCode = company.companyType;
       center = ctr;
-      projects = projs;
+      projects = filterByCompanyType(allProjs, companyTypeCode);
       const seen = new Set<string>();
-      allCategories = projs.reduce((acc, p) => {
+      allCategories = allProjs.reduce((acc: { code: string; name: string }[], p: ResearchProjectResponse) => {
         const code = p.category;
         if (!seen.has(code)) {
           seen.add(code);
@@ -112,11 +117,14 @@
     console.log('Starting research:', { centerId: center.id, projectId: project.id, researchers: project.requiredResearchers });
     try {
       await startResearch({ researchCenterId: center.id, projectId: project.id, assignedResearchers: project.requiredResearchers });
-      [activeResearch, projects, center] = await Promise.all([
+      const [newActive, allProjs, newCenter] = await Promise.all([
         getActiveResearch(),
         getResearchProjects(),
         fetchCenter()
       ]);
+      activeResearch = newActive;
+      projects = filterByCompanyType(allProjs, companyTypeCode);
+      center = newCenter;
       toast.success('연구가 시작되었습니다.');
     } catch (e) {
       toast.error(friendlyError(e, '연구 시작에 실패했습니다.'));
@@ -129,11 +137,14 @@
     cancelingId = research.id;
     try {
       await cancelResearch(research.id);
-      [activeResearch, projects, center] = await Promise.all([
+      const [newActive, allProjs, newCenter] = await Promise.all([
         getActiveResearch(),
         getResearchProjects(),
         fetchCenter()
       ]);
+      activeResearch = newActive;
+      projects = filterByCompanyType(allProjs, companyTypeCode);
+      center = newCenter;
       toast.success('연구가 취소되었습니다.');
     } catch (e) {
       toast.error(friendlyError(e, '연구 취소에 실패했습니다.'));
@@ -142,16 +153,19 @@
     }
   }
 
-  async function handleInvestmentChange(e: Event) {
+  function handleInvestmentChange(e: Event) {
     const target = e.target as HTMLInputElement;
     investAmount = Number(target.value);
     if (!center) return;
-    try {
-      const updated = await setInvestment(center.id, investAmount * 1000);
-      center = updated;
-    } catch (e) {
-      console.error('투자액 변경 실패:', e);
-    }
+    if (investDebounceTimer) clearTimeout(investDebounceTimer);
+    investDebounceTimer = setTimeout(async () => {
+      try {
+        const updated = await setInvestment(center!.id, investAmount * 1000);
+        center = updated;
+      } catch (e) {
+        console.error('투자액 변경 실패:', e);
+      }
+    }, 1000);
   }
 
   async function handleHireResearcher() {
@@ -184,6 +198,13 @@
     }
   }
 
+  function filterByCompanyType(projs: ResearchProjectResponse[], typeCode?: string): ResearchProjectResponse[] {
+    if (!typeCode) return projs;
+    return projs.filter(p =>
+      !p.applicableCompanyType || p.applicableCompanyType === typeCode
+    );
+  }
+
   function formatCurrency(n: number) {
     n = n ?? 0;
     if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
@@ -194,10 +215,16 @@
   async function handleCategoryFilter(category: string | null) {
     if (category === null || selectedCategory === category) {
       selectedCategory = null;
-      try { projects = await getResearchProjects(); } catch (e) { console.error('프로젝트 로드 실패:', e); }
+      try {
+        const allProjs = await getResearchProjects();
+        projects = filterByCompanyType(allProjs, companyTypeCode);
+      } catch (e) { console.error('프로젝트 로드 실패:', e); }
     } else {
       selectedCategory = category;
-      try { projects = await getResearchProjectsByCategory(category); } catch (e) { console.error('카테고리 필터 실패:', e); }
+      try {
+        const catProjs = await getResearchProjectsByCategory(category);
+        projects = filterByCompanyType(catProjs, companyTypeCode);
+      } catch (e) { console.error('카테고리 필터 실패:', e); }
     }
   }
 </script>
