@@ -1,3 +1,6 @@
+// 서버 API 변경 동기화 테스트 완료 - 2026-03-17
+// 실제 API 변경 사항 없음 (워크플로우 테스트 목적)
+
 const ERROR_MESSAGES: Record<string, string> = {
 	// Common
 	C001: '입력값이 올바르지 않습니다.',
